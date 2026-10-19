@@ -1,0 +1,15 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/TestResults/
+.git/
+.github/
+.vs/
+.idea/
+**/.env
+**/.env.*
+!.env.example
+web/
+docs/
+design/
+tasks/

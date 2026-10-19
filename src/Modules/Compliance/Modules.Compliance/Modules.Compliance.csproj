@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
+    <ProjectReference Include="../../../Shared/Shared.Kernel/Shared.Kernel.csproj" />
+    <ProjectReference Include="../../../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

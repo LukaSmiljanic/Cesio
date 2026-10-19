@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <ItemGroup>
+    <ProjectReference Include="../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+    <ProjectReference Include="../Modules/Identity/Modules.Identity/Modules.Identity.csproj" />
+    <ProjectReference Include="../Modules/Organizations/Modules.Organizations/Modules.Organizations.csproj" />
+    <ProjectReference Include="../Modules/Compliance/Modules.Compliance/Modules.Compliance.csproj" />
+    <ProjectReference Include="../Modules/Receivables/Modules.Receivables/Modules.Receivables.csproj" />
+    <ProjectReference Include="../Modules/Marketplace/Modules.Marketplace/Modules.Marketplace.csproj" />
+    <ProjectReference Include="../Modules/Deals/Modules.Deals/Modules.Deals.csproj" />
+    <ProjectReference Include="../Modules/Fees/Modules.Fees/Modules.Fees.csproj" />
+    <ProjectReference Include="../Modules/Notifications/Modules.Notifications/Modules.Notifications.csproj" />
+    <ProjectReference Include="../Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
+  </ItemGroup>
+
+</Project>

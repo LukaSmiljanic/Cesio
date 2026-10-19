@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="TngTech.ArchUnitNET.xUnitV3" />
+  </ItemGroup>
+
+  <!-- Every production project is referenced so its assembly is loaded for the type-dependency rules. -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Integrations/Integrations.Cef/Integrations.Cef.csproj" />
+    <ProjectReference Include="../../src/Integrations/Integrations.Screening/Integrations.Screening.csproj" />
+    <ProjectReference Include="../../src/Integrations/Integrations.Sef/Integrations.Sef.csproj" />
+    <ProjectReference Include="../../src/Integrations/Integrations.Signatures/Integrations.Signatures.csproj" />
+    <ProjectReference Include="../../src/Modules/Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
+    <ProjectReference Include="../../src/Modules/Compliance/Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Compliance/Modules.Compliance/Modules.Compliance.csproj" />
+    <ProjectReference Include="../../src/Modules/Deals/Modules.Deals.Contracts/Modules.Deals.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Deals/Modules.Deals/Modules.Deals.csproj" />
+    <ProjectReference Include="../../src/Modules/Fees/Modules.Fees.Contracts/Modules.Fees.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Fees/Modules.Fees/Modules.Fees.csproj" />
+    <ProjectReference Include="../../src/Modules/Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Identity/Modules.Identity/Modules.Identity.csproj" />
+    <ProjectReference Include="../../src/Modules/Marketplace/Modules.Marketplace.Contracts/Modules.Marketplace.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Marketplace/Modules.Marketplace/Modules.Marketplace.csproj" />
+    <ProjectReference Include="../../src/Modules/Notifications/Modules.Notifications.Contracts/Modules.Notifications.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Notifications/Modules.Notifications/Modules.Notifications.csproj" />
+    <ProjectReference Include="../../src/Modules/Organizations/Modules.Organizations.Contracts/Modules.Organizations.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Organizations/Modules.Organizations/Modules.Organizations.csproj" />
+    <ProjectReference Include="../../src/Modules/Receivables/Modules.Receivables.Contracts/Modules.Receivables.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Receivables/Modules.Receivables/Modules.Receivables.csproj" />
+    <ProjectReference Include="../../src/Platform.Api/Platform.Api.csproj" />
+    <ProjectReference Include="../../src/Platform.Worker/Platform.Worker.csproj" />
+    <ProjectReference Include="../../src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Shared/Shared.Kernel/Shared.Kernel.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -2,7 +2,7 @@
 
 A digital marketplace where Serbian businesses (sellers) offer verified SEF e-invoices to licensed factoring companies and banks (factors), who compete with offers. The platform verifies, matches, documents and audits. **It does not purchase receivables or handle deal funds.**
 
-**Phase:** documentation and regulatory validation. No application code yet. Production is blocked on the P0 items in [docs/legal-questions.md](docs/legal-questions.md).
+**Phase:** documentation and regulatory validation. The empty solution foundation (task 001) exists; no business features yet. Production is blocked on the P0 items in [docs/legal-questions.md](docs/legal-questions.md).
 
 ## Documentation map
 | Document | Purpose |
@@ -34,3 +34,19 @@ Product requirements change only through steps 1–4, never silently during impl
 
 ## Stack
 .NET 10 · ASP.NET Core · EF Core · PostgreSQL · React + TypeScript · Docker · Azure (Container Apps, Flexible Server, Blob, Key Vault).
+
+## Local development
+Prerequisites: .NET SDK 10, Node.js 22.13+ (see `web/.nvmrc`), Docker.
+
+```
+cp .env.example .env         # then set a local-only MSSQL_SA_PASSWORD in .env (never commit it)
+docker compose up -d         # SQL Server 2022 Developer, Azurite, smtp4dev (UI: http://localhost:5000)
+dotnet build
+dotnet test
+cd web && npm ci && npm run dev
+```
+
+- API: `dotnet run --project src/Platform.Api` → `http://localhost:5080/health/live`, `/health/ready`.
+- Worker: `dotnet run --project src/Platform.Worker`.
+- Container: `docker build -t cesio .` then `docker run cesio api` or `docker run cesio worker`.
+- Rules checked in CI: web lint and format, architecture tests (`tests/Architecture.Tests`), `scripts/check-no-float.sh` (ADR-008), gitleaks, CodeQL, dependency review.

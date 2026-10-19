@@ -1,0 +1,43 @@
+# Local development dependencies (ADR-021). Copy .env.example to .env and set MSSQL_SA_PASSWORD first.
+name: cesio
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env (see .env.example)}
+    ports:
+      - "127.0.0.1:1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --location /data --skipApiVersionCheck
+    ports:
+      - "127.0.0.1:10000:10000"
+      - "127.0.0.1:10001:10001"
+      - "127.0.0.1:10002:10002"
+    volumes:
+      - azurite-data:/data
+
+  smtp4dev:
+    image: rnwood/smtp4dev
+    ports:
+      - "127.0.0.1:5025:25"
+      - "127.0.0.1:5000:80"
+    volumes:
+      - smtp4dev-data:/smtp4dev
+
+volumes:
+  sqlserver-data:
+  azurite-data:
+  smtp4dev-data:

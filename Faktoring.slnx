@@ -1,0 +1,57 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Platform.Api/Platform.Api.csproj" />
+    <Project Path="src/Platform.Worker/Platform.Worker.csproj" />
+  </Folder>
+  <Folder Name="/src/Integrations/">
+    <Project Path="src/Integrations/Integrations.Cef/Integrations.Cef.csproj" />
+    <Project Path="src/Integrations/Integrations.Screening/Integrations.Screening.csproj" />
+    <Project Path="src/Integrations/Integrations.Sef/Integrations.Sef.csproj" />
+    <Project Path="src/Integrations/Integrations.Signatures/Integrations.Signatures.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Audit/">
+    <Project Path="src/Modules/Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
+    <Project Path="src/Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Compliance/">
+    <Project Path="src/Modules/Compliance/Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
+    <Project Path="src/Modules/Compliance/Modules.Compliance/Modules.Compliance.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Deals/">
+    <Project Path="src/Modules/Deals/Modules.Deals.Contracts/Modules.Deals.Contracts.csproj" />
+    <Project Path="src/Modules/Deals/Modules.Deals/Modules.Deals.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Fees/">
+    <Project Path="src/Modules/Fees/Modules.Fees.Contracts/Modules.Fees.Contracts.csproj" />
+    <Project Path="src/Modules/Fees/Modules.Fees/Modules.Fees.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Identity/">
+    <Project Path="src/Modules/Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />
+    <Project Path="src/Modules/Identity/Modules.Identity/Modules.Identity.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Marketplace/">
+    <Project Path="src/Modules/Marketplace/Modules.Marketplace.Contracts/Modules.Marketplace.Contracts.csproj" />
+    <Project Path="src/Modules/Marketplace/Modules.Marketplace/Modules.Marketplace.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Notifications/">
+    <Project Path="src/Modules/Notifications/Modules.Notifications.Contracts/Modules.Notifications.Contracts.csproj" />
+    <Project Path="src/Modules/Notifications/Modules.Notifications/Modules.Notifications.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Organizations/">
+    <Project Path="src/Modules/Organizations/Modules.Organizations.Contracts/Modules.Organizations.Contracts.csproj" />
+    <Project Path="src/Modules/Organizations/Modules.Organizations/Modules.Organizations.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/Receivables/">
+    <Project Path="src/Modules/Receivables/Modules.Receivables.Contracts/Modules.Receivables.Contracts.csproj" />
+    <Project Path="src/Modules/Receivables/Modules.Receivables/Modules.Receivables.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+    <Project Path="src/Shared/Shared.Kernel/Shared.Kernel.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Architecture.Tests/Architecture.Tests.csproj" />
+    <Project Path="tests/Platform.Api.Tests/Platform.Api.Tests.csproj" />
+  </Folder>
+</Solution>

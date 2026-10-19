@@ -14,7 +14,7 @@ Create the empty, buildable modular-monolith solution, local environment and CI,
 - Multi-stage `Dockerfile` producing one image; the entrypoint argument selects the API or the worker.
 - `web/`: Vite React TS scaffold with ESLint, Prettier, Vitest; build only (UI shell in 004).
 - CI pipeline (GitHub Actions): restore, build, test, `npm ci && npm run build && npm test`, CodeQL, dependency review.
-- Architecture tests: modules may reference only `Shared.*` and other modules' `.Contracts`; `.Contracts` must not reference implementations.
+- Architecture tests: modules may reference only `Shared.*`, other modules' `.Contracts` and `Integrations.*`; `.Contracts` must not reference implementations; `Integrations.*` reference only `Shared.*`. The module-to-module direction in architecture.md §3 is not enforced by this task.
 - CI check script that fails if `float`, `double`, `real`, `double precision` or `money` appear in `src/**/Domain/**`, `**/Migrations/**`, or entity configurations.
 
 # Business Rules
@@ -36,10 +36,10 @@ No secrets in the repo; add `.gitignore` and secret scanning (gitleaks in CI). H
 An architecture test project with the rules above (one deliberately violating sample verified locally, then removed). A smoke test that the API starts (WebApplicationFactory).
 
 # Acceptance Criteria
-- [ ] `docker compose up -d && dotnet build && dotnet test` green on a clean machine.
+- [ ] `docker compose up -d && dotnet build && dotnet test` green on a clean machine (after `cp .env.example .env` and setting a local SA password, see README).
 - [ ] CI green on a PR.
-- [ ] An architecture violation fails the build.
-- [ ] A float in a domain file fails the CI check.
+- [x] An architecture violation fails the build.
+- [x] A float in a domain file fails the CI check.
 
 # Out of Scope
 Auth, DB schema, UI screens, Azure resources.
