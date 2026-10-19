@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Fails when floating-point or SQL money types appear where amounts are modelled (ADR-008, task 001):
-# domain code (src/**/Domain/**), migrations (**/Migrations/**), EF entity configurations and DbContexts.
+# domain code (src/**/Domain/**, Shared.Kernel), migrations (**/Migrations/**), EF entity configurations and DbContexts.
 # Lines starting with a line comment (//, --) are ignored. In configuration and DbContext files the SQL types
 # are matched only inside string literals, so the Money value object and variables named "money" are not reported.
 set -euo pipefail
@@ -16,7 +16,7 @@ list() {
   find . \( -name .git -o -name node_modules -o -name bin -o -name obj \) -prune -o -type f "$@" -print
 }
 
-mapfile -t domain_files < <(list -path '*/src/*' -path '*/Domain/*' -name '*.cs')
+mapfile -t domain_files < <(list -path '*/src/*' \( -path '*/Domain/*' -o -path '*/Shared.Kernel/*' \) -name '*.cs')
 mapfile -t migration_files < <(list -path '*/Migrations/*' \( -name '*.cs' -o -name '*.sql' \))
 mapfile -t mapping_files < <(list -name '*.cs' -not -path '*/Migrations/*' \( -path '*/Configurations/*' -o -name '*Configuration.cs' -o -name '*DbContext.cs' \))
 

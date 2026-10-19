@@ -23,6 +23,11 @@ jobs:
       - run: dotnet restore
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release
+      - name: Shared.Kernel branch coverage must be 100%
+        run: |
+          dotnet test --project tests/Shared.Kernel.Tests --no-build -c Release \
+            --coverage --coverage-output-format cobertura --coverage-output kernel.cobertura.xml --results-directory TestResults
+          bash scripts/check-kernel-coverage.sh TestResults/kernel.cobertura.xml
 
   web:
     runs-on: ubuntu-latest

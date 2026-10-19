@@ -34,9 +34,9 @@ Validation types must reject over-long input (DoS) and non-ASCII digits.
 Property-based or table tests: Money arithmetic and rounding (0.005 → 0.01, −0.005 → −0.01), currency mismatch, parsing of "97000.00"/"97000"/"9.7e4" (reject), PIB valid/invalid samples (use real-format test numbers, not real companies), account number checksum samples, business-day addition across holidays and year end.
 
 # Acceptance Criteria
-- [ ] 100% branch coverage on the kernel value objects.
-- [ ] No `double`/`float` in the kernel.
-- [ ] JSON round trip of Money preserves scale.
+- [x] 100% branch coverage on the kernel value objects.
+- [x] No `double`/`float` in the kernel.
+- [x] JSON round trip of Money preserves scale.
 
 # Out of Scope
-FX conversion, persistence mapping.
+FX conversion, persistence mapping. The holiday dates themselves: the calendar takes non-working days as input and ships no dates (product owner, 2026-10-19); where the real table is stored and maintained is still to be assigned to a task.

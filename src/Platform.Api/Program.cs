@@ -9,11 +9,13 @@ using Modules.Notifications;
 using Modules.Organizations;
 using Modules.Receivables;
 using Shared.Infrastructure;
+using Shared.Kernel;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddPlatformDefaults("platform-api");
 builder.Services.AddProblemDetails();
+builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.AddKernelConverters());
 builder.Services.AddHealthChecks();
 
 builder.Services
