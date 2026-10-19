@@ -36,7 +36,7 @@ No secrets in the repo; add `.gitignore` and secret scanning (gitleaks in CI). H
 An architecture test project with the rules above (one deliberately violating sample verified locally, then removed). A smoke test that the API starts (WebApplicationFactory).
 
 # Acceptance Criteria
-- [ ] `docker compose up -d && dotnet build && dotnet test` green on a clean machine (after `cp .env.example .env` and setting a local SA password, see README).
+- [x] `docker compose up -d && dotnet build && dotnet test` green on a clean machine (after `cp .env.example .env` and setting a local SA password, see README).
 - [ ] CI green on a PR.
 - [x] An architecture violation fails the build.
 - [x] A float in a domain file fails the CI check.
