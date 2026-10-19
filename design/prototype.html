@@ -1,0 +1,754 @@
+<title>Cesio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: ledger-style app shell. Fixed sidebar + work area; summary first, history below; one teal accent, semantic colors for state only. */
+:root{
+  --bg:#F3F6F8; --surface:#FFFFFF; --surface-2:#EAF0F3; --ink:#13202A; --ink-2:#4B5B68; --ink-3:#71818E;
+  --line:#D6DEE4; --accent:#0E6E6A; --accent-ink:#FFFFFF; --accent-soft:#DCEEED;
+  --pos:#1B7443; --pos-soft:#DFF1E6; --warn:#8F5A00; --warn-soft:#FBEED3; --crit:#AE2A20; --crit-soft:#FADFDC;
+  --focus:#2B7FD9; --shadow:0 1px 2px rgba(19,32,42,.06),0 8px 24px rgba(19,32,42,.08);
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,-apple-system,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D141A; --surface:#141E26; --surface-2:#1B2731; --ink:#E4ECF1; --ink-2:#A2B2BE; --ink-3:#7F909C;
+  --line:#293844; --accent:#3DB0A7; --accent-ink:#04201D; --accent-soft:#12312E;
+  --pos:#5CC48A; --pos-soft:#143424; --warn:#E3AA3E; --warn-soft:#3A2B0F; --crit:#F07D73; --crit-soft:#3C1A18;
+  --focus:#6AAEF5; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D141A; --surface:#141E26; --surface-2:#1B2731; --ink:#E4ECF1; --ink-2:#A2B2BE; --ink-3:#7F909C;
+  --line:#293844; --accent:#3DB0A7; --accent-ink:#04201D; --accent-soft:#12312E;
+  --pos:#5CC48A; --pos-soft:#143424; --warn:#E3AA3E; --warn-soft:#3A2B0F; --crit:#F07D73; --crit-soft:#3C1A18;
+  --focus:#6AAEF5; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:400 14px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--f-mono);font-size:.92em}
+.muted{color:var(--ink-2)}
+.faint{color:var(--ink-3)}
+
+.banner{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:6px 16px;background:var(--ink);color:var(--bg);font-size:12.5px}
+.banner button{background:transparent;border:1px solid currentColor;border-radius:999px;padding:2px 10px;color:inherit;cursor:pointer;font-size:12px}
+
+.shell{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:calc(100% - 32px)}
+.side{background:var(--surface);border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:22px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:19px;letter-spacing:-.01em;display:flex;align-items:center;gap:10px;padding:0 8px}
+.brand-mark{width:26px;height:26px;border-radius:6px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink);font-size:13px;font-family:var(--f-mono);font-weight:500}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{all:unset;cursor:pointer;padding:8px 10px;border-radius:6px;color:var(--ink-2);font-weight:500;display:flex;justify-content:space-between;align-items:center}
+.nav button:hover{background:var(--surface-2);color:var(--ink)}
+.nav button[aria-current="page"]{background:var(--accent-soft);color:var(--ink)}
+.nav button:focus-visible{outline:2px solid var(--focus)}
+.nav .count{font-size:11.5px;background:var(--warn-soft);color:var(--warn);border-radius:999px;padding:0 7px;font-weight:600}
+.side-foot{margin-top:auto;font-size:12px;color:var(--ink-3);padding:0 8px}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:12px 28px;border-bottom:1px solid var(--line);background:var(--surface)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;padding:3px;background:var(--surface-2);gap:3px;flex-wrap:wrap}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:6px;cursor:pointer;color:var(--ink-2);font-weight:500;text-align:left;line-height:1.25}
+.seg button small{display:block;font-weight:400;font-size:11.5px;color:var(--ink-3)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.user{display:flex;align-items:center;gap:10px;color:var(--ink-2);font-size:13px}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--surface-2);display:grid;place-items:center;font-weight:600;color:var(--ink);font-size:12px;border:1px solid var(--line)}
+
+.content{padding:28px;display:flex;flex-direction:column;gap:24px;max-width:1240px;width:100%}
+.crumbs{font-size:12.5px;color:var(--ink-3);display:flex;gap:6px;flex-wrap:wrap}
+.crumbs button{all:unset;cursor:pointer;color:var(--ink-2);text-decoration:underline;text-underline-offset:2px}
+h1{font-family:var(--f-display);font-weight:700;font-size:28px;line-height:1.15;letter-spacing:-.015em;margin:4px 0 0;text-wrap:balance}
+h2{font-family:var(--f-body);font-weight:600;font-size:15px;margin:0}
+.eyebrow{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:600}
+.head{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.panel-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel-b{padding:18px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:24px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:16px}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.kpi{background:var(--surface);padding:16px 18px}
+.kpi .v{font-family:var(--f-display);font-size:24px;font-weight:500;margin-top:4px;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12.5px;color:var(--ink-2)}
+
+.dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px 20px;margin:0}
+.dl div{min-width:0}
+.dl dt{font-size:12px;color:var(--ink-3);margin-bottom:2px}
+.dl dd{margin:0;font-weight:500;overflow-wrap:anywhere}
+
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{font-size:12px;font-weight:600;color:var(--ink-3);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface)}
+td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:var(--surface-2)}
+tr.best td{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+.tag-best{font-size:11px;font-weight:600;color:var(--accent);margin-left:6px;white-space:nowrap}
+
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:2px 9px;border-radius:999px;white-space:nowrap;border:1px solid transparent}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip.neutral{background:var(--surface-2);color:var(--ink-2)}
+.chip.accent{background:var(--accent-soft);color:var(--accent)}
+.chip.pos{background:var(--pos-soft);color:var(--pos)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.crit{background:var(--crit-soft);color:var(--crit)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:7px;padding:8px 14px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--surface);color:var(--ink);white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.sim{border-style:dashed;color:var(--ink-2);font-weight:500}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+
+.act-list{list-style:none;margin:0;padding:0}
+.act-list li{display:flex;gap:14px;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.act-list li:last-child{border-bottom:0}
+.act-list .t{font-weight:500}
+.act-list .d{font-size:12.5px;color:var(--ink-2)}
+.empty{padding:22px 18px;color:var(--ink-2)}
+
+.turn{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:14px 18px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface)}
+.turn.you{border-color:var(--warn);background:var(--warn-soft)}
+.turn.done{border-color:var(--pos);background:var(--pos-soft)}
+.turn b{font-weight:600}
+
+.steps{list-style:none;margin:0;padding:0;counter-reset:s}
+.steps li{display:grid;grid-template-columns:30px minmax(0,1fr);gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);position:relative}
+.steps li:last-child{border-bottom:0}
+.dot{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;border:1.5px solid var(--line);color:var(--ink-3);background:var(--surface);font-variant-numeric:tabular-nums}
+.steps li.done .dot{background:var(--pos);border-color:var(--pos);color:var(--surface)}
+.steps li.cur .dot{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.steps li.skip .dot{border-style:dashed}
+.steps .st{font-weight:600}
+.steps .who{font-size:12px;color:var(--ink-3);margin-left:8px;font-weight:500}
+.steps .ex{font-size:13px;color:var(--ink-2);margin-top:2px;max-width:68ch}
+.steps .meta{font-size:12.5px;color:var(--ink-2);margin-top:4px}
+.steps .acts{margin-top:10px}
+.steps li.cur{background:color-mix(in srgb,var(--accent-soft) 35%,transparent)}
+
+.hist{list-style:none;margin:0;padding:0;font-size:13px}
+.hist li{display:grid;grid-template-columns:132px minmax(0,1fr);gap:10px;padding:8px 18px;border-bottom:1px solid var(--line)}
+.hist li:last-child{border-bottom:0}
+
+.stamp{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--pos);color:var(--pos);border-radius:6px;padding:4px 10px;font-size:12.5px;font-weight:600}
+.stamp .mono{font-weight:400;color:var(--ink-2)}
+.note{font-size:12.5px;color:var(--ink-2);background:var(--surface-2);border-radius:6px;padding:10px 12px}
+.warnbox{font-size:13px;color:var(--ink);background:var(--warn-soft);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:6px;padding:10px 12px}
+.errbox{font-size:13px;color:var(--crit);background:var(--crit-soft);border-radius:6px;padding:8px 12px}
+
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label,.lbl{font-size:12.5px;font-weight:600;color:var(--ink-2)}
+.input,select.input,textarea.input{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:8px 10px;width:100%}
+.input:focus{border-color:var(--accent);outline:2px solid var(--accent-soft);outline-offset:0}
+.input.money{font-variant-numeric:tabular-nums;text-align:right;font-size:16px;font-weight:500}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.check{display:flex;gap:10px;align-items:flex-start;padding:8px 0;font-size:13.5px}
+.check input{margin-top:3px;accent-color:var(--accent);width:16px;height:16px;flex:none}
+
+.metrics{display:grid;grid-template-columns:1fr auto;gap:8px 16px;font-size:13.5px;margin:0}
+.metrics dt{color:var(--ink-2)}
+.metrics dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;font-weight:500}
+.metrics .total{border-top:1px solid var(--line);padding-top:8px;font-weight:600;color:var(--ink)}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.fchip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;cursor:pointer;font-size:13px;color:var(--ink-2)}
+.fchip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+
+.checks{list-style:none;margin:0;padding:0}
+.checks li{display:flex;gap:10px;padding:7px 0;font-size:13.5px;border-bottom:1px dashed var(--line)}
+.checks li:last-child{border-bottom:0}
+.checks .ok{color:var(--pos);font-weight:700;width:16px;flex:none}
+.checks .run{color:var(--ink-3);width:16px;flex:none}
+
+.overlay{position:fixed;inset:0;background:rgba(10,18,24,.5);display:grid;place-items:center;padding:16px;z-index:50}
+.modal{background:var(--surface);border-radius:12px;box-shadow:var(--shadow);width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;border:1px solid var(--line)}
+.modal-h{padding:18px 22px 6px}
+.modal-h h2{font-family:var(--f-display);font-size:20px;font-weight:700}
+.modal-b{padding:10px 22px 4px;display:flex;flex-direction:column;gap:14px}
+.modal-f{padding:16px 22px 20px;display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.otp{font-family:var(--f-mono);font-size:24px;letter-spacing:.4em;text-align:center}
+.big{font-family:var(--f-display);font-size:26px;font-weight:500;font-variant-numeric:tabular-nums}
+
+.toasts{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;z-index:60;max-width:min(380px,calc(100% - 32px))}
+.toast{background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;box-shadow:var(--shadow);font-size:13.5px}
+
+@media (max-width:900px){
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .side{flex-direction:row;align-items:center;padding:10px 16px;gap:14px;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto}
+  .nav{flex-direction:row}
+  .nav button{white-space:nowrap}
+  .side-foot{display:none}
+  .brand span{display:none}
+  .grid2{grid-template-columns:minmax(0,1fr)}
+  .content{padding:20px 16px}
+  .top{padding:10px 16px}
+  .hist li{grid-template-columns:minmax(0,1fr)}
+  h1{font-size:23px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="banner" role="note">
+  <span><b>Prototip v0.1</b> · svi podaci, firme i iznosi su izmišljeni · ništa se ne čuva i ne šalje</span>
+  <button type="button" data-act="reset">Vrati početno stanje</button>
+</div>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><div class="brand-mark">C</div><span>Cesio</span></div>
+    <nav class="nav" id="nav" aria-label="Glavna navigacija"></nav>
+    <div class="side-foot">Naziv i brend su privremeni.<br>Danas: 05.10.2026.</div>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <div class="seg" role="group" aria-label="Uloga u prototipu" id="roles"></div>
+      <div class="user"><span id="who"></span><div class="avatar" id="avatar"></div></div>
+    </header>
+    <main class="content" id="view"></main>
+  </div>
+</div>
+<div id="modal-root"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+/* ---------- utilities (money in para = integer minor units; no floats for amounts) ---------- */
+const TODAY = new Date(2026, 9, 5, 9, 30);
+const pad = n => String(n).padStart(2, '0');
+const toDate = s => { const [y, m, d] = s.slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
+const toDT = s => { const [a, b = '00:00'] = s.split('T'); const x = toDate(a); const [h, mi] = b.split(':').map(Number); x.setHours(h, mi); return x; };
+const mid = x => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+const days = (a, b) => Math.round((mid(b) - mid(a)) / 864e5);
+function addBD(date, n) { const x = mid(date); let k = 0; while (k < n) { x.setDate(x.getDate() + 1); const w = x.getDay(); if (w !== 0 && w !== 6) k++; } return x; }
+const iso = x => `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}`;
+const fD = x => { x = typeof x === 'string' ? toDate(x) : x; return `${pad(x.getDate())}.${pad(x.getMonth() + 1)}.${x.getFullYear()}.`; };
+const fDT = s => { const x = typeof s === 'string' ? toDT(s) : s; return `${fD(x)} ${pad(x.getHours())}:${pad(x.getMinutes())}`; };
+function fM(p, cur = true) { const neg = p < 0; p = Math.abs(p); const w = Math.floor(p / 100), c = p % 100; return (neg ? '−' : '') + String(w).replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + pad(c) + (cur ? ' RSD' : ''); }
+const fShort = p => (p / 1e8).toFixed(1).replace('.', ',') + ' mil. RSD';
+const fPct = x => (x * 100).toFixed(2).replace('.', ',') + ' %';
+function parseM(s) {
+  s = String(s).trim().replace(/\s|RSD/gi, ''); if (!s) return null;
+  let ip, dp = '';
+  if (s.includes(',')) { const parts = s.split(','); if (parts.length > 2) return null; ip = parts[0].replace(/\./g, ''); dp = parts[1]; }
+  else { const m = s.match(/^(.*)\.(\d{1,2})$/); if (m) { ip = m[1].replace(/\./g, ''); dp = m[2]; } else ip = s.replace(/\./g, ''); }
+  if (!/^\d{1,13}$/.test(ip) || !/^\d{0,2}$/.test(dp)) return null;
+  return Number(ip) * 100 + Number((dp + '00').slice(0, 2));
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const feeOf = F => Math.max(600000, Math.round(F * 5 / 1000)); // 0,50 %, min 6.000,00 RSD — assumption (BQ-01)
+const recourseLbl = r => r === 'Recourse' ? 'Sa regresom' : 'Bez regresa';
+let clock = new Date(TODAY);
+const now = () => { clock = new Date(clock.getTime() + 7 * 60000); return `${iso(clock)}T${pad(clock.getHours())}:${pad(clock.getMinutes())}`; };
+
+/* ---------- fictional data ---------- */
+const SELLER = { name: 'Severna Ambalaža d.o.o.', pib: '109876543', mb: '21456789', user: 'Jelena Marković', ini: 'JM' };
+const ME_F = { name: 'Faktor Alfa d.o.o.', pib: '110223344', user: 'Nikola Ilić', ini: 'NI' };
+const FACTORS = ['Faktor Alfa d.o.o.', 'Beta Faktoring a.d.', 'Gamma Banka a.d.', 'Delta Finans d.o.o.'];
+
+const STEPS = [
+  { k: 'accepted', t: 'Ponuda prihvaćena', who: 'seller', ex: 'Ostale ponude su zatvorene, a potraživanje je rezervisano za ovaj posao.' },
+  { k: 'cdd', t: 'CDD provera faktora', who: 'factor', ex: 'Faktor sprovodi sopstvenu proveru klijenta (KYC/AML) na osnovu KYB paketa koji ste odobrili za deljenje.' },
+  { k: 'contract', t: 'Ugovor i potvrda uslova', who: 'both', ex: 'Faktor otprema svoj ugovor o faktoringu. Obe strane potvrđuju da strane, faktura, iznos, cena i regres odgovaraju prihvaćenoj ponudi.' },
+  { k: 'signed', t: 'Potpisivanje (KEP)', who: 'both', ex: 'Ovlašćeni potpisnici potpisuju ugovor kvalifikovanim elektronskim potpisom. Platforma proverava potpise i ovlašćenja. Potpisivanjem je potraživanje ustupljeno.' },
+  { k: 'cef', t: 'Centralna evidencija faktoringa', who: 'seller', ex: 'Evidencija iz čl. 32a Zakona o faktoringu još nije u funkciji. Kada počne sa radom, ovde se evidentira ustupanje.' },
+  { k: 'notice', t: 'Obaveštenje dužnika', who: 'seller', ex: 'Dužnik se obaveštava o ustupanju na način predviđen ugovorom; dokaz se prilaže ovde.' },
+  { k: 'funding', t: 'Isplata kupoprodajne cene', who: 'factor', ex: 'Faktor uplaćuje cenu direktno na verifikovani račun prodavca. Platforma ne prima niti prosleđuje novac.' },
+  { k: 'confirm', t: 'Potvrda prijema sredstava', who: 'seller', ex: 'Prodavac potvrđuje da je tačan iznos legao na račun. Ako nije, prijavljuje odstupanje.' },
+  { k: 'outcome', t: 'Ishod po dospeću', who: 'factor', ex: 'Po dospeću faktor evidentira naplatu od dužnika ili aktiviranje regresa.' },
+];
+const DEAL_LBL = ['Kreiran', 'Čeka CDD faktora', 'Čeka ugovor', 'Čeka potpise', 'Potpisano', 'Čeka obaveštenje dužnika', 'Čeka isplatu', 'Isplata prijavljena', 'Isplaćeno', 'Zatvoren · naplaćeno'];
+const DEAL_TONE = i => i >= 9 ? 'pos' : i === 8 ? 'pos' : i >= 4 ? 'accent' : 'neutral';
+const REC = { Draft: ['Nacrt', 'neutral'], Pending: ['Na proveri', 'neutral'], Verified: ['Verifikovano', 'neutral'], Listed: ['Na tržištu', 'accent'], Reserved: ['Rezervisano', 'accent'], Assigned: ['Ustupljeno', 'pos'], Funded: ['Isplaćeno', 'pos'], Settled: ['Naplaćeno', 'pos'], Rejected: ['Odbijeno', 'crit'] };
+const OFFER = { Active: ['Aktivna', 'accent'], Accepted: ['Prihvaćena', 'pos'], Withdrawn: ['Povučena', 'neutral'], Superseded: ['Zatvorena', 'neutral'], Rejected: ['Odbijena', 'crit'] };
+const chip = ([l, t]) => `<span class="chip ${t}">${esc(l)}</span>`;
+
+function initial() {
+  return {
+    role: 'seller', view: 'dashboard', p: {}, modal: null, filters: { short: false, big: false }, search: '', checks: {}, seq: 125, oseq: 5, rseq: 6,
+    recs: [
+      { id: 'R1', inv: '2026-0412', sef: '84371652', debtor: 'Ravnica Agrar d.o.o.', dpib: '108765432', F: 1172000000, issue: '2026-09-28', due: '2027-01-03', state: 'Listed', listing: 'L1', sefAt: '2026-10-05T08:52' },
+      { id: 'R2', inv: '2026-0398', sef: '84290117', debtor: 'Dunav Logistika d.o.o.', dpib: '106554433', F: 234400000, issue: '2026-09-15', due: '2026-12-14', state: 'Verified', sefAt: '2026-10-05T06:10' },
+      { id: 'R3', inv: '2026-0431', sef: '84402236', debtor: 'Ravnica Agrar d.o.o.', dpib: '108765432', F: 410050000, issue: '2026-10-02', due: '2027-01-30', state: 'Draft', sefAt: '2026-10-05T09:02' },
+      { id: 'R4', inv: '2026-0377', sef: '84190455', debtor: 'Kolubara Gradnja d.o.o.', dpib: '105998877', F: 703200000, issue: '2026-09-01', due: '2026-11-30', state: 'Assigned', deal: 'D118', sefAt: '2026-10-05T06:10' },
+      { id: 'R5', inv: '2026-0365', sef: '84155320', debtor: 'Morava Trgovina d.o.o.', dpib: '104332211', F: 158000000, issue: '2026-08-27', due: '2026-11-26', state: 'Rejected', reason: 'Kupac je u SEF-u odbio fakturu (status „Odbijeno”, 01.10.2026.). Faktura se ne može ponuditi faktorima.', sefAt: '2026-10-01T11:40' },
+    ],
+    listings: [
+      { id: 'L1', rec: 'R1', seller: SELLER.name, state: 'Open', closes: '2026-10-09T15:00', audience: 'Svi verifikovani faktori' },
+      { id: 'L2', seller: 'Vrbas Prehrana d.o.o.', debtor: 'Mreža Market d.o.o.', dpib: '107123456', inv: 'VP-2026-1188', sef: '84388021', F: 2560000000, issue: '2026-09-30', due: '2026-12-18', state: 'Open', closes: '2026-10-08T12:00', sefAt: '2026-10-05T07:30' },
+      { id: 'L3', seller: 'Timok Elektro d.o.o.', debtor: 'Južna Energetika a.d.', dpib: '103445566', inv: 'TE-26/0907', sef: '84401199', F: 395000000, issue: '2026-10-01', due: '2027-02-15', state: 'Open', closes: '2026-10-12T15:00', sefAt: '2026-10-05T08:05' },
+      { id: 'L4', seller: 'Banat Plast d.o.o.', debtor: 'Ravnica Agrar d.o.o.', dpib: '108765432', inv: 'BP-2026-0233', sef: '84359870', F: 1890000000, issue: '2026-09-25', due: '2026-11-25', state: 'Open', closes: '2026-10-07T15:00', sefAt: '2026-10-05T07:55' },
+    ],
+    offers: [
+      { id: 'O1', listing: 'L1', factor: 'Faktor Alfa d.o.o.', P: 1136840000, rec: 'NonRecourse', fd: 2, valid: '2026-10-09T15:00', state: 'Active', at: '2026-10-04T16:20' },
+      { id: 'O2', listing: 'L1', factor: 'Beta Faktoring a.d.', P: 1145044000, rec: 'Recourse', fd: 1, valid: '2026-10-08T17:00', state: 'Active', at: '2026-10-05T08:05' },
+      { id: 'O3', listing: 'L1', factor: 'Gamma Banka a.d.', P: 1141528000, rec: 'NonRecourse', fd: 3, valid: '2026-10-09T12:00', state: 'Active', at: '2026-10-05T09:11' },
+      { id: 'O4', listing: 'L2', factor: 'Beta Faktoring a.d.', P: 2512000000, rec: 'Recourse', fd: 2, valid: '2026-10-08T12:00', state: 'Active', at: '2026-10-05T08:40' },
+    ],
+    deals: [
+      { id: 'D118', ref: 'DL-2026-000118', rec: 'R4', seller: SELLER.name, factor: 'Faktor Alfa d.o.o.', F: 703200000, P: 690542400, recourse: 'NonRecourse', fd: 2, step: 7, created: '2026-09-24T10:12',
+        done: { accepted: '2026-09-24T10:12', cdd: '2026-09-25T14:30', contract: '2026-09-29T11:05', signed: '2026-09-30T16:42', cef: '2026-09-30T16:42', notice: '2026-10-01T09:20', funding: '2026-10-02T10:15' },
+        hist: [
+          { at: '2026-10-02T10:15', t: 'Faktor Alfa d.o.o. prijavio isplatu 6.905.424,00 RSD, datum valute 02.10.2026., poziv na broj 97-2026-118.' },
+          { at: '2026-10-01T09:20', t: 'Evidentirano obaveštenje dužnika (elektronska pošta, dokaz priložen).' },
+          { at: '2026-09-30T16:42', t: 'CEF: nije primenjivo — evidencija nije u funkciji.' },
+          { at: '2026-09-30T16:42', t: 'Oba kvalifikovana potpisa važeća. Potraživanje ustupljeno.' },
+          { at: '2026-09-29T11:05', t: 'Obe strane potvrdile uslove ugovora (SHA-256 3f9a…c21e).' },
+          { at: '2026-09-25T14:30', t: 'Faktor potvrdio da je CDD provera završena.' },
+          { at: '2026-09-24T10:12', t: 'Prihvaćena ponuda Faktor Alfa d.o.o.; posao kreiran.' },
+        ] },
+    ],
+  };
+}
+let S = initial();
+
+/* ---------- derived ---------- */
+const recById = id => S.recs.find(r => r.id === id);
+const lst = id => S.listings.find(l => l.id === id);
+const lv = l => l.rec ? { ...recById(l.rec), ...l, id: l.id } : l; // listing view (merge receivable data)
+const offersOf = lid => S.offers.filter(o => o.listing === lid);
+const dealById = id => S.deals.find(d => d.id === id);
+const fundDate = fd => addBD(TODAY, fd);
+const tenor = (due, fd) => Math.max(1, days(fundDate(fd), toDate(due)));
+const sellerCost = (F, P, due, fd) => (F - P) / P * 365 / tenor(due, fd);
+const factorYield = (F, P, due, fd) => (F - P - feeOf(F)) / P * 365 / tenor(due, fd);
+const role = () => S.role;
+const iAm = who => who === 'both' || who === S.role;
+function dealDeadline(d) {
+  const created = toDT(d.created);
+  if (d.step <= 3) return { lbl: 'Rok za potpisivanje', v: fD(addBD(created, 5)) };
+  if (d.step === 5) return { lbl: 'Rok', v: fD(addBD(toDT(d.done.signed || d.created), 2)) };
+  if (d.step === 6) return { lbl: 'Rok za isplatu', v: fD(addBD(toDT(d.done.signed || d.created), d.fd)) };
+  if (d.step === 7) return { lbl: 'Očekuje se potvrda do', v: fD(addBD(toDT(d.done.funding), 2)) };
+  if (d.step === 8) return { lbl: 'Dospeće fakture', v: fD(recById(d.rec).due) };
+  return null;
+}
+
+/* ---------- shell ---------- */
+const NAV = {
+  seller: [['dashboard', 'Pregled'], ['recs', 'Potraživanja'], ['deals', 'Poslovi'], ['org', 'Organizacija']],
+  factor: [['dashboard', 'Pregled'], ['market', 'Tržište'], ['myoffers', 'Moje ponude'], ['deals', 'Poslovi'], ['org', 'Organizacija']],
+};
+function actionItems() {
+  const items = [];
+  const mine = S.role === 'seller' ? S.deals.filter(d => d.seller === SELLER.name) : S.deals.filter(d => d.factor === ME_F.name);
+  mine.forEach(d => { if (d.step < 9 && iAm(STEPS[d.step].who)) items.push({ t: `${STEPS[d.step].t} · ${d.ref}`, d: `${recById(d.rec).debtor} · ${fM(d.F)}`, act: 'openDeal', id: d.id, btn: 'Otvori posao' }); });
+  if (S.role === 'seller') {
+    S.recs.filter(r => r.state === 'Listed').forEach(r => { const n = offersOf(r.listing).filter(o => o.state === 'Active').length; if (n) items.push({ t: `${n} ${n === 1 ? 'ponuda čeka' : 'ponude čekaju'} vašu odluku`, d: `Faktura ${r.inv} · ${r.debtor} · oglas se zatvara ${fDT(lst(r.listing).closes)}`, act: 'openOffers', id: r.id, btn: 'Uporedi ponude' }); });
+    S.recs.filter(r => r.state === 'Draft').forEach(r => items.push({ t: `Dovršite izjave za fakturu ${r.inv}`, d: `${r.debtor} · ${fM(r.F)}`, act: 'openRec', id: r.id, btn: 'Nastavi' }));
+  }
+  return items;
+}
+function renderShell() {
+  document.getElementById('roles').innerHTML = [['seller', 'Prodavac', SELLER.name], ['factor', 'Faktor', ME_F.name]]
+    .map(([r, l, o]) => `<button type="button" data-act="role" data-r="${r}" aria-pressed="${S.role === r}">${l}<small>${o}</small></button>`).join('');
+  const u = S.role === 'seller' ? SELLER : ME_F;
+  document.getElementById('who').textContent = `${u.user} · ${S.role === 'seller' ? 'potpisnik' : 'potpisnik'}`;
+  document.getElementById('avatar').textContent = u.ini;
+  const cnt = actionItems().length;
+  document.getElementById('nav').innerHTML = NAV[S.role].map(([v, l]) => {
+    const cur = S.view === v || (v === 'recs' && ['rec', 'offers'].includes(S.view)) || (v === 'deals' && S.view === 'deal') || (v === 'market' && S.view === 'listing');
+    return `<button type="button" data-act="nav" data-v="${v}" ${cur ? 'aria-current="page"' : ''}>${l}${v === 'dashboard' && cnt ? `<span class="count">${cnt}</span>` : ''}</button>`;
+  }).join('');
+}
+function go(view, p = {}) { S.view = view; S.p = p; render(); window.scrollTo(0, 0); }
+function render() {
+  renderShell();
+  const V = { dashboard: vDashboard, recs: vRecs, rec: vRec, offers: vOffers, deals: vDeals, deal: vDeal, market: vMarket, listing: vListing, myoffers: vMyOffers, org: vOrg }[S.view] || vDashboard;
+  document.getElementById('view').innerHTML = V();
+  renderModal();
+}
+function toast(msg) { const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg; document.getElementById('toasts').appendChild(el); setTimeout(() => el.remove(), 4200); }
+const crumbs = arr => `<div class="crumbs">${arr.map(([l, v, p]) => v ? `<button type="button" data-act="nav" data-v="${v}" ${p ? `data-id="${p}"` : ''}>${esc(l)}</button>` : `<span>${esc(l)}</span>`).join('<span>/</span>')}</div>`;
+
+/* ---------- views: shared ---------- */
+function vDashboard() {
+  const items = actionItems();
+  const actHtml = items.length ? `<ul class="act-list">${items.map(i => `<li><div><div class="t">${esc(i.t)}</div><div class="d">${esc(i.d)}</div></div><button class="btn sm primary" data-act="${i.act}" data-id="${i.id}">${i.btn}</button></li>`).join('')}</ul>` : `<div class="empty">Trenutno ništa ne čeka vašu akciju.</div>`;
+  let kpis;
+  if (S.role === 'seller') {
+    const listed = S.recs.filter(r => r.state === 'Listed').reduce((a, r) => a + r.F, 0);
+    const funded = S.deals.filter(d => d.seller === SELLER.name && d.step >= 8).reduce((a, d) => a + d.P, 0);
+    const inDeal = S.deals.filter(d => d.seller === SELLER.name && d.step < 8).reduce((a, d) => a + d.F, 0);
+    kpis = [['Na tržištu', fShort(listed), `${S.recs.filter(r => r.state === 'Listed').length} oglas(a)`], ['U toku (posao pre isplate)', fShort(inDeal), `${S.deals.filter(d => d.seller === SELLER.name && d.step < 8).length} posao(a)`], ['Isplaćeno 2026.', fShort(funded + 1480000000), 'uklj. ranije poslove (primer)'], ['Verifikovano, nije objavljeno', String(S.recs.filter(r => r.state === 'Verified').length), 'spremno za tržište']];
+  } else {
+    const open = S.listings.filter(l => l.state === 'Open');
+    const act = S.offers.filter(o => o.factor === ME_F.name && o.state === 'Active');
+    const port = S.deals.filter(d => d.factor === ME_F.name && d.step >= 8).reduce((a, d) => a + d.F, 0);
+    kpis = [['Otvoreni oglasi', String(open.length), `${fShort(open.reduce((a, l) => a + lv(l).F, 0))} ukupno`], ['Vaše aktivne ponude', String(act.length), fShort(act.reduce((a, o) => a + o.P, 0))], ['Portfolio (isplaćeno)', fShort(port + 5210000000), 'uklj. ranije poslove (primer)'], ['Ovlašćenje', 'Verifikovano', 'ponovna provera do 03.01.2027.']];
+  }
+  const u = S.role === 'seller' ? SELLER : ME_F;
+  return `<div class="head"><div><div class="eyebrow">${S.role === 'seller' ? 'Prodavac' : 'Faktor'} · ${esc(u.name)}</div><h1>Dobro jutro, ${esc(u.user.split(' ')[0])}</h1></div>
+    ${S.role === 'seller' ? `<button class="btn primary" data-act="sefImport">Uvezi fakture iz SEF-a</button>` : `<button class="btn primary" data-act="nav" data-v="market">Otvori tržište</button>`}</div>
+  <section class="panel"><div class="panel-h"><h2>Čeka vašu akciju</h2><span class="faint" style="font-size:12.5px">${items.length} stavk${items.length === 1 ? 'a' : 'e'}</span></div>${actHtml}</section>
+  <section class="kpis">${kpis.map(([l, v, s]) => `<div class="kpi"><div class="eyebrow">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('')}</section>`;
+}
+function vDeals() {
+  const list = S.role === 'seller' ? S.deals.filter(d => d.seller === SELLER.name) : S.deals.filter(d => d.factor === ME_F.name);
+  const rows = list.map(d => { const r = recById(d.rec); const w = d.step < 9 ? STEPS[d.step].who : null;
+    return `<tr class="click" data-act="openDeal" data-id="${d.id}"><td class="mono">${d.ref}</td><td>${esc(S.role === 'seller' ? d.factor : d.seller)}</td><td>${esc(r.debtor)}</td><td class="r num">${fM(d.F)}</td><td class="r num">${fM(d.P)}</td><td>${chip([DEAL_LBL[d.step], DEAL_TONE(d.step)])}</td><td>${w ? (iAm(w) ? chip(['Vi ste na potezu', 'warn']) : `<span class="muted">${w === 'factor' ? 'Faktor' : 'Prodavac'}</span>`) : '—'}</td></tr>`; }).join('');
+  return `<div class="head"><div><div class="eyebrow">Poslovi</div><h1>Poslovi</h1></div></div>
+  <section class="panel"><div class="tbl-wrap"><table><thead><tr><th>Referenca</th><th>${S.role === 'seller' ? 'Faktor' : 'Prodavac'}</th><th>Dužnik</th><th class="r">Nominalni iznos</th><th class="r">Kupoprodajna cena</th><th>Status</th><th>Na potezu</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="empty">Još nema poslova.</td></tr>`}</tbody></table></div></section>`;
+}
+function vDeal() {
+  const d = dealById(S.p.id); const r = recById(d.rec);
+  const cur = d.step < 9 ? STEPS[d.step] : null;
+  const dl = dealDeadline(d);
+  let turn;
+  if (!cur) turn = `<div class="turn done"><div><b>Posao je zatvoren.</b> Faktor je evidentirao naplatu od dužnika.</div></div>`;
+  else if (iAm(cur.who)) turn = `<div class="turn you"><div><b>Na potezu ste vi:</b> ${esc(cur.t)}${dl ? ` · ${dl.lbl}: <b class="num">${dl.v}</b>` : ''}</div></div>`;
+  else turn = `<div class="turn"><div><b>Na potezu je ${cur.who === 'factor' ? 'faktor' : 'prodavac'}:</b> ${esc(cur.t)}${dl ? ` · ${dl.lbl}: <span class="num">${dl.v}</span>` : ''}</div><span class="muted" style="font-size:12.5px">Obavestićemo vas kada bude vaš red.</span></div>`;
+  const steps = STEPS.map((s, i) => {
+    const done = i < d.step, isCur = i === d.step, skip = s.k === 'cef' && done;
+    const whoTxt = s.who === 'both' ? 'obe strane' : s.who === 'factor' ? 'faktor' : 'prodavac';
+    let meta = '';
+    if (done && d.done[s.k]) meta = skip ? `Nije primenjivo — CEF nije u funkciji (stanje ${fD(d.done[s.k])})` : `Završeno ${fDT(d.done[s.k])}`;
+    let acts = '';
+    if (isCur) acts = `<div class="acts row">${stepActions(d, s)}</div>`;
+    return `<li class="${done ? 'done' : ''} ${isCur ? 'cur' : ''} ${skip ? 'skip' : ''}"><div class="dot" aria-hidden="true">${done ? '✓' : i + 1}</div><div><div><span class="st">${esc(s.t)}</span><span class="who">${whoTxt}</span></div><div class="ex">${esc(s.ex)}</div>${meta ? `<div class="meta">${meta}</div>` : ''}${acts}</div></li>`;
+  }).join('');
+  const D = d.F - d.P;
+  return `${crumbs([['Poslovi', 'deals'], [d.ref]])}
+  <div class="head"><div><div class="eyebrow">Posao <span class="mono">${d.ref}</span></div><h1>${esc(r.debtor)} · ${fM(d.F)}</h1></div>${chip([DEAL_LBL[d.step], DEAL_TONE(d.step)])}</div>
+  ${turn}
+  <div class="grid2">
+    <section class="panel"><div class="panel-h"><h2>Koraci</h2><span class="faint" style="font-size:12.5px">Redosled je obavezan</span></div><ol class="steps">${steps}</ol></section>
+    <div class="stack">
+      <section class="panel"><div class="panel-h"><h2>Uslovi posla</h2></div><div class="panel-b"><dl class="metrics">
+        <dt>Nominalni iznos (bruto)</dt><dd>${fM(d.F)}</dd>
+        <dt>Kupoprodajna cena</dt><dd>${fM(d.P)}</dd>
+        <dt>Diskont</dt><dd>${fM(D)} · ${fPct(D / d.F)}</dd>
+        <dt>Regres</dt><dd>${recourseLbl(d.recourse)}</dd>
+        <dt>Rok isplate</dt><dd>${d.fd} radn${d.fd === 1 ? 'i dan' : 'a dana'} od potpisa</dd>
+        ${S.role === 'factor' ? `<dt>Naknada platforme (vi plaćate)</dt><dd>${fM(feeOf(d.F))}</dd>` : ''}
+        <dt class="total">${S.role === 'seller' ? 'Dobijate' : 'Plaćate prodavcu'}</dt><dd class="total">${fM(d.P)}</dd>
+      </dl></div></section>
+      <section class="panel"><div class="panel-h"><h2>Strane i faktura</h2></div><div class="panel-b"><dl class="dl">
+        <div><dt>Prodavac</dt><dd>${esc(d.seller)}</dd></div><div><dt>Faktor</dt><dd>${esc(d.factor)}</dd></div>
+        <div><dt>Faktura</dt><dd class="mono">${r.inv}</dd></div><div><dt>SEF ID</dt><dd class="mono">${r.sef}</dd></div>
+        <div><dt>Dospeće</dt><dd class="num">${fD(r.due)}</dd></div><div><dt>Dužnik PIB</dt><dd class="mono">${r.dpib}</dd></div>
+      </dl></div></section>
+      <section class="panel"><div class="panel-h"><h2>Istorija</h2><span class="faint" style="font-size:12.5px">Nepromenljiv audit zapis</span></div><ul class="hist">${d.hist.map(h => `<li><span class="faint num">${fDT(h.at)}</span><span>${esc(h.t)}</span></li>`).join('')}</ul></section>
+    </div>
+  </div>`;
+}
+function stepActions(d, s) {
+  const sim = `<button class="btn sm sim" data-act="simulate" data-id="${d.id}">Simuliraj ovaj korak (prototip)</button>`;
+  if (s.k === 'cdd' && S.role === 'factor') return `<button class="btn sm primary" data-act="dealCdd" data-id="${d.id}">Potvrdi: CDD završen, odobreno</button><button class="btn sm" data-act="dealDecline" data-id="${d.id}">Odbij posao</button>`;
+  if (s.k === 'funding' && S.role === 'factor') return `<button class="btn sm primary" data-act="fundingOpen" data-id="${d.id}">Prijavi isplatu</button>`;
+  if (s.k === 'confirm' && S.role === 'seller') return `<button class="btn sm primary" data-act="confirmFunds" data-id="${d.id}">Potvrdi prijem ${fM(d.P)}</button><button class="btn sm" data-act="discrepancy">Prijavi odstupanje</button>`;
+  if (s.k === 'outcome' && S.role === 'factor') return `<button class="btn sm primary" data-act="outcome" data-id="${d.id}">Upiši ishod: naplaćeno od dužnika</button>`;
+  return sim;
+}
+function vOrg() {
+  const seller = S.role === 'seller';
+  const o = seller ? SELLER : ME_F;
+  return `<div class="head"><div><div class="eyebrow">Organizacija</div><h1>${esc(o.name)}</h1></div>${chip(['KYB odobren', 'pos'])}</div>
+  <div class="grid2"><section class="panel"><div class="panel-h"><h2>Podaci o firmi</h2><span class="faint" style="font-size:12.5px">Izvor: APR, snimak 12.09.2026.</span></div><div class="panel-b"><dl class="dl">
+    <div><dt>PIB</dt><dd class="mono">${o.pib}</dd></div><div><dt>Matični broj</dt><dd class="mono">${seller ? SELLER.mb : '21998877'}</dd></div>
+    <div><dt>Uloga</dt><dd>${seller ? 'Prodavac (ustupilac)' : 'Faktor'}</dd></div><div><dt>Rizik</dt><dd>Nizak · sledeća provera 09/2029.</dd></div>
+    <div><dt>Zastupnik</dt><dd>${esc(o.user)} (direktor)</dd></div><div><dt>Stvarni vlasnici</dt><dd>2 lica · usklađeno sa CESV</dd></div>
+  </dl></div></section>
+  <div class="stack">
+    ${seller ? `<section class="panel"><div class="panel-h"><h2>SEF veza</h2>${chip(['Povezano', 'pos'])}</div><div class="panel-b stack"><div class="muted">API ključ je sačuvan u trezoru i koristi se samo za čitanje faktura i statusa. Ne prikazuje se ponovo.</div><div><button class="btn sm">Zameni API ključ</button></div></div></section>
+    <section class="panel"><div class="panel-h"><h2>Računi za isplatu</h2></div><div class="panel-b"><dl class="dl"><div><dt>Tekući račun</dt><dd class="mono">···· 4567-12</dd></div><div><dt>Status</dt><dd>${chip(['Verifikovan', 'pos'])}</dd></div></dl></div></section>`
+      : `<section class="panel"><div class="panel-h"><h2>Ovlašćenje za faktoring</h2>${chip(['Verifikovano', 'pos'])}</div><div class="panel-b"><dl class="dl">
+        <div><dt>Vrsta</dt><dd>Društvo za faktoring</dd></div><div><dt>Izdao</dt><dd>Ministarstvo finansija</dd></div>
+        <div><dt>Rešenje</dt><dd class="mono">401-00-0000/2022-16</dd></div><div><dt>Ponovna provera</dt><dd class="num">do 03.01.2027.</dd></div>
+        <div><dt>Verifikovali</dt><dd>2 službenika usklađenosti</dd></div><div><dt>Izvor</dt><dd>Snimak zvaničnog registra</dd></div></dl></div></section>`}
+  </div></div>`;
+}
+
+/* ---------- views: seller ---------- */
+function vRecs() {
+  const rows = S.recs.map(r => { const n = r.listing ? offersOf(r.listing).filter(o => o.state === 'Active').length : 0;
+    return `<tr class="click" data-act="openRec" data-id="${r.id}"><td class="mono">${r.inv}</td><td>${esc(r.debtor)}</td><td class="r num">${fM(r.F)}</td><td class="num">${fD(r.due)} <span class="faint">(${days(TODAY, toDate(r.due))} d)</span></td><td>${chip(REC[r.state])}</td><td>${r.state === 'Listed' ? (n ? `<b>${n}</b> ${n === 1 ? 'ponuda' : 'ponude'}` : '<span class="muted">nema ponuda</span>') : '<span class="faint">—</span>'}</td></tr>`; }).join('');
+  return `<div class="head"><div><div class="eyebrow">Prodavac</div><h1>Potraživanja</h1></div><button class="btn primary" data-act="sefImport">Uvezi fakture iz SEF-a</button></div>
+  <div class="note">Na platformu se uvoze samo elektronske fakture iz SEF-a koje je kupac prihvatio. Faktura ostaje nepromenjena; potraživanje je deo koji se ustupa faktoru.</div>
+  <section class="panel"><div class="tbl-wrap"><table><thead><tr><th>Faktura</th><th>Dužnik</th><th class="r">Iznos (bruto)</th><th>Dospeće</th><th>Status</th><th>Ponude</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+}
+function sefBlock(r) {
+  return `<span class="stamp">SEF: kupac prihvatio <span class="mono">provereno ${fDT(r.sefAt)}</span></span>`;
+}
+function vRec() {
+  const r = recById(S.p.id);
+  const head = `${crumbs([['Potraživanja', 'recs'], [`Faktura ${r.inv}`]])}
+  <div class="head"><div><div class="eyebrow">Faktura <span class="mono">${r.inv}</span> · SEF ID <span class="mono">${r.sef}</span></div><h1>${esc(r.debtor)} · ${fM(r.F)}</h1></div>${chip(REC[r.state])}</div>`;
+  const info = `<section class="panel"><div class="panel-h"><h2>Faktura</h2>${r.state !== 'Rejected' ? sefBlock(r) : ''}</div><div class="panel-b"><dl class="dl">
+    <div><dt>Dužnik</dt><dd>${esc(r.debtor)}</dd></div><div><dt>PIB dužnika</dt><dd class="mono">${r.dpib}</dd></div>
+    <div><dt>Datum izdavanja</dt><dd class="num">${fD(r.issue)}</dd></div><div><dt>Dospeće</dt><dd class="num">${fD(r.due)} <span class="faint">(za ${days(TODAY, toDate(r.due))} dana)</span></dd></div>
+    <div><dt>Iznos bez PDV</dt><dd class="num">${fM(Math.round(r.F / 1.2))}</dd></div><div><dt>Iznos sa PDV (potraživanje)</dt><dd class="num">${fM(r.F)}</dd></div>
+  </dl></div></section>`;
+  let side = '';
+  if (r.state === 'Draft') side = `<section class="panel"><div class="panel-h"><h2>Izjave prodavca</h2><span class="faint" style="font-size:12.5px">Verzija DRAFT-0 · tekst potvrđuje advokat</span></div><div class="panel-b">
+    ${['Roba je isporučena, odnosno usluga izvršena, u skladu sa ugovorom sa kupcem.', 'Ugovor sa kupcem ne zabranjuje ustupanje ovog potraživanja.', 'Kupac nema prigovor, protivpotraživanje niti pravo na prebijanje po ovoj fakturi.', 'Potraživanje nije ranije ustupljeno, založeno niti ponuđeno drugom finansijeru.', 'Podaci i priloženi dokumenti su tačni i potpuni.'].map((t, i) => `<label class="check"><input type="checkbox" class="decl" id="decl${i}"><span>${t}</span></label>`).join('')}
+    <div class="lbl" style="margin-top:10px">Prilozi</div><div class="note">Ugovor_o_isporuci_2026.pdf · 412 KB · proveren na viruse</div>
+    <div id="decl-err"></div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" data-act="submitRec" data-id="${r.id}">Pošalji na proveru</button></div></div></section>`;
+  else if (r.state === 'Pending' || (r.state === 'Verified' && S.checks[r.id])) side = `<section class="panel"><div class="panel-h"><h2>Provera</h2>${r.state === 'Verified' ? chip(['Sve provere prošle', 'pos']) : chip(['U toku', 'neutral'])}</div><div class="panel-b"><ul class="checks">${(S.checks[r.id] || []).map(c => `<li><span class="${c.ok ? 'ok' : 'run'}" aria-hidden="true">${c.ok ? '✓' : '…'}</span><span>${esc(c.t)}</span></li>`).join('')}</ul>
+    ${r.state === 'Verified' ? `<div class="row" style="margin-top:14px"><button class="btn primary" data-act="publishOpen" data-id="${r.id}">Objavi na tržištu</button></div>` : ''}</div></section>`;
+  else if (r.state === 'Verified') side = `<section class="panel"><div class="panel-h"><h2>Spremno za tržište</h2></div><div class="panel-b stack"><div class="muted">Faktura je prošla sve provere. Objavite je da bi verifikovani faktori mogli da daju ponude.</div><div><button class="btn primary" data-act="publishOpen" data-id="${r.id}">Objavi na tržištu</button></div></div></section>`;
+  else if (r.state === 'Listed') { const l = lst(r.listing); const n = offersOf(l.id).filter(o => o.state === 'Active').length;
+    side = `<section class="panel"><div class="panel-h"><h2>Oglas</h2>${chip(['Otvoren', 'accent'])}</div><div class="panel-b stack"><dl class="dl"><div><dt>Zatvara se</dt><dd class="num">${fDT(l.closes)}</dd></div><div><dt>Publika</dt><dd>${esc(l.audience)}</dd></div><div><dt>Ponude</dt><dd>${n}</dd></div></dl><div class="row"><button class="btn primary" data-act="openOffers" data-id="${r.id}">Uporedi ponude</button><button class="btn" data-act="withdrawListing" data-id="${r.id}">Povuci oglas</button></div></div></section>`; }
+  else if (r.deal) side = `<section class="panel"><div class="panel-h"><h2>Posao</h2></div><div class="panel-b stack"><div class="muted">Potraživanje je u poslu <span class="mono">${dealById(r.deal).ref}</span> sa ${esc(dealById(r.deal).factor)}.</div><div><button class="btn primary" data-act="openDeal" data-id="${r.deal}">Otvori posao</button></div></div></section>`;
+  else if (r.state === 'Rejected') side = `<section class="panel"><div class="panel-h"><h2>Razlog odbijanja</h2></div><div class="panel-b"><div class="errbox">${esc(r.reason)}</div></div></section>`;
+  return `${head}<div class="grid2">${info}${side}</div>`;
+}
+function vOffers() {
+  const r = recById(S.p.id); const l = lst(r.listing);
+  const offers = offersOf(l.id).filter(o => o.state === 'Active').sort((a, b) => b.P - a.P);
+  const best = offers[0];
+  const rows = offers.map(o => `<tr class="${o === best ? 'best' : ''}"><td><b>${esc(o.factor)}</b>${o === best ? '<span class="tag-best">najviši neto iznos</span>' : ''}</td>
+    <td class="r num">${fM(o.P)}</td><td class="r num">${fPct((r.F - o.P) / r.F)}</td><td class="r num"><b>${fM(o.P)}</b></td><td class="r num">${fPct(sellerCost(r.F, o.P, r.due, o.fd))}</td>
+    <td>${o.rec === 'Recourse' ? chip(['Sa regresom', 'warn']) : chip(['Bez regresa', 'neutral'])}</td><td class="num">${o.fd} rd</td><td class="num">${fDT(o.valid)}</td>
+    <td class="r"><button class="btn sm primary" data-act="accept" data-id="${o.id}">Prihvati…</button></td></tr>`).join('');
+  return `${crumbs([['Potraživanja', 'recs'], [`Faktura ${r.inv}`, 'rec', r.id], ['Ponude']])}
+  <div class="head"><div><div class="eyebrow">Oglas se zatvara ${fDT(l.closes)}</div><h1>Ponude za fakturu ${r.inv}</h1></div><div class="muted num">${esc(r.debtor)} · ${fM(r.F)} · dospeće ${fD(r.due)}</div></div>
+  <section class="panel"><div class="tbl-wrap"><table><thead><tr><th>Faktor</th><th class="r">Kupoprodajna cena</th><th class="r">Diskont</th><th class="r">Vi dobijate</th><th class="r">Indikativni god. trošak</th><th>Regres</th><th>Isplata</th><th>Važi do</th><th></th></tr></thead>
+  <tbody>${rows || `<tr><td colspan="9" class="empty">Još nema ponuda.</td></tr>`}</tbody></table></div></section>
+  <div class="note"><b>Kako čitati:</b> „Vi dobijate” je iznos koji faktor uplaćuje na vaš račun; naknadu platforme plaća faktor. Indikativni godišnji trošak = diskont ÷ cena × 365 ÷ broj dana od očekivane isplate do dospeća. Služi samo za poređenje i nije savet. <b>Sa regresom</b> znači da, ako dužnik ne plati, faktor može tražiti iznos od vas.</div>`;
+}
+
+/* ---------- views: factor ---------- */
+function visibleListings() {
+  return S.listings.filter(l => l.state === 'Open' && !(l.excluded || []).includes(ME_F.name)).map(lv);
+}
+function marketRows() {
+  let ls = visibleListings();
+  if (S.filters.short) ls = ls.filter(l => days(TODAY, toDate(l.due)) <= 100);
+  if (S.filters.big) ls = ls.filter(l => l.F >= 500000000);
+  const q = S.search.trim().toLowerCase(); if (q) ls = ls.filter(l => (l.debtor + ' ' + l.seller + ' ' + l.dpib).toLowerCase().includes(q));
+  ls.sort((a, b) => toDT(a.closes) - toDT(b.closes));
+  if (!ls.length) return `<tr><td colspan="7" class="empty">Nema oglasa za izabrane filtere.</td></tr>`;
+  return ls.map(l => { const mine = offersOf(l.id).find(o => o.factor === ME_F.name && o.state === 'Active');
+    return `<tr class="click" data-act="openListing" data-id="${l.id}"><td><b>${esc(l.debtor)}</b><div class="faint mono" style="font-size:12px">${l.dpib}</div></td><td>${esc(l.seller)}</td><td class="r num">${fM(l.F)}</td><td class="num">${fD(l.due)} <span class="faint">(${days(TODAY, toDate(l.due))} d)</span></td><td>${chip(['Prihvaćena', 'pos'])}</td><td class="num">${fDT(l.closes)}</td><td>${mine ? `<span class="num">${fM(mine.P)}</span>` : '<span class="faint">—</span>'}</td></tr>`; }).join('');
+}
+function vMarket() {
+  return `<div class="head"><div><div class="eyebrow">Faktor · vidite samo oglase namenjene vama</div><h1>Tržište</h1></div></div>
+  <div class="filters"><input class="input" id="mk-search" placeholder="Pretraga: dužnik, prodavac, PIB" value="${esc(S.search)}" style="max-width:300px" aria-label="Pretraga oglasa">
+    <button class="fchip" data-act="filter" data-f="short" aria-pressed="${S.filters.short}">Dospeće do 100 dana</button>
+    <button class="fchip" data-act="filter" data-f="big" aria-pressed="${S.filters.big}">Iznos od 5 mil. RSD</button></div>
+  <section class="panel"><div class="tbl-wrap"><table><thead><tr><th>Dužnik</th><th>Prodavac</th><th class="r">Iznos (bruto)</th><th>Dospeće</th><th>SEF status</th><th>Oglas se zatvara</th><th>Vaša ponuda</th></tr></thead><tbody id="mk-body">${marketRows()}</tbody></table></div></section>`;
+}
+function vListing() {
+  const l0 = lst(S.p.id); const l = lv(l0);
+  const mine = offersOf(l.id).find(o => o.factor === ME_F.name && o.state === 'Active');
+  const closed = l0.state !== 'Open';
+  const form = closed ? `<div class="note">Oglas je zatvoren.</div>` : mine ? `<div class="stack"><div class="lbl">Vaša aktivna ponuda</div><div class="big">${fM(mine.P)}</div>
+      <dl class="metrics"><dt>Regres</dt><dd>${recourseLbl(mine.rec)}</dd><dt>Isplata</dt><dd>${mine.fd} radna dana od potpisa</dd><dt>Važi do</dt><dd>${fDT(mine.valid)}</dd><dt>Naknada platforme</dt><dd>${fM(feeOf(l.F))}</dd></dl>
+      <div class="note">Ponude se ne menjaju. Da biste promenili uslove, povucite ponudu i pošaljite novu.</div>
+      <div><button class="btn" data-act="withdrawOffer" data-id="${mine.id}">Povuci ponudu</button></div></div>`
+    : `<div class="stack"><div class="field"><label for="op-price">Kupoprodajna cena (RSD)</label><input class="input money" id="op-price" inputmode="decimal" placeholder="npr. ${fM(Math.round(l.F * 0.975), false)}"></div>
+      <div class="form-grid"><div class="field"><label for="op-rec">Regres</label><select class="input" id="op-rec"><option value="NonRecourse">Bez regresa</option><option value="Recourse">Sa regresom</option></select></div>
+      <div class="field"><label for="op-days">Isplata nakon potpisa</label><select class="input" id="op-days">${[1, 2, 3, 5].map(n => `<option value="${n}" ${n === 2 ? 'selected' : ''}>${n} radn${n === 1 ? 'i dan' : 'a dana'}</option>`).join('')}</select></div></div>
+      <div class="field"><label for="op-cond">Uslovi (opciono)</label><input class="input" id="op-cond" maxlength="1000" placeholder="npr. Standardni ugovor o faktoringu v3"></div>
+      <div id="op-metrics">${metricsHtml(l, null, 2)}</div><div id="op-err"></div>
+      <div><button class="btn primary" data-act="submitOffer" data-id="${l.id}">Pošalji obavezujuću ponudu</button></div>
+      <div class="faint" style="font-size:12.5px">Ponuda važi do zatvaranja oglasa (${fDT(l.closes)}). Prodavac vidi samo vašu ponudu, ne i druge faktore.</div></div>`;
+  return `${crumbs([['Tržište', 'market'], [l.debtor]])}
+  <div class="head"><div><div class="eyebrow">Oglas · prodavac ${esc(l.seller)} ${chip(['KYB odobren', 'pos'])}</div><h1>${esc(l.debtor)} · ${fM(l.F)}</h1></div><div class="muted">Zatvara se ${fDT(l.closes)}</div></div>
+  <div class="grid2"><div class="stack">
+    <section class="panel"><div class="panel-h"><h2>Faktura</h2>${sefBlock(l)}</div><div class="panel-b"><dl class="dl">
+      <div><dt>Broj fakture</dt><dd class="mono">${esc(l.inv)}</dd></div><div><dt>SEF ID</dt><dd class="mono">${l.sef}</dd></div>
+      <div><dt>Datum izdavanja</dt><dd class="num">${fD(l.issue)}</dd></div><div><dt>Dospeće</dt><dd class="num">${fD(l.due)} <span class="faint">(${days(TODAY, toDate(l.due))} d)</span></dd></div>
+      <div><dt>Dužnik</dt><dd>${esc(l.debtor)}</dd></div><div><dt>PIB dužnika</dt><dd class="mono">${l.dpib}</dd></div>
+      <div><dt>Status dužnika (APR)</dt><dd>Aktivan</dd></div><div><dt>Sankcione liste</dt><dd>Bez poklapanja</dd></div>
+    </dl></div></section>
+    <section class="panel"><div class="panel-h"><h2>Dokumenti</h2><span class="faint" style="font-size:12.5px">Preuzimanja se beleže i nose vodeni žig</span></div><ul class="act-list">
+      ${[['Faktura (UBL iz SEF-a)', 'XML · 38 KB'], ['Faktura (PDF prikaz)', 'PDF · 96 KB'], ['Ugovor o isporuci', 'PDF · 412 KB'], ['Otpremnica', 'PDF · 188 KB']].map(([n, m]) => `<li><div><div class="t">${n}</div><div class="d">${m}</div></div><button class="btn sm" disabled title="Nije dostupno u prototipu">Preuzmi</button></li>`).join('')}
+    </ul></section>
+    <div class="warnbox">Centralna evidencija faktoringa još nije u funkciji, pa platforma ne može da proveri ustupanja izvan platforme. Prodavac je dao izjavu da potraživanje nije ranije ustupljeno.</div>
+  </div>
+  <section class="panel"><div class="panel-h"><h2>${mine ? 'Vaša ponuda' : 'Nova ponuda'}</h2></div><div class="panel-b">${form}</div></section></div>`;
+}
+function metricsHtml(l, P, fd) {
+  const fee = feeOf(l.F);
+  if (P == null) return `<dl class="metrics"><dt>Naknada platforme (0,50 %, min. 6.000,00)</dt><dd>${fM(fee)}</dd><dt>Diskont</dt><dd class="faint">unesite cenu</dd><dt>Indikativni god. prinos (neto)</dt><dd class="faint">—</dd></dl>`;
+  const D = l.F - P;
+  return `<dl class="metrics"><dt>Diskont</dt><dd>${fM(D)} · ${fPct(D / l.F)}</dd><dt>Naknada platforme (0,50 %, min. 6.000,00)</dt><dd>${fM(fee)}</dd>
+    <dt>Neto marža pri punoj naplati</dt><dd>${fM(D - fee)}</dd><dt>Dana od isplate do dospeća</dt><dd>${tenor(l.due, fd)}</dd>
+    <dt class="total">Indikativni god. prinos (neto)</dt><dd class="total">${fPct(factorYield(l.F, P, l.due, fd))}</dd></dl>`;
+}
+function vMyOffers() {
+  const mine = S.offers.filter(o => o.factor === ME_F.name);
+  const rows = mine.map(o => { const l = lv(lst(o.listing)); const st = o.state === 'Superseded' ? ['Zatvorena · izabrana druga ponuda', 'neutral'] : OFFER[o.state];
+    return `<tr class="click" data-act="openListing" data-id="${o.listing}"><td>${esc(l.debtor)}</td><td>${esc(l.seller)}</td><td class="r num">${fM(l.F)}</td><td class="r num">${fM(o.P)}</td><td>${recourseLbl(o.rec)}</td><td class="num">${fDT(o.at)}</td><td>${chip(st)}</td></tr>`; }).join('');
+  return `<div class="head"><div><div class="eyebrow">Faktor</div><h1>Moje ponude</h1></div></div>
+  <section class="panel"><div class="tbl-wrap"><table><thead><tr><th>Dužnik</th><th>Prodavac</th><th class="r">Iznos</th><th class="r">Vaša cena</th><th>Regres</th><th>Poslato</th><th>Status</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="empty">Nemate ponuda.</td></tr>`}</tbody></table></div></section>`;
+}
+
+/* ---------- modals ---------- */
+function openModal(m) { S.modal = m; renderModal(); setTimeout(() => { const f = document.querySelector('#modal-root [data-autofocus]') || document.querySelector('#modal-root .modal button, #modal-root .modal input'); f && f.focus(); }, 0); }
+function closeModal() { S.modal = null; renderModal(); }
+function renderModal() {
+  const root = document.getElementById('modal-root');
+  if (!S.modal) { root.innerHTML = ''; return; }
+  root.innerHTML = `<div class="overlay" data-act="overlay"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">${S.modal.html}</div></div>`;
+}
+function stepUp(what, onOk) {
+  S.pending = onOk;
+  openModal({ html: `<div class="modal-h"><div class="eyebrow">Dodatna potvrda identiteta</div><h2 id="m-title">${esc(what)}</h2></div>
+    <div class="modal-b"><div class="muted">Unesite 6-cifreni kod iz aplikacije za autentifikaciju.</div>
+    <input class="input otp" id="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" aria-label="Kod za potvrdu" data-autofocus>
+    <div class="faint" style="font-size:12.5px">Prototip: unesite bilo kojih 6 cifara.</div><div id="otp-err"></div></div>
+    <div class="modal-f"><button class="btn" data-act="close">Otkaži</button><button class="btn primary" data-act="stepOk">Potvrdi</button></div>` });
+}
+function sefImportHtml(results) {
+  return `<div class="modal-h"><div class="eyebrow">SEF · produkciono okruženje</div><h2 id="m-title">Uvoz faktura iz SEF-a</h2></div>
+  <div class="modal-b">${results ? `<ul class="checks">${results.map(r => `<li><span class="${r.ok ? 'ok' : 'run'}">${r.ok ? '✓' : '–'}</span><span><span class="mono">${r.id}</span> · ${esc(r.t)}</span></li>`).join('')}</ul>`
+    : `<div class="field"><label for="sef-ids">SEF ID-jevi faktura (jedan po redu ili odvojeni zarezom)</label><textarea class="input mono" id="sef-ids" rows="4">84512093, 84371652, 84498811</textarea></div>
+       <div class="note">Uvoze se samo fakture u kojima ste izdavalac. Faktura se čuva kao nepromenljiv dokaz (UBL + SHA-256).</div>`}</div>
+  <div class="modal-f">${results ? `<button class="btn primary" data-act="close" data-autofocus>Gotovo</button>` : `<button class="btn" data-act="close">Otkaži</button><button class="btn primary" data-act="sefRun">Uvezi</button>`}</div>`;
+}
+function publishHtml(r) {
+  return `<div class="modal-h"><div class="eyebrow">Faktura <span class="mono">${r.inv}</span> · ${fM(r.F)}</div><h2 id="m-title">Objavi na tržištu</h2></div>
+  <div class="modal-b">
+    <fieldset style="border:0;padding:0;margin:0"><legend class="lbl">Ko vidi oglas</legend>
+      <label class="check"><input type="radio" name="aud" value="all" checked><span>Svi verifikovani faktori</span></label>
+      <label class="check"><input type="radio" name="aud" value="sel"><span>Samo izabrani faktori</span></label></fieldset>
+    <fieldset style="border:0;padding:0;margin:0"><legend class="lbl">Isključi faktore</legend>
+      ${FACTORS.map((f, i) => `<label class="check"><input type="checkbox" class="excl" value="${esc(f)}" id="ex${i}"><span>${esc(f)}</span></label>`).join('')}</fieldset>
+    <div class="field"><label for="pub-close">Oglas se zatvara</label><select class="input" id="pub-close">${[3, 5, 7].map(n => `<option value="${n}" ${n === 5 ? 'selected' : ''}>za ${n} radnih dana · ${fD(addBD(TODAY, n))} u 15:00</option>`).join('')}</select></div>
+    <div class="note">Pre objave ponovo proveravamo status fakture u SEF-u. Oglas možete povući dok ne prihvatite ponudu.</div></div>
+  <div class="modal-f"><button class="btn" data-act="close">Otkaži</button><button class="btn primary" data-act="publishDo" data-id="${r.id}">Objavi oglas</button></div>`;
+}
+function acceptHtml(o) {
+  const l = lst(o.listing); const r = recById(l.rec); const others = offersOf(l.id).filter(x => x.state === 'Active' && x.id !== o.id).length;
+  return `<div class="modal-h"><div class="eyebrow">Faktura <span class="mono">${r.inv}</span> · ${esc(r.debtor)}</div><h2 id="m-title">Prihvati ponudu: ${esc(o.factor)}</h2></div>
+  <div class="modal-b"><div><div class="lbl">Dobićete na račun ···· 4567-12</div><div class="big">${fM(o.P)}</div><div class="muted num">umesto ${fM(r.F)} na dan ${fD(r.due)} · diskont ${fM(r.F - o.P)}</div></div>
+    <dl class="metrics"><dt>Regres</dt><dd>${recourseLbl(o.rec)}</dd><dt>Isplata</dt><dd>${o.fd} radn${o.fd === 1 ? 'i dan' : 'a dana'} nakon potpisivanja ugovora</dd><dt>Indikativni god. trošak</dt><dd>${fPct(sellerCost(r.F, o.P, r.due, o.fd))}</dd></dl>
+    ${o.rec === 'Recourse' ? `<div class="warnbox">Ponuda je <b>sa regresom</b>: ako ${esc(r.debtor)} ne plati, faktor može tražiti iznos od vas.</div>` : ''}
+    <div class="note">Šta se dešava: ${others ? `${others} ${others === 1 ? 'ostala ponuda se zatvara' : 'ostale ponude se zatvaraju'}, ` : ''}oglas se zatvara, a potraživanje se rezerviše za ovaj posao. Zatim faktor radi CDD proveru, sledi ugovor i potpisivanje kvalifikovanim elektronskim potpisom.</div>
+    <label class="check"><input type="checkbox" id="ack"><span>Pročitao/la sam uslove i ovlašćen/a sam da prihvatim ponudu u ime ${esc(SELLER.name)}.</span></label><div id="ack-err"></div></div>
+  <div class="modal-f"><button class="btn" data-act="close">Otkaži</button><button class="btn primary" data-act="acceptGo" data-id="${o.id}">Prihvati ponudu i kreiraj posao</button></div>`;
+}
+function fundingHtml(d) {
+  return `<div class="modal-h"><div class="eyebrow">Posao <span class="mono">${d.ref}</span></div><h2 id="m-title">Prijavi isplatu</h2></div>
+  <div class="modal-b"><div class="field"><span class="lbl">Iznos (mora biti jednak kupoprodajnoj ceni)</span><div class="big">${fM(d.P)}</div></div>
+    <dl class="metrics"><dt>Primalac</dt><dd>${esc(d.seller)}</dd><dt>Račun primaoca</dt><dd class="mono">265-0000001234567-12 (primer)</dd><dt>Status računa</dt><dd>Verifikovan 12.09.2026.</dd></dl>
+    <div class="form-grid"><div class="field"><label for="f-date">Datum valute</label><input class="input" id="f-date" value="${fD(TODAY)}"></div><div class="field"><label for="f-ref">Poziv na broj</label><input class="input mono" id="f-ref" value="97-2026-${d.ref.slice(-3)}"></div></div>
+    <div class="note">Platforma ne vrši plaćanje. Uplatu izvršite iz svoje banke, a ovde je prijavite. Prodavac potvrđuje prijem.</div></div>
+  <div class="modal-f"><button class="btn" data-act="close">Otkaži</button><button class="btn primary" data-act="fundingGo" data-id="${d.id}">Prijavi isplatu</button></div>`;
+}
+
+/* ---------- state changes ---------- */
+function advance(d, text) {
+  const s = STEPS[d.step]; const at = now();
+  d.done[s.k] = at; d.hist.unshift({ at, t: text || `Završen korak: ${s.t}.` }); d.step++;
+  if (STEPS[d.step] && STEPS[d.step].k === 'cef') { d.done.cef = at; d.hist.unshift({ at, t: 'CEF: nije primenjivo — evidencija nije u funkciji.' }); d.step++; }
+  const r = recById(d.rec);
+  if (d.step >= 9) r.state = 'Settled'; else if (d.step >= 8) r.state = 'Funded'; else if (d.step >= 4) r.state = 'Assigned';
+}
+function runChecks(r) {
+  const t = days(TODAY, toDate(r.due));
+  const list = ['SEF status: kupac prihvatio fakturu (provereno upravo)', 'Vi ste izdavalac fakture u SEF-u', 'Organizacija odobrena, bez zadržavanja', `Do dospeća ${t} dana (min. 15, maks. 180)`, 'Iznos u dozvoljenom opsegu', 'Dužnik: nema poklapanja na sankcionim listama', 'Nema duplikata (SEF ID, broj fakture, otisak fakture)', 'Izjave potpune (verzija DRAFT-0)'];
+  S.checks[r.id] = list.map(x => ({ t: x, ok: false }));
+  r.state = 'Pending'; r.sefAt = now(); render();
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let i = 0;
+  const tick = () => { S.checks[r.id][i].ok = true; i++; if (i === list.length) { r.state = 'Verified'; toast('Faktura je verifikovana i spremna za tržište.'); } if (S.view === 'rec' && S.p.id === r.id) render(); if (i < list.length) setTimeout(tick, reduce ? 0 : 280); };
+  setTimeout(tick, reduce ? 0 : 280);
+}
+
+const A = {
+  reset() { S = initial(); clock = new Date(TODAY); render(); toast('Prototip je vraćen na početno stanje.'); },
+  role(e) { S.role = e.r; S.search = ''; go('dashboard'); },
+  nav(e) { go(e.v, e.id ? { id: e.id } : {}); },
+  openRec(e) { go('rec', { id: e.id }); },
+  openOffers(e) { go('offers', { id: e.id }); },
+  openDeal(e) { go('deal', { id: e.id }); },
+  openListing(e) { go('listing', { id: e.id }); },
+  close() { closeModal(); },
+  overlay(e, ev) { if (ev.target.classList.contains('overlay')) closeModal(); },
+  sefImport() { openModal({ html: sefImportHtml() }); },
+  sefRun() {
+    const ids = document.getElementById('sef-ids').value.split(/[\s,;]+/).filter(Boolean).slice(0, 50);
+    const res = ids.map(id => {
+      if (S.recs.some(r => r.sef === id)) return { id, ok: false, t: 'Već uvezeno' };
+      if (id === '84498811') return { id, ok: false, t: 'Niste izdavalac ove fakture' };
+      if (!/^\d{6,12}$/.test(id)) return { id: esc(id), ok: false, t: 'Neispravan SEF ID' };
+      const n = S.rseq++; S.recs.unshift({ id: 'R' + n, inv: '2026-04' + (40 + n), sef: id, debtor: 'Dunav Logistika d.o.o.', dpib: '106554433', F: 512640000, issue: '2026-10-03', due: '2026-12-31', state: 'Draft', sefAt: now() });
+      return { id, ok: true, t: 'Uvezeno kao nacrt · Dunav Logistika d.o.o. · 5.126.400,00 RSD' };
+    });
+    openModal({ html: sefImportHtml(res) }); if (['recs', 'dashboard'].includes(S.view)) { renderShell(); document.getElementById('view').innerHTML = S.view === 'recs' ? vRecs() : vDashboard(); }
+  },
+  submitRec(e) {
+    const all = [...document.querySelectorAll('.decl')].every(c => c.checked);
+    if (!all) { document.getElementById('decl-err').innerHTML = `<div class="errbox">Potvrdite sve izjave. Ako neka nije tačna, faktura ne može biti ponuđena faktorima.</div>`; return; }
+    runChecks(recById(e.id));
+  },
+  publishOpen(e) { openModal({ html: publishHtml(recById(e.id)) }); },
+  publishDo(e) {
+    const r = recById(e.id); const n = Number(document.getElementById('pub-close').value);
+    const excluded = [...document.querySelectorAll('.excl:checked')].map(c => c.value);
+    const sel = document.querySelector('input[name="aud"]:checked').value === 'sel';
+    const id = 'L' + (S.listings.length + 1);
+    S.listings.push({ id, rec: r.id, seller: SELLER.name, state: 'Open', closes: `${iso(addBD(TODAY, n))}T15:00`, audience: sel ? 'Izabrani faktori' : (excluded.length ? `Svi verifikovani, osim ${excluded.length}` : 'Svi verifikovani faktori'), excluded });
+    r.state = 'Listed'; r.listing = id; r.sefAt = now(); closeModal(); render(); toast('Oglas je objavljen. Verifikovani faktori ga sada vide.');
+  },
+  withdrawListing(e) { const r = recById(e.id); const l = lst(r.listing); l.state = 'Withdrawn'; offersOf(l.id).forEach(o => { if (o.state === 'Active') o.state = 'Superseded'; }); r.state = 'Verified'; delete r.listing; render(); toast('Oglas je povučen; aktivne ponude su zatvorene.'); },
+  accept(e) { openModal({ html: acceptHtml(S.offers.find(o => o.id === e.id)) }); },
+  acceptGo(e) {
+    if (!document.getElementById('ack').checked) { document.getElementById('ack-err').innerHTML = `<div class="errbox">Potvrdite da ste pročitali uslove i da ste ovlašćeni.</div>`; return; }
+    stepUp('Prihvatanje ponude', () => {
+      const o = S.offers.find(x => x.id === e.id); const l = lst(o.listing); const r = recById(l.rec);
+      if (o.state !== 'Active' || l.state !== 'Open') { toast('Ponuda više nije aktivna.'); return; }
+      o.state = 'Accepted'; offersOf(l.id).forEach(x => { if (x.state === 'Active') x.state = 'Superseded'; }); l.state = 'Closed';
+      const at = now(); const id = 'D' + S.seq; const ref = 'DL-2026-000' + S.seq++;
+      S.deals.unshift({ id, ref, rec: r.id, seller: SELLER.name, factor: o.factor, F: r.F, P: o.P, recourse: o.rec, fd: o.fd, step: 1, created: at, done: { accepted: at }, hist: [{ at, t: `Prihvaćena ponuda ${o.factor} (${fM(o.P)}); ostale ponude zatvorene; posao kreiran.` }] });
+      r.state = 'Reserved'; r.deal = id; go('deal', { id }); toast(`Posao ${ref} je kreiran. Faktor je obavešten.`);
+    });
+  },
+  stepOk() {
+    const v = document.getElementById('otp').value.trim();
+    if (!/^\d{6}$/.test(v)) { document.getElementById('otp-err').innerHTML = `<div class="errbox">Kod mora imati tačno 6 cifara.</div>`; return; }
+    const fn = S.pending; S.pending = null; closeModal(); fn && fn();
+  },
+  simulate(e) { const d = dealById(e.id); advance(d, `${STEPS[d.step].t}: završeno (simulacija u prototipu).`); render(); },
+  dealCdd(e) { stepUp('Potvrda CDD provere', () => { advance(dealById(e.id), 'Faktor potvrdio da je CDD provera završena i odobrena.'); render(); toast('CDD potvrđen. Sledeći korak: ugovor.'); }); },
+  dealDecline(e) { const d = dealById(e.id); const r = recById(d.rec); d.step = 0; d.hist.unshift({ at: now(), t: 'Faktor odbio posao nakon CDD provere. Posao otkazan.' }); S.deals = S.deals.filter(x => x !== d); r.state = 'Verified'; delete r.deal; delete r.listing; go('deals'); toast('Posao je otkazan; potraživanje je ponovo dostupno prodavcu.'); },
+  fundingOpen(e) { openModal({ html: fundingHtml(dealById(e.id)) }); },
+  fundingGo(e) { stepUp('Prijava isplate', () => { const d = dealById(e.id); advance(d, `${d.factor} prijavio isplatu ${fM(d.P)}, poziv na broj 97-2026-${d.ref.slice(-3)}.`); render(); toast('Isplata prijavljena. Prodavac potvrđuje prijem.'); }); },
+  confirmFunds(e) { stepUp('Potvrda prijema sredstava', () => { const d = dealById(e.id); advance(d, `Prodavac potvrdio prijem ${fM(d.P)}. Naknada platforme obračunata faktoru.`); render(); toast('Prijem potvrđen. Posao je isplaćen.'); }); },
+  discrepancy() { toast('U pravoj aplikaciji: otvara se spor „Odstupanje u isplati” i posao se zadržava.'); },
+  outcome(e) { stepUp('Upis ishoda', () => { advance(dealById(e.id), 'Faktor evidentirao naplatu od dužnika. Posao zatvoren.'); render(); toast('Posao je zatvoren.'); }); },
+  filter(e) { S.filters[e.f] = !S.filters[e.f]; render(); },
+  submitOffer(e) {
+    const l = lv(lst(e.id)); const P = parseM(document.getElementById('op-price').value); const err = document.getElementById('op-err');
+    if (P == null) { err.innerHTML = `<div class="errbox">Unesite cenu u formatu 11.368.400,00.</div>`; return; }
+    if (P <= 0 || P >= l.F) { err.innerHTML = `<div class="errbox">Cena mora biti veća od nule i manja od nominalnog iznosa (${fM(l.F)}).</div>`; return; }
+    S.offers.push({ id: 'O' + S.oseq++, listing: l.id, factor: ME_F.name, P, rec: document.getElementById('op-rec').value, fd: Number(document.getElementById('op-days').value), valid: l.closes, state: 'Active', at: now() });
+    render(); toast('Ponuda je poslata. Prodavac je obavešten.');
+  },
+  withdrawOffer(e) { const o = S.offers.find(x => x.id === e.id); o.state = 'Withdrawn'; render(); toast('Ponuda je povučena.'); },
+};
+
+document.addEventListener('click', ev => {
+  const el = ev.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const fn = A[el.dataset.act]; if (fn) fn(el.dataset, ev);
+});
+document.addEventListener('input', ev => {
+  if (ev.target.id === 'mk-search') { S.search = ev.target.value; document.getElementById('mk-body').innerHTML = marketRows(); }
+  if (['op-price', 'op-days', 'op-rec'].includes(ev.target.id)) updateMetrics();
+});
+document.addEventListener('change', ev => { if (['op-days', 'op-rec'].includes(ev.target.id)) updateMetrics(); });
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && S.modal) closeModal();
+  if (ev.key === 'Enter' && ev.target.id === 'otp') A.stepOk();
+  if (ev.key === 'Enter' && ev.target.closest && ev.target.closest('tr.click')) ev.target.closest('tr.click').click();
+});
+function updateMetrics() {
+  const l = lv(lst(S.p.id)); const P = parseM(document.getElementById('op-price').value);
+  const fd = Number(document.getElementById('op-days').value);
+  document.getElementById('op-metrics').innerHTML = metricsHtml(l, P != null && P > 0 && P < l.F ? P : null, fd);
+}
+render();
+</script>
