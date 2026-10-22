@@ -37,9 +37,9 @@ Audit: login success/failure, MFA enrol/change, password reset, session revoke, 
 Integration: full register → confirm → MFA → login flow; step-up expiry; lockout; CSRF rejection without the header; session revocation invalidates the cookie.
 
 # Acceptance Criteria
-- [ ] A new user cannot reach `/me/organizations` before MFA enrolment.
-- [ ] Step-up-protected sample endpoint returns 401 after 5 minutes.
-- [ ] All audited events present.
+- [x] A new user cannot reach `/me/organizations` before MFA enrolment (`AuthTests.A_user_without_mfa_enrolment_cannot_reach_organizations`).
+- [x] Step-up-protected sample endpoint returns 401 after 5 minutes (`AuthTests.Step_up_is_required_and_expires_after_five_minutes`).
+- [x] All audited events present (login success/failure, lockout, MFA enrolment, recovery-code use, password reset, session revoke, logout; CI on `main`, 2026-10-22). WebAuthn deferred to a follow-up as the task allows.
 
 # Out of Scope
 Staff accounts and platform roles → task 007; Entra ID SSO for staff → task 022; organizations; MFA reset without recovery codes (needs the organization's official email and staff) → task 007a.

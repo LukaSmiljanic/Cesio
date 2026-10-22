@@ -20,7 +20,7 @@ Expected load (≈ 5–50 deals/business day, hundreds of organizations) is tiny
 | Observability | OpenTelemetry → Azure Monitor / Application Insights; structured logging (Serilog or MEL) with PII scrubbing | |
 | Hosting | Azure Container Apps (API + worker as two apps from one image) | App Service for Containers is an equal alternative |
 | IaC / CI | Bicep; GitHub Actions or Azure DevOps; Docker multi-stage build | |
-| Local dev | `docker compose` (SQL Server Developer, Azurite, MailHog/smtp4dev) | |
+| Local dev | `docker compose` (SQL Server Developer, Azurite, smtp4dev) | |
 
 **Not used** (no documented requirement): microservices, Kafka/Service Bus, Kubernetes, Elasticsearch, Redis, MediatR-style frameworks (allowed only if ADR'd), CQRS with separate stores.
 

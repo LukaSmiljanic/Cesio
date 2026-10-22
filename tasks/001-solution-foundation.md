@@ -37,7 +37,7 @@ An architecture test project with the rules above (one deliberately violating sa
 
 # Acceptance Criteria
 - [x] `docker compose up -d && dotnet build && dotnet test` green on a clean machine (after `cp .env.example .env` and setting a local SA password, see README).
-- [x] CI green on a PR. (Green on `main`, 2026-10-22; the product owner chose to push to `main` without PRs.)
+- [x] CI green on `main` (the product owner chose on 2026-10-22 to push to `main` without PRs; originally "CI green on a PR").
 - [x] An architecture violation fails the build.
 - [x] A float in a domain file fails the CI check.
 

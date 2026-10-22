@@ -4,7 +4,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 
 ## 1. Conventions
 - **Org context:** header `X-Organization-Id` on all org-scoped endpoints. The server validates the membership and loads roles. Missing or invalid → 403.
-- **Auth:** cookie session (BFF) + anti-forgery header on unsafe methods. Endpoints marked 🔐 require **step-up MFA** (≤ 5 min). Sign-in and account-recovery endpoints (`/auth/*`, `/me/sessions`) act before or outside an organization context, so they take no `Idempotency-Key`; they are rate limited instead.
+- **Auth:** cookie session (BFF) + anti-forgery header on unsafe methods. Endpoints marked 🔐 require **step-up MFA** (≤ 5 min). Sign-in and account-recovery endpoints (`/auth/*`, `/me/sessions`, the no-op sample `/me/step-up-check`) act before or outside an organization context, so they take no `Idempotency-Key`; they are rate limited instead.
 - **Idempotency:** endpoints marked ♻ require `Idempotency-Key` (UUID). Replay → same response. Same key with a different body → `422 idempotency_key_reuse`.
 - **Concurrency:** resources return `ETag` (= version). Commands on existing aggregates accept `If-Match`; a mismatch → `412`.
 - **Money:** `{ "amount": "97000.00", "currency": "RSD" }`. The amount is a **string** decimal (no JSON float), validated against the currency's minor units.
