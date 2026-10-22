@@ -42,9 +42,9 @@ Audit all membership and role changes. Invitation tokens are hashed. 404 instead
 - Concurrency: two simultaneous Signatory-flag edits → one 412.
 
 # Acceptance Criteria
-- [ ] Wizard creates a Draft claim; factor members and the Signatory flag work end to end.
-- [ ] Org-context middleware is applied to all org-scoped routes (test enumerates endpoints).
-- [ ] Audit events for claim created, invite, accept, Signatory flag change, submit.
+- [x] Wizard creates a Draft claim; factor members and the Signatory flag work end to end (`OrganizationTests`, SPA wizard and members page; CI on `main`, 2026-10-22).
+- [x] Org-context middleware is applied to all org-scoped routes (test enumerates endpoints: `Every_organization_route_has_the_organization_context_and_commands_need_an_idempotency_key`).
+- [x] Audit events for claim created, invite, accept, Signatory flag change, submit.
 
 # Out of Scope
 KYB review, APR lookups, bank accounts, beneficial owners (007/009). Security-recipient notifications for member and Signatory changes (security.md §2) → task 019. Powers of attorney as a Signatory basis need verified documents (006/007); until then they are rejected. Revoking a pending invitation → later (it expires after 7 days).
