@@ -27,7 +27,6 @@ public sealed partial class OutboxDispatcher(
 {
     public const string MeterName = "Cesio.Outbox";
 
-    private const int MaxErrorLength = 2000;
 
     private static readonly Meter Meter = new(MeterName);
     private static readonly Counter<long> Delivered = Meter.CreateCounter<long>("outbox.delivered");
@@ -131,8 +130,8 @@ public sealed partial class OutboxDispatcher(
         var now = timeProvider.GetUtcNow();
         var deadLetter = attempts >= options.Value.MaxAttempts;
         var backoff = TimeSpan.FromSeconds(Math.Min(Math.Pow(2, attempts), options.Value.MaxBackoff.TotalSeconds));
-        var error = $"{exception.GetType().Name}: {exception.Message}";
-        error = error.Length > MaxErrorLength ? error[..MaxErrorLength] : error;
+        // Only the exception type is stored: messages may contain personal data (security.md §8); the log has the detail.
+        var error = exception.GetType().FullName;
 
         await using var scope = scopeFactory.CreateAsyncScope();
         var platform = scope.ServiceProvider.GetRequiredService<PlatformDbContext>();

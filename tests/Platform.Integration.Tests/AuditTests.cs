@@ -9,6 +9,9 @@ namespace Platform.Integration.Tests;
 
 public sealed class AuditTests(SqlServerContainer server) : IAsyncLifetime
 {
+    /// <summary>229: permission denied (UPDATE, DELETE); 1088 / 4701: TRUNCATE without ALTER permission.</summary>
+    private static readonly int[] PermissionErrors = [229, 1088, 4701];
+
     private readonly TestDatabase _database = new(server);
 
     public ValueTask InitializeAsync() => _database.InitializeAsync();
@@ -85,7 +88,17 @@ public sealed class AuditTests(SqlServerContainer server) : IAsyncLifetime
 
         var exception = await Assert.ThrowsAsync<SqlException>(() => _database.ExecuteAsync($"EXECUTE AS USER = '{user}'; {sql}; REVERT;"));
 
-        Assert.Contains("permission was denied", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(exception.Number, PermissionErrors);
+    }
+
+    [Fact]
+    public async Task Running_the_migrator_again_changes_nothing()
+    {
+        await WriteAsync("Sample.BeforeRerun");
+
+        await DatabaseMigrator.MigrateAsync(_database.Services, _database.ConnectionString, TestContext.Current.CancellationToken);
+
+        Assert.True((await VerifyAsync()).IsValid);
     }
 
     [Fact]

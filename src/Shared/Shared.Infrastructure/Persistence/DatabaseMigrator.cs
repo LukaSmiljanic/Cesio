@@ -27,7 +27,7 @@ public static class DatabaseMigrator
     /// <summary>
     /// Creates <c>app_rw</c>, <c>migrator</c> and <c>readonly_reporting</c> if missing and grants them per schema.
     /// <c>app_rw</c> gets INSERT and SELECT only on append-only schemas, with UPDATE and DELETE denied; TRUNCATE needs
-    /// ALTER, which no application role has. Idempotent.
+    /// ALTER, which no application role has. Idempotent. Needs a principal that may manage roles (database.md §6).
     /// </summary>
     private static async Task ApplyRolesAsync(string connectionString, IEnumerable<string> schemas, CancellationToken cancellationToken)
     {
@@ -43,11 +43,14 @@ public static class DatabaseMigrator
         foreach (var schema in schemas.Distinct(StringComparer.Ordinal))
         {
             var quoted = $"[{schema.Replace("]", "]]", StringComparison.Ordinal)}]";
-            statements.Add($"GRANT SELECT ON SCHEMA::{quoted} TO readonly_reporting;");
             statements.Add(AppendOnlySchemas.Contains(schema)
                 ? $"GRANT SELECT, INSERT ON SCHEMA::{quoted} TO app_rw; DENY UPDATE, DELETE ON SCHEMA::{quoted} TO app_rw;"
                 : $"GRANT SELECT, INSERT, UPDATE, DELETE ON SCHEMA::{quoted} TO app_rw;");
         }
+
+        // readonly_reporting gets no grants until task 022 defines the reporting scope (database.md §6: never personal
+        // data in compliance/orgs). Stored command responses are a replay cache, never reporting data.
+        statements.Add("IF OBJECT_ID('platform.idempotency_keys') IS NOT NULL DENY SELECT ON platform.idempotency_keys TO readonly_reporting;");
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);

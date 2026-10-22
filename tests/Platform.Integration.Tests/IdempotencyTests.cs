@@ -43,6 +43,11 @@ public sealed class IdempotencyTests(SqlServerContainer server) : IAsyncLifetime
             executions.Record();
             return Results.Created($"/orders/{order.Id}", new { id = order.Id });
         }).RequireIdempotency();
+        _app.MapPost("/orders/{id:guid}/submit", (Guid id, CommandExecutions executions) =>
+        {
+            executions.Record();
+            return Results.Ok(new { id });
+        }).RequireIdempotency();
         await _app.StartAsync(TestContext.Current.CancellationToken);
         _client = _app.GetTestClient();
     }
@@ -91,6 +96,44 @@ public sealed class IdempotencyTests(SqlServerContainer server) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Another_organization_never_gets_a_replay_of_the_same_key()
+    {
+        var key = Guid.NewGuid().ToString();
+        var before = _executions.Count;
+        var firstOrganization = _database.RequestContext.OrganizationId;
+
+        using var first = await PostAsync(key, "a");
+        _database.RequestContext.OrganizationId = Guid.NewGuid();
+        try
+        {
+            using var second = await PostAsync(key, "a");
+
+            Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+            Assert.NotEqual(
+                await first.Content.ReadAsStringAsync(TestContext.Current.CancellationToken),
+                await second.Content.ReadAsStringAsync(TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            _database.RequestContext.OrganizationId = firstOrganization;
+        }
+
+        Assert.Equal(before + 2, _executions.Count);
+    }
+
+    [Fact]
+    public async Task The_same_key_on_another_resource_is_rejected()
+    {
+        var key = Guid.NewGuid().ToString();
+
+        using var first = await SendAsync(key, $"/orders/{Guid.NewGuid()}/submit", content: null);
+        using var second = await SendAsync(key, $"/orders/{Guid.NewGuid()}/submit", content: null);
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, second.StatusCode);
+    }
+
+    [Fact]
     public async Task Concurrent_duplicates_execute_once()
     {
         var key = Guid.NewGuid().ToString();
@@ -108,11 +151,13 @@ public sealed class IdempotencyTests(SqlServerContainer server) : IAsyncLifetime
         Assert.Equal(before + 1, _executions.Count);
     }
 
-    private Task<HttpResponseMessage> PostAsync(string key, string name)
+    private Task<HttpResponseMessage> PostAsync(string key, string name) => SendAsync(key, "/orders", JsonContent.Create(new { name }));
+
+    private async Task<HttpResponseMessage> SendAsync(string key, string path, HttpContent? content)
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, "/orders") { Content = JsonContent.Create(new { name }) };
+        using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = content };
         request.Headers.Add(HttpRequestContext.IdempotencyKeyHeader, key);
-        return _client.SendAsync(request, TestContext.Current.CancellationToken);
+        return await _client.SendAsync(request, TestContext.Current.CancellationToken);
     }
 
     /// <summary>The fixed test actor, with the idempotency key read from the request header.</summary>

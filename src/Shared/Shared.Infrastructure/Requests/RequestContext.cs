@@ -64,6 +64,9 @@ public sealed class HttpRequestContext(IHttpContextAccessor accessor) : IRequest
 {
     public const string IdempotencyKeyHeader = "Idempotency-Key";
 
+    /// <summary>User agents are stored in audit and access log rows; longer values are cut.</summary>
+    public const int MaxUserAgentLength = 512;
+
     private HttpContext Http => accessor.HttpContext ?? throw new InvalidOperationException("No HTTP request is active.");
 
     public ActorType ActorType => ActorType.User;
@@ -76,7 +79,9 @@ public sealed class HttpRequestContext(IHttpContextAccessor accessor) : IRequest
 
     public string? IpAddress => Http.Connection.RemoteIpAddress?.ToString();
 
-    public string? UserAgent => Http.Request.Headers.UserAgent.ToString() is { Length: > 0 } userAgent ? userAgent : null;
+    public string? UserAgent => Http.Request.Headers.UserAgent.ToString() is { Length: > 0 } userAgent
+        ? userAgent[..Math.Min(userAgent.Length, MaxUserAgentLength)]
+        : null;
 
     public string? DeviceId => null;
 

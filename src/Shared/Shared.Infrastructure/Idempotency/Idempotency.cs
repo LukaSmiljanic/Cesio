@@ -61,7 +61,7 @@ internal sealed class IdempotencyMiddleware(RequestDelegate next)
         var userId = request.UserId
             ?? throw new InvalidOperationException("Idempotent endpoints need an authenticated user (task 004).");
         var endpoint = EndpointName(http);
-        var requestHash = await HashBodyAsync(http.Request);
+        var requestHash = await HashRequestAsync(http.Request);
         var now = timeProvider.GetUtcNow();
         var record = new IdempotencyRecord
         {
@@ -101,6 +101,9 @@ internal sealed class IdempotencyMiddleware(RequestDelegate next)
         {
             await next(http);
 
+            // 5xx: roll back, so the client may retry with the same key. 2xx and 4xx are final: the response (and any
+            // writes the handler made, so handlers validate before writing) commit and are replayed. Headers such as
+            // Location are not stored; a replay returns the status and the JSON body.
             if (http.Response.StatusCode >= StatusCodes.Status500InternalServerError)
             {
                 await unitOfWork.RollbackAsync();
@@ -156,12 +159,24 @@ internal sealed class IdempotencyMiddleware(RequestDelegate next)
         return $"{http.Request.Method} {route}";
     }
 
-    private static async Task<string> HashBodyAsync(HttpRequest request)
+    /// <summary>
+    /// SHA-256 of the concrete path, query string and body. The key is scoped by the route template, so the route
+    /// values must be part of the hash: the same key on another resource (<c>/offers/{id}/accept</c>) is a 422, not a replay.
+    /// </summary>
+    private static async Task<string> HashRequestAsync(HttpRequest request)
     {
         request.EnableBuffering();
-        var hash = await SHA256.HashDataAsync(request.Body, request.HttpContext.RequestAborted);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(System.Text.Encoding.UTF8.GetBytes($"{request.Path}{request.QueryString}\n"));
+        var buffer = new byte[8192];
+        int read;
+        while ((read = await request.Body.ReadAsync(buffer, request.HttpContext.RequestAborted)) > 0)
+        {
+            hash.AppendData(buffer, 0, read);
+        }
+
         request.Body.Position = 0;
-        return Convert.ToHexStringLower(hash);
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 
     private static bool IsJson(string? contentType) =>

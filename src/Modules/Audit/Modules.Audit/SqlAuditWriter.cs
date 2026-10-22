@@ -17,6 +17,9 @@ internal sealed class SqlAuditWriter(UnitOfWork unitOfWork, AuditDbContext audit
 {
     public const string ChainLock = "audit:chain";
 
+    /// <summary>Length of <c>idempotency_key</c>; only idempotent endpoints reject longer keys, so others are cut here.</summary>
+    private const int MaxKeyLength = 200;
+
     private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(30);
 
     public async Task WriteAsync(AuditEntry entry, CancellationToken cancellationToken)
@@ -48,7 +51,9 @@ internal sealed class SqlAuditWriter(UnitOfWork unitOfWork, AuditDbContext audit
             Changes = entry.Changes is { Count: > 0 } changes ? JsonSerializer.Serialize(changes, JsonOptions.Web) : null,
             Reason = entry.Reason,
             CorrelationId = request.CorrelationId,
-            IdempotencyKey = request.IdempotencyKey,
+            IdempotencyKey = request.IdempotencyKey is { Length: > MaxKeyLength } key ? key[..MaxKeyLength] : request.IdempotencyKey,
+            // Stored in full: whether IP and device must be truncated or hashed, and for how long they are kept, is
+            // open (LQ-38, audit.md §2). The simplest option is used until the answer; change it here only.
             IpAddress = request.IpAddress,
             UserAgent = request.UserAgent,
             DeviceId = request.DeviceId,

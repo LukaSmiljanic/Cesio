@@ -201,8 +201,11 @@ CREATE TABLE platform.idempotency_keys (
   PRIMARY KEY (org_id, endpoint, idem_key)
 );
 CREATE TABLE platform.outbox (id uniqueidentifier PRIMARY KEY, type nvarchar(200) NOT NULL, payload nvarchar(max) /* JSON, CHECK (ISJSON(...) = 1) */ NOT NULL, occurred_at datetimeoffset(3) NOT NULL,
-  processed_at datetimeoffset(3), attempts int NOT NULL DEFAULT 0, last_error nvarchar(max));
-CREATE INDEX ix_outbox_pending ON platform.outbox(occurred_at) WHERE processed_at IS NULL;
+  next_attempt_at datetimeoffset(3) NOT NULL /* backoff and claim lease */, processed_at datetimeoffset(3), dead_lettered_at datetimeoffset(3),
+  attempts int NOT NULL DEFAULT 0, last_error nvarchar(max) /* exception type only, no message (security.md §8) */);
+CREATE INDEX ix_outbox_pending ON platform.outbox(next_attempt_at) WHERE processed_at IS NULL AND dead_lettered_at IS NULL;
+CREATE TABLE platform.processed_events (event_id uniqueidentifier, consumer nvarchar(200), processed_at datetimeoffset(3) NOT NULL,
+  PRIMARY KEY (event_id, consumer)); -- written in the consumer's transaction, so redelivery does not repeat side effects
 CREATE TABLE platform.business_parameters (param_key nvarchar(200), version int, value nvarchar(max) /* JSON, CHECK (ISJSON(...) = 1) */ NOT NULL, effective_from datetimeoffset(3) NOT NULL,
   created_by uniqueidentifier NOT NULL, PRIMARY KEY (param_key, version));
 ```
@@ -230,7 +233,7 @@ Audit tables: see [audit.md](audit.md) §4.
 ## 6. Data protection in the DB
 - Azure-managed encryption at rest. Highly sensitive fields (SEF API keys) are **not** stored in the DB: they go to Key Vault, and the DB holds only the secret name.
 - Personal data (BO date of birth, representatives) lives in `compliance` and `orgs` only. Read access goes through the application role; reporting replicas exclude these columns.
-- Separate DB roles: `app_rw` (no DDL, no UPDATE/DELETE on immutable tables), `migrator` (DDL, used only in the pipeline), `readonly_reporting`.
+- Separate DB roles: `app_rw` (no DDL, no UPDATE/DELETE on immutable tables), `migrator` (DDL, used only in the pipeline), `readonly_reporting` (no grants until the reporting scope is defined in task 022; never `compliance`/`orgs` personal-data columns or `platform.idempotency_keys`). Platform.Migrator creates the roles and grants, so the pipeline runs it with a principal that may manage roles (e.g. `db_owner`); the API and worker connect as members of `app_rw` (task 024).
 
 ## 7. Backups & retention
 - Point-in-time restore for 35 days (Azure SQL maximum) + monthly long-term retention backups. Restores are tested quarterly.
