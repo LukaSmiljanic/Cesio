@@ -20,7 +20,7 @@ Sellers publish verified receivables as time-boxed listings to all or selected v
 # Business Rules
 - `closesAt` ≤ maturity − `minDaysAtListing` and ≤ now + `maxListingDays`.
 - Opening requires SEF status checked ≤ 24 h ago (re-poll if older; fail closed).
-- One Open listing per receivable (partial unique index).
+- One Open listing per receivable (filtered unique index).
 
 # Technical Requirements
 The visibility predicate is implemented once (a query object) and reused by feed, detail, documents and offer creation.

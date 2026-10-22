@@ -43,7 +43,7 @@ Signatory requires a link to an APR legal representative or a verified power of 
 
 ### Tenant isolation
 - Every query in an org context is filtered by `org_id` in the application layer (EF global query filters as defence in depth). Every command also re-checks resource ownership.
-- **Marketplace visibility** is computed server-side: listing is Open, factor is authorized and not excluded, and the audience includes it. IDs are UUIDv7 (unguessable enough, but **never** relied on for security).
+- **Marketplace visibility** is computed server-side: listing is Open, factor is authorized and not excluded, and the audience includes it. IDs are sequential GUIDs with random bytes (unguessable enough, but **never** relied on for security).
 - A factor sees **only its own offers**. A seller sees all offers on its listings. Competing factors never see each other's identities or prices (BQ-04 may change this).
 - Integration tests include a **cross-tenant access suite** for every endpoint (e.g. factor B tries to read factor A's offer → 404).
 

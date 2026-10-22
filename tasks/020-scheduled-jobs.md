@@ -4,10 +4,10 @@
 Time-based transitions and external-status monitoring run reliably, once per cluster, and are audited.
 
 # Context
-[database.md](../docs/database.md) §4 (advisory locks); INV-R4, INV-A2; [integrations.md](../docs/integrations.md) §1.
+[database.md](../docs/database.md) §4 (application locks); INV-R4, INV-A2; [integrations.md](../docs/integrations.md) §1.
 
 # Requirements
-Jobs in `Platform.Worker`, each guarded by an advisory lock, with metrics (last run, items processed, failures):
+Jobs in `Platform.Worker`, each guarded by an application lock (`sp_getapplock`), with metrics (last run, items processed, failures):
 
 | Job | Schedule | Action |
 |-----|----------|--------|

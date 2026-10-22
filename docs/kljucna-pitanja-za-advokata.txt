@@ -1,0 +1,177 @@
+================================================================================
+  CESIO - KLJUČNA PITANJA ZA ADVOKATA (PRVI KRUG)
+================================================================================
+
+  Datum:    22.10.2026.
+  Namena:   Samo pitanja od kojih zavisi da li sistem uopšte gradimo u ovom
+            obliku. Odgovor "NE" na pitanja 1-8 zaustavlja razvoj i menja
+            model. Odgovor "NE" na pitanje 9 menja samo registraciju faktora.
+
+
+--------------------------------------------------------------------------------
+  1. KAKO PLATFORMA RADI
+--------------------------------------------------------------------------------
+
+  Cesio je internet platforma za faktoring u Srbiji.
+
+  * PRODAVCI su firme i preduzetnici koji imaju nenaplaćene fakture prema
+    drugim firmama, izdate kroz SEF (Sistem elektronskih faktura). Na
+    platformi nude te fakture na otkup.
+
+  * FAKTORI su banke i društva za faktoring sa saglasnošću za rad. Oni daju
+    ponude da otkupe fakturu.
+
+  * Prodavac bira ponudu. Faktor i prodavac potpisuju ugovor o faktoringu
+    kvalifikovanim elektronskim potpisom, a faktor uplaćuje novac DIREKTNO
+    na račun prodavca.
+
+  * Platforma NE otkupljuje fakture, NE daje kredite i NIKADA ne prima, ne
+    drži i ne prosleđuje novac. Samo povezuje strane, proverava podatke,
+    vodi tok posla i čuva dokaze.
+
+  * Platforma planira da naplaćuje naknadu po uspešnom poslu: procenat
+    zarade faktora, odnosno razlike između iznosa fakture i cene koju je
+    faktor ponudio. Plaća je faktor. Ovo je predlog i zavisi od pitanja 4.
+
+
+--------------------------------------------------------------------------------
+  2. ODNOS PLATFORME SA KORISNICIMA: SAMO REGISTRACIJA I USLOVI KORIŠĆENJA
+--------------------------------------------------------------------------------
+
+  Ni sa prodavcima ni sa faktorima platforma NE ZAKLJUČUJE poseban ugovor.
+
+  * Korisnik se registruje na platformi i prihvata Uslove korišćenja
+    platforme. Uslovi postoje u verziji za prodavce i u verziji za faktore.
+
+  * Uslovi korišćenja uređuju ceo odnos sa platformom: pravila rada,
+    naknadu, poverljivost podataka, odgovornost, zaštitu podataka i
+    rešavanje sporova.
+
+  * Prodavac uz registraciju dostavlja pristupnicu, koju potpisuje zastupnik
+    firme. Pristupnicom firma prihvata Uslove i ovlašćuje nalog.
+
+  * Faktor NE potpisuje okvirni ugovor ni ugovor o učešću sa platformom.
+    Registruje se, prolazi proveru saglasnosti za rad (APR Registar
+    faktoringa ili NBS spisak banaka) i prihvata Uslove za faktore.
+
+  * Jedini ugovor u svakom poslu je ugovor o faktoringu između prodavca i
+    faktora. Platforma nije strana u tom ugovoru.
+
+  Pitanje 9 traži potvrdu da je ovakav odnos pravno dovoljan.
+
+
+--------------------------------------------------------------------------------
+  3. KAKO DA ODGOVORITE
+--------------------------------------------------------------------------------
+
+  Za svako pitanje molimo:
+    - kratak odgovor: DA ili NE;
+    - izvor (propis, član, praksa);
+    - ako je odgovor NE: šta bi moralo da se promeni.
+
+
+--------------------------------------------------------------------------------
+  4. PITANJA
+--------------------------------------------------------------------------------
+
+  PITANJE 1 - Rad bez dozvole                                   (LQ-01)
+  ..............................................................................
+  Opis:       Platforma samo povezuje prodavce i faktore. Ne otkupljuje
+              fakture i ne dira novac.
+  Pitanje:    Da li platforma može da radi bez ikakve dozvole ili upisa kod
+              Komisije za hartije od vrednosti, NBS ili Ministarstva finansija?
+  Ako je NE:  Treba nam dozvola pre gradnje, ili drugačiji model.
+
+
+  PITANJE 2 - Platforma ne obavlja faktoring                    (LQ-02)
+  ..............................................................................
+  Opis:       Platforma standardizuje uslove, rangira ponude po iznosu koji
+              prodavac dobija i čuva potpisane ugovore.
+  Pitanje:    Da li se platforma i pored toga ne smatra da sama obavlja
+              faktoring?
+  Ako je NE:  Moramo izbaciti te funkcije ili postati faktor.
+
+
+  PITANJE 3 - Van propisa o platnim uslugama                    (LQ-06)
+  ..............................................................................
+  Opis:       Faktor plaća prodavcu direktno iz svoje banke. Na platformi
+              faktor samo prijavi uplatu, a prodavac potvrdi prijem.
+  Pitanje:    Da li ovakav model ostaje van Zakona o platnim uslugama?
+  Ako je NE:  Treba nam dozvola NBS ili banka partner.
+
+
+  PITANJE 4 - Naknada platforme                                 (LQ-03)
+  ..............................................................................
+  Opis:       Naknada po uspešnom poslu je procenat zarade faktora: razlike
+              između iznosa fakture i cene koju je faktor ponudio.
+              Primer: faktura 100.000, cena 97.000, zarada 3.000; uz udeo
+              od 15 % naknada je 450.
+              Plaća je faktor, a opciono i prodavac. Obaveza plaćanja
+              proizlazi iz Uslova korišćenja.
+  Pitanje:    Da li platforma uopšte sme da naplaćuje takvu naknadu? Da li
+              nas učešće u zaradi faktora čini učesnikom u obavljanju
+              faktoringa (vidi pitanje 2)? Ako postoje ograničenja ili
+              obaveze obelodanjivanja, molimo da ih navedete.
+  Ako je NE:  Nemamo poslovni model.
+
+
+  PITANJE 5 - SEF API ključ prodavca                     (LQ-21, LQ-51)
+  ..............................................................................
+  Opis:       Prodavac nam daje pristupni ključ za SEF. Mi automatski
+              preuzimamo njegove fakture i proveravamo da ih je kupac
+              prihvatio. Ključ koristimo samo za čitanje, ali tehnički
+              omogućava i storniranje faktura.
+  Pitanje:    Da li prodavac sme da nam da ključ? Da li je potrebno formalno
+              ovlašćenje prodavca, i šta ono mora da sadrži?
+  Ako je NE:  Ne možemo automatski proveravati fakture, a to je osnova
+              sistema.
+
+
+  PITANJE 6 - Prikaz dužnika većem broju faktora                (LQ-36)
+  ..............................................................................
+  Opis:       Faktori na oglasu vide ko je dužnik i podatke o fakturi, da bi
+              mogli da procene rizik. Prodavac bira da li oglas vide svi
+              faktori ili samo neki. Obavezu poverljivosti faktori preuzimaju
+              prihvatanjem Uslova korišćenja za faktore.
+  Pitanje:    Da li smemo da pokažemo te podatke većem broju faktora, uz
+              saglasnost prodavca?
+  Ako je NE:  Tržište sa više ponuda ne može da postoji.
+
+
+  PITANJE 7 - Platforma nije obveznik po AML zakonu             (LQ-28)
+  ..............................................................................
+  Opis:       Platforma proverava firme radi sigurnosti tržišta. Zakonsku
+              proveru klijenta (CDD) rade sami faktori, koji su obveznici.
+  Pitanje:    Da li platforma nije obveznik po Zakonu o sprečavanju pranja
+              novca i finansiranja terorizma?
+  Ako je NE:  Moramo da gradimo punu AML funkciju i da imenujemo ovlašćeno
+              lice.
+
+  PITANJE 8 - Registracija i Uslovi korišćenja umesto ugovora   (LQ-72)
+  ..............................................................................
+  Opis:       Odnos sa korisnicima, uključujući banke i društva za
+              faktoring, zasniva se samo na registraciji i prihvatanju
+              Uslova korišćenja platforme (vidi deo 2). Poseban ugovor se
+              ne zaključuje.
+  Pitanje:    Da li su registracija i Uslovi korišćenja prihvaćeni na
+              platformi pravno dovoljni prema faktorima, uključujući banke,
+              za: obavezu plaćanja naknade, obavezu poverljivosti,
+              ograničenje odgovornosti i zaštitu podataka?
+              Da li bankama i društvima za faktoring njihovi propisi (npr.
+              pravila NBS o eksternalizaciji) ipak nalažu pisani ugovor sa
+              platformom?
+  Ako je NE:  Sa faktorima moramo zaključivati poseban ugovor. To ne
+              zaustavlja razvoj, ali menja registraciju faktora i nacrte
+              dokumenata.
+
+
+--------------------------------------------------------------------------------
+  5. DOKUMENTI KOJE VAS MOLIMO DA PRIPREMITE (posle prvog kruga)
+--------------------------------------------------------------------------------
+
+  1. Uslovi korišćenja za prodavce.
+  2. Uslovi korišćenja za faktore, sa obavezom poverljivosti.
+  3. Pristupnica prodavca.
+  4. Politika privatnosti.
+
+================================================================================

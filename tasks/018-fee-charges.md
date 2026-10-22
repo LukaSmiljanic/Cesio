@@ -1,6 +1,6 @@
 # 018 — Fee Charges & Statements
 
-**Blocked by:** LQ-43 (VAT) and LQ-44 (SEF invoicing, tax point) for production values. Mechanics can be built now.
+**Blocked by:** LQ-43 (VAT) and LQ-44 (SEF invoicing, tax point) for production values. LQ-03 (fee permissibility, discount basis) proceeds on the product owner's working assumption of 2026-10-22 (legal-questions.md §5). Mechanics can be built now.
 
 # Goal
 When a deal is funded, exactly one fee charge per payer is created from the deal's fee snapshot; Finance can mark charges invoiced/paid and export monthly statements for invoicing through our accounting system.
@@ -9,7 +9,7 @@ When a deal is funded, exactly one fee charge per payer is created from the deal
 [business-model.md](../docs/business-model.md) §2–3; [financial-model.md](../docs/financial-model.md); INV-F3; task 017a.
 
 # Requirements
-- Consumer of `DealFunded`: create `fees.fee_charges` (`kind=Charge`, status `Due`, `due_at` = statement period end + payment terms parameter) per payer from the deal's fee snapshot. Idempotent via the partial unique index.
+- Consumer of `DealFunded`: create `fees.fee_charges` (`kind=Charge`, status `Due`, `due_at` = statement period end + payment terms parameter) per payer from the deal's fee snapshot. Idempotent via the filtered unique index.
 - Finance admin: list charges (filters: period, payer, status), mark `Invoiced` (external SEF invoice reference), mark `Paid` (date, reference), create a `Reversal` (with reason; four-eyes) that links to the original via `reverses_id`.
 - Monthly statement per payer org: `GET /fees/statements/{yyyy-mm}` (payer org view) and an admin CSV export (deal reference, receivable invoice number, face value, fee net, VAT, total, funded date).
 - Customer view: `GET /fees/charges` for the payer org.

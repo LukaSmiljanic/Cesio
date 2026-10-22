@@ -4,17 +4,17 @@ Goal: for any receivable, deal, organization or fee, we can reconstruct **who di
 
 ## 1. Principles
 1. **Write in the same DB transaction** as the business change. If the audit write fails, the business change fails.
-2. **Append-only.** The application DB role has `INSERT, SELECT` only on `audit.*`. Updates and deletes are revoked, and a trigger raises on any attempt.
-3. **Tamper-evident.** Each event stores `hash = SHA-256(prev_hash || canonical_json(event))` in a single chain (serialised by an advisory lock; volume is low). A daily job verifies the chain and writes a signed daily digest to **immutable (WORM) Azure Blob storage** with a time-based retention policy.
+2. **Append-only.** The application DB role has `INSERT, SELECT` only on `audit.*`. Updates and deletes are denied, and an INSTEAD OF trigger raises on any attempt (EF mapping declares it with `HasTrigger`).
+3. **Tamper-evident.** Each event stores `hash = SHA-256(prev_hash || canonical_json(event))` in a single chain (serialised by an application lock, `sp_getapplock` with `@LockOwner = 'Transaction'`, so the lock is held until the event commits; volume is low). A daily job verifies the chain and writes a signed daily digest to **immutable (WORM) Azure Blob storage** with a time-based retention policy.
 4. **Business intent, not only row diffs.** Events are named actions (`OfferAccepted`), not just `UPDATE deals`.
 5. **Financial records are never deleted.** Corrections are new records (reversals, compensating events).
 
 ## 2. Event schema
 | Field | Notes |
 |-------|-------|
-| `id` | UUIDv7 |
+| `id` | sequential GUID (ADR-021) |
 | `sequence` | bigint, gap-free per chain |
-| `occurred_at` | timestamptz (server clock, UTC) |
+| `occurred_at` | datetimeoffset (server clock, UTC) |
 | `actor_type` | `User | PlatformStaff | System | Integration` |
 | `actor_user_id` | nullable for System |
 | `actor_org_id` | organization context of the actor (nullable for staff/system) |
@@ -45,24 +45,26 @@ Goal: for any receivable, deal, organization or fee, we can reconstruct **who di
 ## 4. Storage
 ```sql
 CREATE TABLE audit.audit_events (
-  id uuid PRIMARY KEY,
+  id uniqueidentifier PRIMARY KEY,
   sequence bigint NOT NULL UNIQUE,
-  occurred_at timestamptz NOT NULL,
-  actor_type text NOT NULL, actor_user_id uuid, actor_org_id uuid,
-  on_behalf_of_org_id uuid,
-  action text NOT NULL, entity_type text NOT NULL, entity_id uuid NOT NULL,
-  related jsonb, previous_state text, new_state text, changes jsonb, reason text,
-  correlation_id text NOT NULL, idempotency_key text,
-  ip_address inet, user_agent text, mfa_step_up_at timestamptz,
-  evidence_document_ids uuid[],
+  occurred_at datetimeoffset(3) NOT NULL,
+  actor_type nvarchar(200) NOT NULL, actor_user_id uniqueidentifier, actor_org_id uniqueidentifier,
+  on_behalf_of_org_id uniqueidentifier,
+  action nvarchar(200) NOT NULL, entity_type nvarchar(200) NOT NULL, entity_id uniqueidentifier NOT NULL,
+  related nvarchar(max), previous_state nvarchar(200), new_state nvarchar(200), changes nvarchar(max), reason nvarchar(max),
+  correlation_id nvarchar(200) NOT NULL, idempotency_key nvarchar(200),
+  ip_address varchar(45), user_agent nvarchar(max), mfa_step_up_at datetimeoffset(3),
+  evidence_document_ids nvarchar(max),
   prev_hash char(64) NOT NULL, hash char(64) NOT NULL
 );
 CREATE INDEX ix_audit_entity ON audit.audit_events(entity_type, entity_id, occurred_at);
 CREATE INDEX ix_audit_org ON audit.audit_events(on_behalf_of_org_id, occurred_at);
--- grants: app_rw INSERT, SELECT only; trigger blocks UPDATE/DELETE/TRUNCATE
+-- grants: app_rw INSERT, SELECT only (DENY UPDATE, DELETE); INSTEAD OF UPDATE/DELETE trigger raises an error;
+-- TRUNCATE needs ALTER permission, which app_rw does not have
+-- related, changes, evidence_document_ids: JSON with CHECK (ISJSON(...) = 1)
 CREATE TABLE audit.access_log (...)  -- high-volume reads (listing views, downloads), same append-only rules, no hash chain
 ```
-Partition by month when volume requires it. Retention ≥ 10 years pending LQ-47. Archive older partitions to WORM Blob (Parquet/JSONL with digests) rather than delete.
+Partition by month (SQL Server table partitioning) when volume requires it. Retention ≥ 10 years pending LQ-47. Archive older partitions to WORM Blob (Parquet/JSONL with digests) rather than delete.
 
 ## 5. Access to audit data
 - Organizations see the audit history of **their own** entities (with staff identities shown as "Platform compliance").

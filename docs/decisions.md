@@ -5,16 +5,16 @@ Changing an Accepted decision requires a new ADR that supersedes it. AI agents m
 
 | ID | Title | Status | Depends on |
 |----|-------|--------|-----------|
-| ADR-001 | Modular monolith (.NET, PostgreSQL, React, Azure) | Accepted | — |
+| ADR-001 | Modular monolith (.NET, PostgreSQL, React, Azure) | Accepted (database superseded by ADR-021) | — |
 | ADR-002 | ASP.NET Core minimal APIs with endpoint groups per module | Accepted | — |
-| ADR-003 | Schema per module, UUIDv7 keys, EF Core per-module DbContext | Accepted | — |
+| ADR-003 | Schema per module, sequential GUID keys (originally UUIDv7, amended by ADR-021), EF Core per-module DbContext | Accepted | — |
 | ADR-004 | Platform never receives, holds or routes deal funds | Accepted (legal confirmation pending) | LQ-06 |
 | ADR-005 | Own identity (ASP.NET Core Identity), mandatory MFA, BFF cookie | Accepted | — |
 | ADR-006 | Offer acceptance as one cross-module DB transaction | Accepted | — |
-| ADR-007 | Factor-paid success fee, configurable tiers/min/cap/payer | Proposed | BQ-01, LQ-03, LQ-43 |
+| ADR-007 | Factor-paid success fee = 15% of the factor's offered earnings (discount `F − P`, not face value; product owner 2026-10-22, BQ-01 decided); configurable share/min/cap/payer ([financial-model.md](financial-model.md)) | Accepted (LQ-02, LQ-03: working assumption 2026-10-22, legal confirmation pending) | LQ-04, LQ-43, LQ-44, LQ-74 |
 | ADR-008 | Money = decimal + ISO currency; rounding half away from zero at fee calculation | Accepted | — |
 | ADR-009 | MVP limited to RSD, SEF e-invoices, full assignment, domestic private-sector debtors | Proposed | BQ-02, BQ-03 |
-| ADR-010 | Frontend component library: shadcn/ui + Tailwind + TanStack Table (see [ux-design.md](ux-design.md) §8) | Proposed | before task 004 (UI); confirm after prototype interviews |
+| ADR-010 | Frontend component library: shadcn/ui + Tailwind + TanStack Table (see [ux-design.md](ux-design.md) §8) | Accepted (product owner 2026-10-22) | — |
 | ADR-011 | PAdES/QES validation approach (library vs. QTSP validation service) | Open | before task 016 (until then a Compliance Officer checks QES manually, e.g. the pristupnica in task 007a) |
 | ADR-012 | Invoice and Receivable are separate entities | Accepted | — |
 | ADR-013 | Offers state a purchase price and are immutable | Accepted | — |
@@ -24,7 +24,9 @@ Changing an Accepted decision requires a new ADR that supersedes it. AI agents m
 | ADR-017 | Audit: same-transaction writes, hash chain, daily WORM digests | Accepted | — |
 | ADR-018 | Contract = factor's own agreement, signed externally with QES, validated by the platform | Proposed | LQ-24, LQ-27 |
 | ADR-019 | Production launch waits for an operational CEF; build and test everything before that | Proposed | CEF bylaw/API, LQ-17, LQ-18 |
+| ADR-021 | SQL Server (Azure SQL Database) instead of PostgreSQL | Accepted | — |
 | ADR-020 | Minimal seller onboarding: one shared account per seller, PIB claimed by a valid SEF key, pristupnica, NBS-verified payout account, APR-email confirmations | Proposed | LQ-21, LQ-26, LQ-32, BQ-13 |
+| ADR-022 | No separate agreement with factors: factors register and accept the platform's Terms of Use for factors | Accepted (LQ-72, LQ-26: working assumption 2026-10-22, legal confirmation pending) | LQ-73, LQ-74, LQ-36, LQ-65 |
 
 ## ADR-001 Modular monolith
 **Context:** small team, low transaction volume, high correctness needs. **Decision:** one deployable unit with strict module boundaries enforced by architecture tests. **Consequences:** simple ops and atomic transactions; modules can be extracted later if a real need appears.
@@ -33,10 +35,10 @@ Changing an Accepted decision requires a new ADR that supersedes it. AI agents m
 **Context:** handling third-party funds likely requires a payment-services licence (LQ-06) and adds AML exposure. **Decision:** the factor pays the seller directly; the platform records the factor's report and the seller's confirmation. **Consequences:** the platform cannot guarantee settlement. Funding discrepancies are disputes between the parties. The platform's fee is collected by a separate invoice, so there is credit risk on fees.
 
 ## ADR-006 Atomic acceptance
-**Context:** acceptance changes the offer, listing, receivable and deal; partial failure could double-sell. **Decision:** a single application service in Deals coordinates the write contracts of Marketplace and Receivables on one shared connection/transaction, with row locks and unique partial indexes. **Consequences:** a deliberate, documented exception to "modules communicate via events".
+**Context:** acceptance changes the offer, listing, receivable and deal; partial failure could double-sell. **Decision:** a single application service in Deals coordinates the write contracts of Marketplace and Receivables on one shared connection/transaction, with row locks and filtered unique indexes. **Consequences:** a deliberate, documented exception to "modules communicate via events".
 
 ## ADR-008 Money
-`decimal` in C#, `numeric(19,4)` in PG, currency always paired (`Money` value object); arithmetic across currencies throws; results are rounded to minor units only at defined points (fee calculation, display). No floats, enforced by a CI check.
+`decimal` in C#, `decimal(19,4)` in SQL Server, currency always paired (`Money` value object); arithmetic across currencies throws; results are rounded to minor units only at defined points (fee calculation, display). No floats, enforced by a CI check.
 
 ## ADR-009 MVP scope limits
 **Why:** SEF gives machine-verifiable invoices with buyer acceptance and a future CEF link; RSD avoids FX legal questions (LQ-50); full assignment keeps INV-R1 simple. **Revisit** after legal review and pilot feedback.
@@ -66,6 +68,22 @@ The MVP does not generate legal contracts: the factor uploads its own agreement 
 - Revisit `cef.blockFundingUntilRegistered` (task 017) with LQ-17 when the CEF rules are known.
 - Launch timing depends on the CEF (statutory deadline ≈ June 2027) and can slip with it. A closed pilot before the CEF would need a new ADR and an answer to LQ-20.
 
+## ADR-021 SQL Server instead of PostgreSQL
+**Context (product owner, 2026-10-19):** the product owner prefers Microsoft SQL Server; it fits the .NET/Azure stack and the team's tooling. No code exists yet, so the switch costs only documentation. Supersedes the database part of ADR-001 and amends the key format of ADR-003.
+
+**Decision:** SQL Server 2022+ compatible; **Azure SQL Database** (General Purpose, zone-redundant in production) in Azure; SQL Server Developer edition in Docker for local work; `Testcontainers.MsSql` for integration tests; EF Core SQL Server provider.
+
+**Translation rules** (details in [database.md](database.md)):
+- Partial unique indexes → **filtered unique indexes**; predicates use only simple comparisons with `AND` (INV-R1: `state <> 'Cancelled' AND state <> 'Terminated'`). Nullable unique columns are filtered with `IS NOT NULL`, because SQL Server treats `NULL`s as equal in unique indexes.
+- `numeric(19,4)` → `decimal(19,4)`; `timestamptz` → `datetimeoffset(3)` (UTC); `jsonb` → `nvarchar(max)` + `ISJSON` check; `text` → `nvarchar(n)`; `inet` → `varchar(45)`; arrays → JSON or child tables (membership roles → `role` + `is_signatory`).
+- Keys: `uniqueidentifier`, generated as **sequential GUIDs in SQL Server byte order** (a plain UUIDv7 would fragment the clustered index).
+- `SELECT … FOR UPDATE` → `WITH (UPDLOCK, ROWLOCK)`; outbox `FOR UPDATE SKIP LOCKED` → `WITH (UPDLOCK, READPAST, ROWLOCK)`; advisory locks → `sp_getapplock`; `READ_COMMITTED_SNAPSHOT ON`.
+- Reserved words: schema `identity` → `auth`; column `key` → `idem_key` / `param_key`.
+- Immutability: append-only tables get `DENY UPDATE, DELETE` + INSTEAD OF triggers; tables with changing state get column-level `DENY UPDATE` + AFTER UPDATE triggers on fixed columns; every trigger is declared in the EF mapping (`HasTrigger`); TRUNCATE requires ALTER, which the app role lacks.
+- Application locks: owner `Transaction` for the audit hash chain, owner `Session` (dedicated connection) for singleton jobs.
+
+**Consequences:** the integration-test container is heavier (≈ 1.5 GB image, slower start); Azure SQL pricing differs from PostgreSQL Flexible Server (to check in task 024); Microsoft Entra authentication with managed identity is straightforward.
+
 ## ADR-020 Minimal seller onboarding
 **Context (product owner, 2026-10-19):** the MVP should start with as little friction as possible and add complexity later. A market check ([market-analysis.md](market-analysis.md)) shows that a comparable marketplace (PlatiMe, Croatia) asks sellers only for company data. It relies on the e-invoice channel, debtor confirmation, contractual warranties and payment to the company's own account, not on a heavy identity check. On Cesio only licensed factors buy, and they run their own CDD and check who signs the agreement (ADR-015, ADR-018).
 
@@ -80,3 +98,12 @@ The MVP does not generate legal contracts: the factor uploads its own agreement 
 8. **A QES is not an onboarding step.** It is needed when the factoring agreement is signed by a person authorized for the seller (level per LQ-24, ADR-018).
 
 **Consequences:** audit identifies the account, not the person (IP and device are logged). Multi-user seller accounts, more roles and eID login are later additions. **Assumption to verify:** the APR record of every company contains an email address for official correspondence; if it is missing, fall back to a letter to the registered seat.
+
+## ADR-022 No separate agreement with factors
+**Context (product owner, 2026-10-22):** onboarding factors should be as simple as onboarding sellers. Product-spec §6.2 previously required a framework agreement between each factor and the platform before access.
+
+**Decision:** a factor's relationship with the platform rests only on **registration plus acceptance of the platform's Terms of Use for factors** (versioned, accepted on behalf of the factor; who may accept and in what form is pending LQ-73). There is no framework or participation agreement. The Terms for factors cover the platform rules, the fee obligation, confidentiality of listing data, liability, data protection and disputes. The only agreement in a deal remains the factoring agreement between seller and factor (ADR-018), to which the platform is not a party. Authorization verification (task 008) is unchanged.
+
+**Open:** whether Terms alone are legally sufficient towards factors, especially banks (fee obligation, confidentiality, liability, and outsourcing rules that may require a written contract), is LQ-72 (with LQ-26, LQ-36, LQ-65). Who may accept the Terms for a factor and in what form is LQ-73; whether later changes to the Terms (including the fee) bind a factor is LQ-74. If the answer requires a written contract, a superseding ADR adds it to factor onboarding.
+
+**Status (product owner, 2026-10-22):** Accepted on the working assumption that LQ-72 and LQ-26 are answered positively (Terms alone are sufficient and click acceptance is valid). Both LQs stay open for the lawyer; LQ-73 and LQ-74 are not covered by the assumption.

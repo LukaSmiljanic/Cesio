@@ -1,6 +1,6 @@
 # 007a — Seller Claim, Pristupnica, Official-Email Confirmations
 
-**Blocked by:** LQ-32 (signature level for the pristupnica; build the MVP default from ADR-020) and LQ-21 (SEF key use; demo environment only until answered).
+**Blocked by:** LQ-32 (signature level for the pristupnica; build the MVP default from ADR-020) and partially LQ-51 (wording of the SEF-key consent in the pristupnica; mechanics proceed). LQ-21 (SEF key use) proceeds on the product owner's working assumption of 2026-10-22 (legal-questions.md §5).
 
 # Goal
 A seller organization owns its PIB only after a valid SEF key proves it, is authorized by a pristupnica signed by an APR legal representative, and the company is informed through its official email in APR. The same email channel confirms sensitive changes and MFA recovery.
@@ -32,13 +32,13 @@ PDF generation behind an interface (no new dependency without justification in t
 `GET/POST /organizations/{id}/pristupnica`, `POST /auth/mfa-reset-requests`, `GET /confirmations/{token}` (public, rate-limited); admin `POST /admin/organizations/{id}/official-email` 🔐, `POST /admin/pristupnice/{id}/decision` 🔐, `POST /admin/mfa-resets/{id}/execute` 🔐.
 
 # Database Changes
-`orgs.organizations.claimed_at`, `official_email` (see database.md); `orgs.pristupnice`; `orgs.confirmation_tokens` (hashed); `identity.mfa_reset_requests`.
+`orgs.organizations.claimed_at`, `official_email` (see database.md); `orgs.pristupnice`; `orgs.confirmation_tokens` (hashed); `auth.mfa_reset_requests`.
 
 # Security Considerations
 Tokens hashed and single-use; the "already registered" message reveals no owner data; rate limits on claim attempts per user and per PIB. Audit: claim created/won/closed, official email recorded, pristupnica uploaded/accepted/rejected, confirmation sent/used/expired, MFA reset requested/executed.
 
 # Tests
-- Race: two Draft claims for one PIB validate SEF keys at the same time → exactly one wins (partial unique index); the other is refused with `pib_already_claimed` and a compliance alert, because it also holds a valid SEF key (Requirement 1).
+- Race: two Draft claims for one PIB validate SEF keys at the same time → exactly one wins (filtered unique index); the other is refused with `pib_already_claimed` and a compliance alert, because it also holds a valid SEF key (Requirement 1).
 - Claim refused when the PIB is already claimed; compliance alert created.
 - Draft expiry boundary.
 - Token: single use; expired → 410; wrong purpose → 400.

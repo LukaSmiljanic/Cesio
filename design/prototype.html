@@ -244,7 +244,7 @@ function parseM(s) {
   return Number(ip) * 100 + Number((dp + '00').slice(0, 2));
 }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const feeOf = F => Math.max(600000, Math.round(F * 5 / 1000)); // 0,50 %, min 6.000,00 RSD — assumption (BQ-01)
+const feeOf = (F, P) => Math.round((F - P) * 15 / 100); // 15 % of the factor's discount (F − P) (ADR-007, BQ-01 decided 2026-10-22)
 const recourseLbl = r => r === 'Recourse' ? 'Sa regresom' : 'Bez regresa';
 let clock = new Date(TODAY);
 const now = () => { clock = new Date(clock.getTime() + 7 * 60000); return `${iso(clock)}T${pad(clock.getHours())}:${pad(clock.getMinutes())}`; };
@@ -319,7 +319,7 @@ const dealById = id => S.deals.find(d => d.id === id);
 const fundDate = fd => addBD(TODAY, fd);
 const tenor = (due, fd) => Math.max(1, days(fundDate(fd), toDate(due)));
 const sellerCost = (F, P, due, fd) => (F - P) / P * 365 / tenor(due, fd);
-const factorYield = (F, P, due, fd) => (F - P - feeOf(F)) / P * 365 / tenor(due, fd);
+const factorYield = (F, P, due, fd) => (F - P - feeOf(F, P)) / P * 365 / tenor(due, fd);
 const role = () => S.role;
 const iAm = who => who === 'both' || who === S.role;
 function dealDeadline(d) {
@@ -428,7 +428,7 @@ function vDeal() {
         <dt>Diskont</dt><dd>${fM(D)} · ${fPct(D / d.F)}</dd>
         <dt>Regres</dt><dd>${recourseLbl(d.recourse)}</dd>
         <dt>Rok isplate</dt><dd>${d.fd} radn${d.fd === 1 ? 'i dan' : 'a dana'} od potpisa</dd>
-        ${S.role === 'factor' ? `<dt>Naknada platforme (vi plaćate)</dt><dd>${fM(feeOf(d.F))}</dd>` : ''}
+        ${S.role === 'factor' ? `<dt>Naknada platforme (15 % diskonta, vi plaćate)</dt><dd>${fM(feeOf(d.F, d.P))}</dd>` : ''}
         <dt class="total">${S.role === 'seller' ? 'Dobijate' : 'Plaćate prodavcu'}</dt><dd class="total">${fM(d.P)}</dd>
       </dl></div></section>
       <section class="panel"><div class="panel-h"><h2>Strane i faktura</h2></div><div class="panel-b"><dl class="dl">
@@ -543,7 +543,7 @@ function vListing() {
   const mine = offersOf(l.id).find(o => o.factor === ME_F.name && o.state === 'Active');
   const closed = l0.state !== 'Open';
   const form = closed ? `<div class="note">Oglas je zatvoren.</div>` : mine ? `<div class="stack"><div class="lbl">Vaša aktivna ponuda</div><div class="big">${fM(mine.P)}</div>
-      <dl class="metrics"><dt>Regres</dt><dd>${recourseLbl(mine.rec)}</dd><dt>Isplata</dt><dd>${mine.fd} radna dana od potpisa</dd><dt>Važi do</dt><dd>${fDT(mine.valid)}</dd><dt>Naknada platforme</dt><dd>${fM(feeOf(l.F))}</dd></dl>
+      <dl class="metrics"><dt>Regres</dt><dd>${recourseLbl(mine.rec)}</dd><dt>Isplata</dt><dd>${mine.fd} radna dana od potpisa</dd><dt>Važi do</dt><dd>${fDT(mine.valid)}</dd><dt>Naknada platforme (15 % diskonta)</dt><dd>${fM(feeOf(l.F, mine.P))}</dd></dl>
       <div class="note">Ponude se ne menjaju. Da biste promenili uslove, povucite ponudu i pošaljite novu.</div>
       <div><button class="btn" data-act="withdrawOffer" data-id="${mine.id}">Povuci ponudu</button></div></div>`
     : `<div class="stack"><div class="field"><label for="op-price">Kupoprodajna cena (RSD)</label><input class="input money" id="op-price" inputmode="decimal" placeholder="npr. ${fM(Math.round(l.F * 0.975), false)}"></div>
@@ -570,10 +570,9 @@ function vListing() {
   <section class="panel"><div class="panel-h"><h2>${mine ? 'Vaša ponuda' : 'Nova ponuda'}</h2></div><div class="panel-b">${form}</div></section></div>`;
 }
 function metricsHtml(l, P, fd) {
-  const fee = feeOf(l.F);
-  if (P == null) return `<dl class="metrics"><dt>Naknada platforme (0,50 %, min. 6.000,00)</dt><dd>${fM(fee)}</dd><dt>Diskont</dt><dd class="faint">unesite cenu</dd><dt>Indikativni god. prinos (neto)</dt><dd class="faint">—</dd></dl>`;
-  const D = l.F - P;
-  return `<dl class="metrics"><dt>Diskont</dt><dd>${fM(D)} · ${fPct(D / l.F)}</dd><dt>Naknada platforme (0,50 %, min. 6.000,00)</dt><dd>${fM(fee)}</dd>
+  if (P == null) return `<dl class="metrics"><dt>Diskont (vaša zarada)</dt><dd class="faint">unesite cenu</dd><dt>Naknada platforme (15 % diskonta)</dt><dd class="faint">—</dd><dt>Indikativni god. prinos (neto)</dt><dd class="faint">—</dd></dl>`;
+  const D = l.F - P; const fee = feeOf(l.F, P);
+  return `<dl class="metrics"><dt>Diskont (vaša zarada)</dt><dd>${fM(D)} · ${fPct(D / l.F)}</dd><dt>Naknada platforme (15 % diskonta)</dt><dd>${fM(fee)}</dd>
     <dt>Neto marža pri punoj naplati</dt><dd>${fM(D - fee)}</dd><dt>Dana od isplate do dospeća</dt><dd>${tenor(l.due, fd)}</dd>
     <dt class="total">Indikativni god. prinos (neto)</dt><dd class="total">${fPct(factorYield(l.F, P, l.due, fd))}</dd></dl>`;
 }

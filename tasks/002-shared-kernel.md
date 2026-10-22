@@ -11,7 +11,7 @@ Implement the value objects that every module depends on, with exhaustive tests.
 - `Money` (decimal amount + currency): `Add`, `Subtract`, `Multiply(decimal)`, `Round()` with `MidpointRounding.AwayFromZero` to minor units, comparisons; cross-currency operations throw `CurrencyMismatchException`; parse/format from/to a string decimal (invariant culture) for the API.
 - `Pib` (9 digits, ISO 7064 mod 11,10 check digit), `MaticniBroj` (8 digits; format validation, plus a check digit if one is confirmed to apply; mark `TODO(task-000)` otherwise), `SerbianBankAccountNumber` (18 digits = 3 bank + 13 account + 2 control, mod 97 check; accepts input with dashes or short forms, normalising zero padding of the middle part).
 - `BusinessDayCalendar`: weekends + a holiday table (Serbian public holidays including Orthodox Easter dates loaded as data, not computed); `AddBusinessDays`, `IsBusinessDay`; "today" in Europe/Belgrade.
-- `Result<T>`/error type conventions; strongly typed IDs (`OrganizationId`, `ReceivableId`, …) wrapping UUIDv7 (generator included).
+- `Result<T>`/error type conventions; strongly typed IDs (`OrganizationId`, `ReceivableId`, …) wrapping `Guid` values generated as sequential GUIDs in SQL Server byte order (generator included; ADR-021).
 - System.Text.Json converters for `Money` (string amount) and the IDs.
 
 # Business Rules
@@ -19,7 +19,7 @@ Implement the value objects that every module depends on, with exhaustive tests.
 - Rounding happens only when `Round()` is called explicitly.
 
 # Technical Requirements
-No external dependencies beyond the BCL (UUIDv7: use `Guid.CreateVersion7()`).
+No external dependencies beyond the BCL (sequential GUID generator: timestamp + random bytes laid out for SQL Server's `uniqueidentifier` sort order, like EF Core's `SequentialGuidValueGenerator`; do not use `Guid.CreateVersion7()` as a clustered key).
 
 # API Changes
 None (converters registered for later use).

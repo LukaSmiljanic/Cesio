@@ -1,6 +1,6 @@
 # 015 — Deal: Factor CDD Gate, Contract Upload, Terms Checklist
 
-**Blocked by:** LQ-29 (KYB package sharing basis), ADR-018 confirmation.
+**Blocked by:** LQ-29 (KYB package sharing basis), ADR-018 confirmation. Partially LQ-61: which persons count as authorised signatories and what form a power of attorney needs.
 
 # Goal
 After acceptance, the factor performs its own CDD using a shared KYB package, then uploads its factoring agreement. Both parties confirm that the agreement matches the deal terms, which fixes the contract hash for signing.

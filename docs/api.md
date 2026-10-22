@@ -60,7 +60,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 
 ### 3.4 `GET /marketplace/listings` / `{id}`
 - **Auth:** factor org, Approved, authorization Verified (INV-A2), any role.
-- **Response:** listing summary; detail includes debtor (name, PIB, MB, status snapshot), invoice number/dates/amounts, SEF status + checked-at, seller name and KYB status, document list, closesAt, the factor's own active offer (if any), and the platform fee preview for this factor. **Never**: other offers, reserve price.
+- **Response:** listing summary; detail includes debtor (name, PIB, MB, status snapshot), invoice number/dates/amounts, SEF status + checked-at, seller name and KYB status, document list, closesAt, the factor's own active offer (if any), and the platform fee rule for this factor (share of the discount; the amount is shown as soon as the factor enters a price). **Never**: other offers, reserve price.
 - **Errors:** 404 if not visible to this factor.
 - **Audit:** access log entry on detail and document download.
 

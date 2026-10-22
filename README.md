@@ -12,9 +12,11 @@ A digital marketplace where Serbian businesses (sellers) offer verified SEF e-in
 | [docs/business-model.md](docs/business-model.md) | How the platform earns money; money and ownership flow |
 | [docs/financial-model.md](docs/financial-model.md) | Formulas, worked examples, GMV revenue scenarios |
 | [docs/regulatory.md](docs/regulatory.md) | Verified Serbian legal requirements with sources and system implications |
-| [docs/legal-questions.md](docs/legal-questions.md) | Checklist for the Serbian fintech lawyer and tax advisor |
+| [docs/legal-questions.md](docs/legal-questions.md) | The only register of legal and tax questions (LQ-xx), in Serbian, organised by app segment, with the deliverables requested from the law firm |
+| [docs/kljucna-pitanja-za-advokata.txt](docs/kljucna-pitanja-za-advokata.txt) | Plain-text brief for the lawyer: how the platform works (incl. Terms of Use only, no separate agreement with factors) and the 9 key questions |
+| [docs/pitanja-za-advokata.md](docs/pitanja-za-advokata.md) | Version to send to the lawyer: only the legal (non-tax) questions, numbered one by one, each with a short plain explanation of what we want to build |
 | [docs/domain-model.md](docs/domain-model.md) | Entities, invariants, transition guards |
-| [docs/database.md](docs/database.md) | PostgreSQL design, constraints, concurrency, idempotency |
+| [docs/database.md](docs/database.md) | SQL Server design, constraints, concurrency, idempotency |
 | [docs/architecture.md](docs/architecture.md) | Modular monolith, modules, stack, deployment |
 | [docs/security.md](docs/security.md) | AuthN/Z, tenant isolation, documents, fraud controls |
 | [docs/compliance.md](docs/compliance.md) | KYB, beneficial owners, sanctions, factor authorization, monitoring |
@@ -33,7 +35,7 @@ A digital marketplace where Serbian businesses (sellers) offer verified SEF e-in
 Product requirements change only through steps 1–4, never silently during implementation.
 
 ## Stack
-.NET 10 · ASP.NET Core · EF Core · PostgreSQL · React + TypeScript · Docker · Azure (Container Apps, Flexible Server, Blob, Key Vault).
+.NET 10 · ASP.NET Core · EF Core · SQL Server (Azure SQL) · React + TypeScript · Docker · Azure (Container Apps, Azure SQL Database, Blob, Key Vault).
 
 ## Local development
 Prerequisites: .NET SDK 10, Node.js 22.13+ (see `web/.nvmrc`), Docker.

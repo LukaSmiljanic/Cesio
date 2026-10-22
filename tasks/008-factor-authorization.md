@@ -1,6 +1,7 @@
 # 008 — Factor Authorization Verification
 
 **Blocked by:** LQ-09, partly answered: the APR Registar faktoringa is the official source for factoring companies, the NBS list for banks ([compliance.md](../docs/compliance.md) §4). Remaining: whether an APR entry alone is sufficient evidence.
+**Blocked by (partial):** LQ-73 (ADR-022). The factor accepts the Terms of Use for factors instead of signing a separate agreement (LQ-72: working assumption 2026-10-22, legal-questions.md §5). Who may accept them for the factor, and in what form, is open: store the acceptance (Terms version, user, timestamp, IP) and do not hard-code the acceptor rule.
 
 # Goal
 A factor organization can trade only with a verified, unexpired authorization (bank or approved factoring company) backed by evidence from an official source and approved by two compliance officers.
@@ -15,7 +16,7 @@ REG-01, REG-02 in [regulatory.md](../docs/regulatory.md); [compliance.md](../doc
 - Revoke action (immediate) with a reason.
 - `IAuthorizationQuery.IsFactorAuthorized(orgId, atInstant)` = org Approved AND no active hold AND an authorization `Verified` and `reverifyBy` ≥ today.
 - Event `FactorAuthorizationRevoked/Expired` → consumed later (013/014) to expire active offers and hold pre-signing deals. In this task, publish the events and add a consumer stub with a TODO referencing 020.
-- Partial unique index: one `Verified` authorization per org.
+- Filtered unique index: one `Verified` authorization per org.
 
 # Business Rules
 - `issuingAuthority` must be consistent with `kind` (Bank → NBS; FactoringCompany → MinistryOfFinance or SecuritiesCommission).

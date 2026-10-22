@@ -1,5 +1,7 @@
 # 005 — Organizations, Memberships, Roles
 
+**Blocked by (partial):** LQ-73 (ADR-022): who may accept the Terms of Use for a factor organization and in what form. Terms acceptance is stored as specified below; no acceptor rule is enforced until LQ-73 is answered.
+
 # Goal
 A user can start a seller organization as a private Draft claim, factor organizations can have several members with an Owner role and a Signatory flag, and organizations can be submitted for review (ADR-020). Org context and resource authorization are enforced on every request.
 
@@ -8,7 +10,7 @@ A user can start a seller organization as a private Draft claim, factor organiza
 
 # Requirements
 - `orgs` schema: organizations, memberships, legal_representatives, terms_acceptances.
-- `POST /organizations` (type Seller, PIB; other company data is filled in later) → a private `Draft` claim; the creator becomes Owner. Several Draft claims may exist for the same PIB; none is visible to other users. PIB/MB uniqueness applies only to claimed organizations (partial unique indexes in database.md); the claim itself happens in task 007a. Factor organizations are created by staff (admin endpoint in task 008); until then a seed/test path creates them.
+- `POST /organizations` (type Seller, PIB; other company data is filled in later) → a private `Draft` claim; the creator becomes Owner. Several Draft claims may exist for the same PIB; none is visible to other users. PIB/MB uniqueness applies only to claimed organizations (filtered unique indexes in database.md); the claim itself happens in task 007a. Factor organizations are created by staff (admin endpoint in task 008); until then a seed/test path creates them.
 - Roles: every member is `Owner`; `Signatory` is a flag (ADR-020). Business parameter `orgs.maxSellerMembers` (default 1): inviting a member into a seller organization at the limit → 422.
 - Members (factor organizations): invite by email (token, 7-day expiry), accept, remove (the last Owner cannot be removed). Inviting a member and changing the Signatory flag require step-up.
 - Legal representatives: CRUD in Draft (staff-verified in 007). The Signatory flag can be set only on a member linked to a legal representative or with a power-of-attorney document (verification in 007; for a seller's single account the flag is set when its pristupnica is accepted, task 007a).

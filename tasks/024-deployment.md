@@ -9,9 +9,10 @@ Reproducible Azure environments (dev, staging, prod) defined in Bicep, with a ga
 [architecture.md](../docs/architecture.md) §2, §6; [database.md](../docs/database.md) §6–7; [audit.md](../docs/audit.md) §1 (WORM); ADR-016.
 
 # Requirements
-- Bicep modules: resource group per environment; Azure Container Apps environment (API app, worker app, migration job); Azure Database for PostgreSQL Flexible Server (prod: zone-redundant HA, PITR 35 days, private networking); Storage accounts (documents: private, Defender for Storage malware scanning; audit digests: immutable time-based retention policy); Key Vault (RBAC, purge protection); Container Registry; Log Analytics + Application Insights; ACS Email with a custom domain (SPF/DKIM/DMARC); a front door or managed ingress with TLS.
-- Managed identities for app → Key Vault/Storage/DB (Entra auth for PostgreSQL where feasible).
-- DB roles (`app_rw`, `migrator`, `readonly_reporting`) created by a bootstrap script; grants per database.md §6.
+- Bicep modules: resource group per environment; Azure Container Apps environment (API app, worker app, migration job); Azure SQL Database (General Purpose; prod: zone-redundant, point-in-time restore 35 days + long-term retention, private endpoint) (ADR-021); Storage accounts (documents: private, Defender for Storage malware scanning; audit digests: immutable time-based retention policy); Key Vault (RBAC, purge protection); Container Registry; Log Analytics + Application Insights; ACS Email with a custom domain (SPF/DKIM/DMARC); a front door or managed ingress with TLS.
+- Managed identities for app → Key Vault/Storage/DB (Microsoft Entra authentication for Azure SQL; no SQL logins in production).
+- Azure SQL service tier and cost estimate (General Purpose vCore vs. serverless for dev/staging) documented before provisioning (ADR-021).
+- DB roles (`app_rw`, `migrator`, `readonly_reporting`) created by a bootstrap script; grants per database.md §1 and §6.
 - Pipeline: build → test → scan → signed image → deploy to staging (SEF demo) → smoke tests → manual approval → prod (SEF prod). Migrations via the migration job before app rollout (expand/contract).
 - Alerts per security.md §8 and architecture health (5xx rate, latency, outbox backlog, job failures).
 - Backup policy + quarterly restore test procedure documented.

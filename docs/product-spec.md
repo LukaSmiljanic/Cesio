@@ -70,12 +70,12 @@ The platform is **technology only**: it verifies, matches, documents and records
 One account per seller organization in the MVP; the company decides who uses it and is liable for its use (ADR-020; pending LQ-26).
 
 ### 6.2 Factor onboarding
-Factors join **by invitation** after a framework agreement with the platform (no SEF claim step). Company data, beneficial owners, screening and Terms work as for sellers, plus a **factor authorization** step: type (bank / factoring company); a factoring company also gives the issuing authority, decision number and date, the approval document and a link to the official register entry (banks have no decision). The compliance officer verifies against the official source and records the method and a snapshot. The authorization gets a re-verification date. The factor also defines its users, its signatories, and optionally its appetite filters (amount range, tenor, debtor sector).
+Factors join **by invitation** and register on the platform by accepting its Terms of Use for factors; there is no separate agreement with the platform (ADR-022, pending LQ-72). There is no SEF claim step. Company data, beneficial owners, screening and Terms work as for sellers, plus a **factor authorization** step: type (bank / factoring company); a factoring company also gives the issuing authority, decision number and date, the approval document and a link to the official register entry (banks have no decision). The compliance officer verifies against the official source and records the method and a snapshot. The authorization gets a re-verification date. The factor also defines its users, its signatories, and optionally its appetite filters (amount range, tenor, debtor sector).
 
 Official sources: factoring companies are checked in the APR factoring register, banks in the NBS list of banks ([compliance.md](compliance.md) §4).
 
 **Bank variant (proposal, pending legal review):**
-1. **No self-service sign-up.** A framework agreement between the bank and the platform comes first; then the platform sends an **invitation** to the bank's first user.
+1. **No self-service sign-up.** The platform sends an **invitation** to the bank's first user. The bank then accepts the Terms of Use for factors (ADR-022). Whether a written agreement is also required is open (LQ-72, LQ-65), and so is who may accept the Terms for the bank and in what form (LQ-73).
 2. The organization is created by MB and checked against the NBS list of banks. There is no factoring approval document to attach.
 3. Bank employees who make offers or sign are usually not the bank's legal representatives, so Signatory status needs an **authorisation or power of attorney** signed by representatives listed in APR.
 4. Re-verified every 30 days (`factorAuthorization.reverifyDays` for banks); a bank that disappears from the list → authorization `Revoked`.
@@ -97,7 +97,7 @@ Official sources: factoring companies are checked in the APR factoring register,
 ### 6.5 Deal execution
 1. **Factor CDD:** the factor reviews the shared KYB package and confirms "CDD completed – approved" (or declines → deal cancelled, receivable returns to Verified).
 2. **Contract:** the factor uploads its factoring agreement (PDF) populated with the deal data. The platform checks that key terms (parties, invoice, amount, price, recourse) match the accepted offer by checklist confirmation from both parties.
-3. **Signing:** both parties sign with a QES; the signed PDF is uploaded and the platform validates the signatures and signer authority (the signer must be an APR legal representative or verified attorney of that organization; the account may be shared, ADR-020). → **Signed** = the receivable is **Assigned** (subject to LQ-25).
+3. **Signing:** both parties sign with a QES; the signed PDF is uploaded and the platform validates the signatures and signer authority (the signer must be an APR legal representative or verified attorney of that organization; the account may be shared, ADR-020; signer authority and power-of-attorney form pending LQ-61). → **Signed** = the receivable is **Assigned** (subject to LQ-25).
 4. **CEF registration:** the seller records CEF registration evidence (once the CEF is live; until then, "not applicable – CEF not operational" is recorded automatically with a timestamp).
 5. **Debtor notification:** the responsible party (per the agreement) records notification evidence.
 6. **Funding:** the factor reports payment (amount, value date, payment reference, to the seller's verified account). The seller confirms receipt or opens a discrepancy. If the seller does not respond within N business days, the deal is flagged for operations follow-up (it is never auto-confirmed in the MVP).
@@ -109,7 +109,7 @@ Official sources: factoring companies are checked in the APR factoring register,
 ### 7.1 Receivable
 | State | Meaning | Next |
 |-------|---------|------|
-| `Draft` | Imported from SEF, editable declarations | Submitted, Cancelled |
+| `Draft` | Imported from SEF, editable declarations | PendingVerification, Cancelled |
 | `PendingVerification` | Automated and/or manual checks running | Verified, Rejected |
 | `Rejected` | Not eligible (reasons recorded). Terminal | — |
 | `Verified` | Eligible, not on the market | Listed, Ineligible, Cancelled |

@@ -1,7 +1,7 @@
 # Architecture
 
 ## 1. Summary
-A **modular monolith**: one deployable ASP.NET Core application (API + background workers in the same codebase, two process roles), one PostgreSQL database with a schema per module, and a React + TypeScript SPA. Hosted on Azure in an EU region.
+A **modular monolith**: one deployable ASP.NET Core application (API + background workers in the same codebase, two process roles), one SQL Server database (Azure SQL Database, ADR-021) with a schema per module, and a React + TypeScript SPA. Hosted on Azure in an EU region.
 
 Expected load (≈ 5–50 deals/business day, hundreds of organizations) is tiny. The risks are **correctness, security and auditability**, not scale. Every architectural choice optimises for those.
 
@@ -9,18 +9,18 @@ Expected load (≈ 5–50 deals/business day, hundreds of organizations) is tiny
 | Concern | Choice | Notes |
 |---------|--------|-------|
 | Runtime | .NET 10 (LTS), ASP.NET Core minimal APIs or controllers (pick one, ADR-002) | C# nullable enabled, warnings as errors |
-| Persistence | EF Core + Npgsql; raw SQL allowed for locking/reporting | One `DbContext` per module, each mapped to its own schema |
-| DB | PostgreSQL 16+ (Azure Flexible Server, zone-redundant HA in production) | |
-| Frontend | React + TypeScript + Vite; TanStack Query; React Router; a form library + zod; component library TBD (ADR-010) | The SPA is served by Azure Static Web Apps or from the API container |
+| Persistence | EF Core + `Microsoft.EntityFrameworkCore.SqlServer`; raw SQL allowed for locking/reporting | One `DbContext` per module, each mapped to its own schema |
+| DB | SQL Server 2022+ compatible: Azure SQL Database (General Purpose, zone-redundant in production); SQL Server Developer edition in Docker locally | ADR-021 |
+| Frontend | React + TypeScript + Vite; TanStack Query; React Router; a form library + zod; shadcn/ui + Tailwind + TanStack Table (ADR-010) | The SPA is served by Azure Static Web Apps or from the API container |
 | Auth | ASP.NET Core Identity (own user store) + mandatory TOTP/WebAuthn MFA, cookie auth for the SPA (same-site, BFF pattern) | ADR-005. Entra External ID was considered |
 | Files | Azure Blob Storage (private containers only), Defender for Storage malware scanning | No public URLs ever |
 | Secrets | Azure Key Vault + managed identity | SEF API keys stored per organization as Key Vault secrets |
 | Email | Azure Communication Services Email (or another transactional provider) behind `IEmailSender` | |
-| Background jobs | `BackgroundService` + Postgres outbox + advisory locks | No Hangfire/Redis until a need is documented |
+| Background jobs | `BackgroundService` + database outbox + application locks (`sp_getapplock`) | No Hangfire/Redis until a need is documented |
 | Observability | OpenTelemetry → Azure Monitor / Application Insights; structured logging (Serilog or MEL) with PII scrubbing | |
 | Hosting | Azure Container Apps (API + worker as two apps from one image) | App Service for Containers is an equal alternative |
 | IaC / CI | Bicep; GitHub Actions or Azure DevOps; Docker multi-stage build | |
-| Local dev | `docker compose` (Postgres, Azurite, MailHog/smtp4dev) | |
+| Local dev | `docker compose` (SQL Server Developer, Azurite, MailHog/smtp4dev) | |
 
 **Not used** (no documented requirement): microservices, Kafka/Service Bus, Kubernetes, Elasticsearch, Redis, MediatR-style frameworks (allowed only if ADR'd), CQRS with separate stores.
 
@@ -48,7 +48,7 @@ src/
     Integrations.Cef/           -- interface + "not operational" implementation (MVP)
     Integrations.Screening/     -- sanctions/PEP adapter (local lists in MVP)
     Integrations.Signatures/    -- PAdES/QES validation
-tests/ (per module: Domain.Tests, Application.Tests, Integration.Tests with Testcontainers PostgreSQL)
+tests/ (per module: Domain.Tests, Application.Tests, Integration.Tests with Testcontainers SQL Server)
 web/   (React SPA)
 ```
 

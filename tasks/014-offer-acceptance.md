@@ -1,6 +1,6 @@
 # 014 — Offer Acceptance & Deal Creation
 
-**Blocked by:** LQ-25 (whether acceptance itself is binding) affects only the UI text and terms, not the mechanics.
+**Blocked by (partial):** LQ-25 (whether acceptance itself is binding), LQ-60 (offer subject to the factor's CDD) and LQ-61 (who may accept for a company). As far as we know today, they affect only the UI text, the Terms and the Signatory rule, not the transaction mechanics. If an answer changes the acceptance model or the signer rule, stop and ask.
 
 # Goal
 A seller Signatory accepts one offer. In a single atomic transaction this closes the listing, supersedes other offers, reserves the receivable and creates the Deal. Double acceptance is impossible.
@@ -12,7 +12,7 @@ A seller Signatory accepts one offer. In a single atomic transaction this closes
 1. `POST /offers/{id}/accept` ♻🔐 exactly as in api.md §3.6.
 2. Before opening the transaction: re-poll SEF (fail closed on unavailability); check the factor is authorized; check holds on seller, receivable and factor.
 3. Transaction (Deals module application service, shared connection):
-   - `SELECT … FOR UPDATE` listing and receivable rows; verify versions/states;
+   - `SELECT … WITH (UPDLOCK, ROWLOCK)` on the listing and receivable rows; verify versions/states;
    - offer → Accepted; other Active offers → Superseded; listing → Closed; receivable → Reserved;
    - insert Deal (`AwaitingFactorCdd`, reference `DL-YYYY-NNNNNN`, terms copied from the offer, fee snapshot, `signatureDeadline` = now + `signatureDeadlineBusinessDays`);
    - deal_state_history row; audit events; outbox events (`OfferAccepted`, `DealCreated`, `OfferSuperseded`×n).

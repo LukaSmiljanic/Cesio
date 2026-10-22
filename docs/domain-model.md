@@ -70,7 +70,7 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 
 **Dispute** — id, dealId/receivableId, type, raisedBy (org/user), description, status (`Open | Resolved | Withdrawn`), resolution notes, linked Hold.
 
-**FeeSchedule** — version, payer, tiers, min, max, vatTreatment, effectiveFrom. Immutable once referenced.
+**FeeSchedule** — version, payer, basis (`Discount` = faceValue − purchasePrice), share, min, max, vatTreatment, effectiveFrom. Immutable once referenced. The fee never exceeds the discount.
 **FeeCharge** — dealId, payerOrgId, amount (Money), vatAmount, status (`Pending | Due | Invoiced | Paid | Cancelled | CreditNoted`), dueAt, externalInvoiceRef. Corrections create new rows; rows are never edited.
 
 **AuditEvent** — see [audit.md](audit.md).
@@ -85,9 +85,9 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 ## 5. Invariants
 
 ### Double assignment / double financing
-- **INV-R1:** A receivable has **at most one** deal in a non-terminal or successful state (`AwaitingFactorCdd … Funded, Closed`). Enforced by a **partial unique index** on `deals(receivable_id) WHERE state NOT IN ('Cancelled','Terminated')`.
-- **INV-R2:** A receivable has **at most one** `Open` listing (partial unique index).
-- **INV-R3 (duplicate invoices):** one receivable per SEF invoice ID (unique). One invoice per `(seller_pib, invoice_number, issue_date)` (unique). Additionally, a **fingerprint** `hash(debtor_pib, gross_amount, currency, issue_date, due_date)` is checked across **all sellers**. A match is a `Warn` check that forces manual review (it catches re-issued invoices under new numbers and collusion between related sellers).
+- **INV-R1:** A receivable has **at most one** deal in a non-terminal or successful state (`AwaitingFactorCdd … Funded, Closed`). Enforced by a **filtered unique index** on `deals(receivable_id) WHERE state <> 'Cancelled' AND state <> 'Terminated'`.
+- **INV-R2:** A receivable has **at most one** `Open` listing (filtered unique index).
+- **INV-R3 (duplicate invoices):** one receivable per SEF invoice ID (unique). One invoice per `(seller_org_id, invoice_number, issue_date)` (unique). Additionally, a **fingerprint** `hash(debtor_pib, gross_amount, currency, issue_date, due_date)` is checked across **all sellers**. A match is a `Warn` check that forces manual review (it catches re-issued invoices under new numbers and collusion between related sellers).
 - **INV-R4:** A receivable can be listed or assigned only if the latest SEF status check (≤ 24 h old at listing, ≤ 1 h old at acceptance and at signing) shows buyer `Approved` and not cancelled/storno.
 - **INV-R5:** `faceValue` ≤ invoice gross − known credit notes. Re-checked at acceptance.
 - **INV-R6:** After a deal reaches `Signed`, the receivable can never become available again unless the deal is `Terminated` with evidence. `Funded` deals can never be terminated.
@@ -95,7 +95,7 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 ### Authorization & trust
 - **INV-A1:** Only organizations with `onboardingStatus = Approved` and no active Hold can create listings, make offers, accept or sign.
 - **INV-A2:** A factor can view listing details or offer only while it has a `Verified`, non-expired FactorAuthorization. If an authorization expires or is revoked, the factor's Active offers expire, and its in-flight deals before `Signed` are frozen (Hold) for compliance review.
-- **INV-A3:** Offer acceptance and the other in-app Signatory actions require a member with the **Signatory** flag; contract signatures are validated against the organization's APR legal representatives or verified attorneys (ADR-020); the acceptance step requires MFA step-up within the last 5 minutes.
+- **INV-A3:** Offer acceptance and the other in-app Signatory actions require a member with the **Signatory** flag; contract signatures are validated against the organization's APR legal representatives or verified attorneys (ADR-020; which persons qualify and the power-of-attorney form are pending LQ-61); the acceptance step requires MFA step-up within the last 5 minutes.
 - **INV-A4:** A factor can never see a listing whose audience excludes it, and it can never offer on its own organization's receivables or on related parties (same PIB/MB, or flagged shared beneficial owner → manual review).
 
 ### Financial consistency

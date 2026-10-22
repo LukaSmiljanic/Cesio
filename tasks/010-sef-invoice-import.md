@@ -1,6 +1,6 @@
 # 010 — SEF Connection & Invoice Import
 
-**Blocked by:** LQ-21 (third-party use of SEF API keys). Development against the SEF **demo** environment can start; production use cannot.
+**Blocked by (partial):** LQ-51 (protection and liability terms for holding a full-scope SEF key; the read-only client may proceed). LQ-21 (third-party use of SEF API keys) proceeds on the product owner's working assumption of 2026-10-22 that this use is permitted (legal-questions.md §5); the LQ stays open for the lawyer.
 
 # Goal
 A seller connects its SEF account with an API key, and imports sales invoices into the platform as immutable Invoice records with Draft receivables.
@@ -28,7 +28,7 @@ UBL parsing with `System.Xml` (no new dependency unless justified); amounts pars
 `PUT /organizations/{id}/sef-connection`, `POST /receivables/import-from-sef`, `GET /receivables`, `GET /receivables/{id}`.
 
 # Database Changes
-`receivables.debtors`, `invoices`, `receivables`, `sef_status_history` with the constraints in database.md §2 (`UNIQUE(sef_invoice_id)`, `UNIQUE(seller_org_id, invoice_number, issue_date)`, partial unique on receivable per invoice).
+`receivables.debtors`, `invoices`, `receivables`, `sef_status_history` with the constraints in database.md §2 (`UNIQUE(sef_invoice_id)`, `UNIQUE(seller_org_id, invoice_number, issue_date)`, filtered unique index on receivable per invoice).
 
 # Security Considerations
 Key Vault access via managed identity; key never logged; SEF 401 → connection `Invalid` + event for notification. Audit: connection set/rotated/invalidated, invoice imported (with UBL hash).

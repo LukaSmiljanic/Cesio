@@ -7,7 +7,7 @@ Position (pending LQ-28/29): the platform is probably **not** an AML obligor. **
 | Step | Data / evidence | Source | Check |
 |------|-----------------|--------|-------|
 | Legal entity identity | PIB, MB, legal name, form, address, status, activity code, founding date | APR business register (public search; snapshot PDF stored) | Active, not in liquidation/bankruptcy; PIB/MB checksums |
-| Legal representatives | Names, roles, scope of authority | APR register snapshot | The pristupnica signer (and every Signatory) maps to a representative or a verified power of attorney |
+| Legal representatives | Names, roles, scope of authority | APR register snapshot | The pristupnica signer (and every Signatory) maps to a representative or a verified power of attorney (who qualifies and the power-of-attorney form are pending LQ-61) |
 | Representative signature | Pristupnica signed with a QES, or a scanned hand-signed copy confirmed through the official email in APR (ADR-020; level per LQ-32) | Pristupnica upload | Signer = APR representative or attorney; QES valid and not revoked (MVP: checked manually, ADR-011) |
 | Beneficial owners | Natural persons with ≥ 25% ownership/control (AML Law definition) | APR Central Register of Beneficial Owners (snapshot) + seller declaration | Declaration = register; discrepancies → NeedsInfo |
 | Sanctions & PEP | Org, representatives, BOs | Lists: UN consolidated, Serbian designated persons (APML), EU, OFAC (pending LQ-31). PEP: self-declaration in the MVP; a provider later | Name screening with fuzzy matching; potential matches resolved manually with notes |
