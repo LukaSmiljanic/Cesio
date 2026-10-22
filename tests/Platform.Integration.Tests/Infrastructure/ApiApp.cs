@@ -33,6 +33,8 @@ public sealed class ApiApp(TestDatabase database) : IAsyncDisposable
     public ApiClient NewClient() =>
         new(_factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false }), database.Emails);
 
+    public IServiceProvider Services => _factory.Services;
+
     public async ValueTask DisposeAsync() => await _factory.DisposeAsync();
 }
 
@@ -64,18 +66,28 @@ public sealed class ApiClient(HttpClient http, CapturingEmailSender emails) : ID
 
     public HttpClient Http => http;
 
-    public async Task<HttpResponseMessage> PostAsync(string path, object? body = null)
+    public Task<HttpResponseMessage> PostAsync(string path, object? body = null) => SendAsync(HttpMethod.Post, path, body);
+
+    public Task<HttpResponseMessage> DeleteAsync(string path) => SendAsync(HttpMethod.Delete, path);
+
+    /// <summary>An unsafe request with the anti-forgery token, a fresh (or the given) Idempotency-Key and an optional If-Match.</summary>
+    public async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body = null, string? idempotencyKey = null, int? ifMatch = null)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = body is null ? null : JsonContent.Create(body) };
+        using var request = new HttpRequestMessage(method, path) { Content = body is null ? null : JsonContent.Create(body) };
         request.Headers.Add(IdentityModule.AntiforgeryHeader, await AntiforgeryTokenAsync());
+        request.Headers.Add("Idempotency-Key", idempotencyKey ?? Guid.NewGuid().ToString());
+        if (ifMatch is { } version)
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", $"\"{version}\"");
+        }
+
         return await http.SendAsync(request, TestContext.Current.CancellationToken);
     }
 
-    public async Task<HttpResponseMessage> DeleteAsync(string path)
+    /// <summary>Re-verifies the TOTP code so step-up-protected actions work for the next 5 minutes.</summary>
+    public async Task StepUpAsync()
     {
-        using var request = new HttpRequestMessage(HttpMethod.Delete, path);
-        request.Headers.Add(IdentityModule.AntiforgeryHeader, await AntiforgeryTokenAsync());
-        return await http.SendAsync(request, TestContext.Current.CancellationToken);
+        Expect(HttpStatusCode.NoContent, await PostAsync("/api/v1/auth/step-up", new { code = Totp.Code(SharedKey!, -1) }));
     }
 
     public Task<HttpResponseMessage> GetAsync(string path) => http.GetAsync(new Uri(path, UriKind.Relative), TestContext.Current.CancellationToken);
@@ -95,9 +107,9 @@ public sealed class ApiClient(HttpClient http, CapturingEmailSender emails) : ID
     }
 
     /// <summary>A fully signed-in user with TOTP enrolled; returns the email and the recovery codes.</summary>
-    public async Task<(string Email, string[] RecoveryCodes)> SignUpAsync()
+    public async Task<(string Email, string[] RecoveryCodes)> SignUpAsync(string? email = null)
     {
-        var email = await RegisterAndLoginAsync();
+        email = await RegisterAndLoginAsync(email);
         var start = await ReadAsync(await PostAsync("/api/v1/auth/mfa/enrol/start"));
         SharedKey = start.GetProperty("sharedKey").GetString();
         var confirmed = await ReadAsync(await PostAsync("/api/v1/auth/mfa/enrol/confirm", new { code = Totp.Code(SharedKey!) }));

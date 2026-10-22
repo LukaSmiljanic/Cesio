@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Modules.Audit;
 using Modules.Identity;
+using Modules.Organizations;
 using Shared.Infrastructure.Persistence;
 
 // Applies all module migrations and the database roles (task 003 item 8). CI/CD runs it with the migrator identity
@@ -13,7 +14,8 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services
     .AddPersistence()
     .AddAuditModule()
-    .AddIdentityModule();
+    .AddIdentityModule()
+    .AddOrganizationsModule();
 
 using var host = builder.Build();
 await DatabaseMigrator.MigrateAsync(host.Services, PersistenceSetup.ConnectionString(builder.Configuration), CancellationToken.None);

@@ -1,9 +1,40 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router'
 import { authApi } from '../api/auth'
+import { organizationsApi } from '../api/organizations'
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage } from '../components/ui'
 import { ProvisioningView } from '../components/ProvisioningView'
+import { OrganizationSwitcher } from './OrganizationPages'
+
+const linkButton =
+  'inline-flex h-10 items-center rounded-md border border-slate-300 px-4 text-sm hover:bg-slate-100'
+
+function MyOrganizations() {
+  const mine = useQuery({ queryKey: ['organizations'], queryFn: organizationsApi.mine })
+  return (
+    <section className="mb-6 space-y-3">
+      <OrganizationSwitcher />
+      <ul className="space-y-1 text-sm">
+        {mine.data?.map((o) => (
+          <li key={o.id}>
+            <Link className="underline" to={`/organizations/${o.id}`}>
+              {o.legalName ?? `PIB ${o.pib}`}
+            </Link>{' '}
+            · {o.type === 'Seller' ? 'prodavac' : 'faktor'} · {o.status}
+          </li>
+        ))}
+      </ul>
+      {mine.data?.length === 0 && (
+        <p className="text-sm text-slate-600">Još niste član nijedne firme.</p>
+      )}
+      <Link to="/organizations/new" className={linkButton}>
+        Dodaj firmu (prodavac)
+      </Link>
+      <ErrorMessage error={mine.error} />
+    </section>
+  )
+}
 
 export function HomePage({ email }: { email: string }) {
   const navigate = useNavigate()
@@ -21,6 +52,7 @@ export function HomePage({ email }: { email: string }) {
   return (
     <Card title="Cesio">
       <p className="mb-4 text-sm">Prijavljeni ste kao {email}.</p>
+      <MyOrganizations />
       <div className="flex flex-wrap gap-2">
         <Link
           to="/sessions"

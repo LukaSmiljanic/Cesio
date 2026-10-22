@@ -42,6 +42,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseIdentityModule();
+app.UseOrganizationContext();
 app.UseIdempotency();
 
 // Liveness has no checks; readiness includes the database.
@@ -49,6 +50,7 @@ app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => fa
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains(HostSetup.ReadyTag) });
 
 app.MapIdentityEndpoints();
+app.MapOrganizationEndpoints(includeDevelopmentEndpoints: app.Environment.IsDevelopment());
 
 app.Run();
 

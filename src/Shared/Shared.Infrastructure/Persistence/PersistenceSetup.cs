@@ -26,6 +26,7 @@ public static class PersistenceSetup
         services.AddScoped<UnitOfWork>();
         services.AddModuleDbContext<PlatformDbContext>(PlatformDbContext.SchemaName, migrationOrder: 0);
         services.AddOutbox();
+        services.AddScoped<IBusinessParameters, SqlBusinessParameters>();
         return services;
     }
 

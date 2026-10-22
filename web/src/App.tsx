@@ -3,7 +3,14 @@ import { useState, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { authApi, type Me } from './api/auth'
 import { StepUpProvider } from './auth/StepUpProvider'
+import { ActiveOrganizationProvider } from './organizations/ActiveOrganizationProvider'
 import { HomePage, SessionsPage } from './pages/AccountPages'
+import {
+  AcceptInvitationPage,
+  MembersPage,
+  OrganizationPage,
+  StartSellerPage,
+} from './pages/OrganizationPages'
 import {
   ConfirmEmailPage,
   ForgotPasswordPage,
@@ -35,6 +42,22 @@ export function AppRoutes() {
       <Route path="/mfa/verify" element={<MfaVerifyPage />} />
       <Route path="/sessions" element={<RequireSession>{() => <SessionsPage />}</RequireSession>} />
       <Route
+        path="/organizations/new"
+        element={<RequireSession>{() => <StartSellerPage />}</RequireSession>}
+      />
+      <Route
+        path="/organizations/:id"
+        element={<RequireSession>{() => <OrganizationPage />}</RequireSession>}
+      />
+      <Route
+        path="/organizations/:id/members"
+        element={<RequireSession>{() => <MembersPage />}</RequireSession>}
+      />
+      <Route
+        path="/invitations/accept"
+        element={<RequireSession>{() => <AcceptInvitationPage />}</RequireSession>}
+      />
+      <Route
         path="/"
         element={<RequireSession>{(me) => <HomePage email={me.email} />}</RequireSession>}
       />
@@ -49,11 +72,13 @@ function App() {
   )
   return (
     <QueryClientProvider client={queryClient}>
-      <StepUpProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </StepUpProvider>
+      <ActiveOrganizationProvider>
+        <StepUpProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </StepUpProvider>
+      </ActiveOrganizationProvider>
     </QueryClientProvider>
   )
 }

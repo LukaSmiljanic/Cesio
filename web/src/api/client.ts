@@ -63,21 +63,43 @@ async function toError(response: Response): Promise<ApiError> {
 
 export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
+export interface RequestOptions {
+  /** Optimistic concurrency (api.md §1): the version the client last read. */
+  ifMatch?: number
+}
+
+let activeOrganizationId: string | null = null
+
+/** Sent as X-Organization-Id on every request (api.md §1); route-scoped endpoints take the organization from the URL. */
+export function setActiveOrganization(id: string | null) {
+  activeOrganizationId = id
+}
+
 export async function api<T = void>(
   method: Method,
   path: string,
   body?: unknown,
+  options: RequestOptions = {},
+  idempotencyKey: string = crypto.randomUUID(),
   retried = false,
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) {
     headers['Content-Type'] = 'application/json'
   }
+  if (activeOrganizationId) {
+    headers['X-Organization-Id'] = activeOrganizationId
+  }
   if (method !== 'GET') {
     headers[antiforgeryHeader] = await getAntiforgeryToken()
+    // One key per command; a retry of the same call (renewed anti-forgery token) reuses it.
+    headers['Idempotency-Key'] = idempotencyKey
+  }
+  if (options.ifMatch !== undefined) {
+    headers['If-Match'] = '"' + options.ifMatch + '"'
   }
 
-  const response = await fetch(`${basePath}${path}`, {
+  const response = await fetch(basePath + path, {
     method,
     headers,
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -88,7 +110,7 @@ export async function api<T = void>(
     const error = await toError(response)
     if (error.errorCode === 'csrf_failed' && !retried) {
       resetAntiforgery()
-      return api<T>(method, path, body, true)
+      return api<T>(method, path, body, options, idempotencyKey, true)
     }
     throw error
   }

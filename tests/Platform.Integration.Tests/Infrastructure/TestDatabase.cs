@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Modules.Audit;
 using Modules.Identity;
+using Modules.Organizations;
 using Shared.Infrastructure.Email;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
@@ -62,7 +63,7 @@ public sealed class TestDatabase(SqlServerContainer server) : IAsyncLifetime
     public void AddServices(IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
-        services.AddPersistence().AddAuditModule().AddIdentityModule();
+        services.AddPersistence().AddAuditModule().AddIdentityModule().AddOrganizationsModule();
         // Not through AddModuleDbContext: the sample schema has no migrations; InitializeAsync creates its tables.
         services.AddDbContext<SampleDbContext>((provider, options) => options.UseSqlServer(provider.GetRequiredService<UnitOfWork>().Connection));
         services.AddScoped<SubmitSampleOrder>();

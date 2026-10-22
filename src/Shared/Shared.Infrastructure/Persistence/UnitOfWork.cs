@@ -68,10 +68,18 @@ public sealed class UnitOfWork : IAsyncDisposable
         await EndAsync();
     }
 
-    /// <summary>Runs <paramref name="work"/> in a new transaction: commit on success, rollback on any exception.</summary>
+    /// <summary>
+    /// Runs <paramref name="work"/> in a new transaction: commit on success, rollback on any exception. Inside an
+    /// active transaction (an idempotent endpoint already opened one) the work joins it, and the outer owner commits.
+    /// </summary>
     public async Task<T> ExecuteInTransactionAsync<T>(Func<CancellationToken, Task<T>> work, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(work);
+        if (Transaction is not null)
+        {
+            return await work(cancellationToken);
+        }
+
         await BeginAsync(cancellationToken);
         try
         {

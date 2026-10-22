@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Modules.Identity.Contracts;
 using Modules.Identity.Passwords;
 using Modules.Identity.Persistence;
 using Shared.Infrastructure.Persistence;
@@ -93,6 +94,7 @@ public static class IdentityModule
 
         services.AddScoped<SessionStore>();
         services.AddScoped<AuthService>();
+        services.AddScoped<IUserDirectory, UserDirectory>();
         return services;
     }
 

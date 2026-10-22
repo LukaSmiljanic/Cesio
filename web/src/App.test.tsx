@@ -37,13 +37,28 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Prijava' })).toBeInTheDocument()
   })
 
-  it('shows the signed-in user on the home page', async () => {
+  it('shows the signed-in user and their organizations on the home page', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => json(200, { id: '1', email: 'ana@firma.rs' })),
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).endsWith('/me/organizations')
+          ? json(200, [
+              {
+                id: 'o1',
+                type: 'Seller',
+                status: 'Draft',
+                pib: '101134702',
+                legalName: null,
+                isSignatory: false,
+              },
+            ])
+          : json(200, { id: '1', email: 'ana@firma.rs' }),
+      ),
     )
 
     renderAt('/')
+
+    expect(await screen.findByRole('link', { name: 'PIB 101134702' })).toBeInTheDocument()
 
     expect(await screen.findByText('Prijavljeni ste kao ana@firma.rs.')).toBeInTheDocument()
   })
@@ -88,5 +103,55 @@ describe('App', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Prijavi se' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Pogrešan email ili lozinka')
+  })
+})
+
+describe('start-seller wizard', () => {
+  it('creates a Draft claim from the PIB with an idempotency key and opens it', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/auth/antiforgery')) return json(200, { token: 't' })
+      if (url.endsWith('/organizations') && init?.method === 'POST')
+        return json(201, {
+          id: 'o1',
+          type: 'Seller',
+          status: 'Draft',
+          pib: '101134702',
+          mb: null,
+          legalName: null,
+          legalForm: null,
+          registeredAddress: null,
+          claimed: false,
+          version: 0,
+        })
+      if (url.endsWith('/organizations/o1'))
+        return json(200, {
+          id: 'o1',
+          type: 'Seller',
+          status: 'Draft',
+          pib: '101134702',
+          mb: null,
+          legalName: null,
+          legalForm: null,
+          registeredAddress: null,
+          claimed: false,
+          version: 0,
+        })
+      if (url.endsWith('/me')) return json(200, { id: '1', email: 'ana@firma.rs' })
+      return json(200, [])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderAt('/organizations/new')
+
+    await userEvent.type(await screen.findByLabelText('PIB'), '101134702')
+    await userEvent.click(screen.getByRole('button', { name: 'Nastavi' }))
+
+    expect(await screen.findByRole('heading', { name: 'PIB 101134702' })).toBeInTheDocument()
+    const create = fetchMock.mock.calls.find(
+      ([, init]) => init?.method === 'POST' && init.body?.toString().includes('101134702'),
+    )
+    expect((create?.[1]?.headers as Record<string, string>)['Idempotency-Key']).toMatch(
+      /[0-9a-f-]{36}/,
+    )
   })
 })

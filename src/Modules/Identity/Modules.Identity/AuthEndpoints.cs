@@ -54,8 +54,6 @@ public static class AuthEndpoints
         var me = api.MapGroup("/me").RequireAuthorization();
         me.MapGet("", async (HttpContext http, UserManager<AuthUser> users, SessionStore sessions, CancellationToken ct) =>
             await CurrentAsync(http, users, sessions, ct) is var (user, _) ? Results.Ok(new { id = user.Id, email = user.Email }) : Results.Unauthorized());
-        // Memberships come with task 005; reaching this endpoint already proves MFA (acceptance criterion of task 004).
-        me.MapGet("/organizations", () => Results.Ok(Array.Empty<object>()));
         me.MapGet("/sessions", async (HttpContext http, SessionStore sessions, CancellationToken ct) =>
         {
             var (userId, sessionId) = Ids(http);

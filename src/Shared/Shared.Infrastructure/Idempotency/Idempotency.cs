@@ -62,10 +62,11 @@ internal sealed class IdempotencyMiddleware(RequestDelegate next)
             return;
         }
 
-        var orgId = request.OrganizationId
-            ?? throw new InvalidOperationException("Idempotent endpoints need an authenticated organization context (task 004).");
         var userId = request.UserId
             ?? throw new InvalidOperationException("Idempotent endpoints need an authenticated user (task 004).");
+        // Keys are scoped by the active organization; commands outside an organization (creating one, accepting an
+        // invitation) are scoped by the user, so a key can never replay another tenant's or user's response.
+        var orgId = request.OrganizationId ?? userId;
         var endpoint = EndpointName(http);
         var requestHash = await HashRequestAsync(http.Request);
         var now = timeProvider.GetUtcNow();
@@ -110,7 +111,10 @@ internal sealed class IdempotencyMiddleware(RequestDelegate next)
             // 5xx: roll back, so the client may retry with the same key. 2xx and 4xx are final: the response (and any
             // writes the handler made, so handlers validate before writing) commit and are replayed. Headers such as
             // Location are not stored; a replay returns the status and the JSON body.
-            if (http.Response.StatusCode >= StatusCodes.Status500InternalServerError)
+            // 401 (e.g. step_up_required), 403 and 429 are not outcomes of the command: the client retries the same
+            // command with the same key after stepping up or waiting, so they are not stored either.
+            if (http.Response.StatusCode >= StatusCodes.Status500InternalServerError
+                || http.Response.StatusCode is StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden or StatusCodes.Status429TooManyRequests)
             {
                 await unitOfWork.RollbackAsync();
             }

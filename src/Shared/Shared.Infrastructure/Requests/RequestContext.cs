@@ -61,7 +61,7 @@ public sealed class SystemRequestContext : IRequestContext
 
 /// <summary>
 /// The request context of an HTTP request. The user comes from the authentication cookie (task 004); the active
-/// organization comes with memberships (task 005).
+/// organization is set by the organization-context middleware (task 005) for organization-scoped endpoints.
 /// </summary>
 public sealed class HttpRequestContext(IHttpContextAccessor accessor) : IRequestContext
 {
@@ -76,7 +76,7 @@ public sealed class HttpRequestContext(IHttpContextAccessor accessor) : IRequest
 
     public Guid? UserId => Guid.TryParse(Http.User.FindFirst(CesioClaims.UserId)?.Value, out var id) ? id : null;
 
-    public Guid? OrganizationId => null;
+    public Guid? OrganizationId => Http.Items[OrganizationScope.OrganizationIdItem] as Guid?;
 
     public string CorrelationId => Activity.Current?.TraceId.ToString() ?? Http.TraceIdentifier;
 

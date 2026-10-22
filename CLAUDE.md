@@ -23,7 +23,7 @@ B2B factoring marketplace for Serbia (Cesio). Sellers list SEF e-invoices; licen
 - Never change an Accepted ADR, a state machine, or an invariant without an explicit instruction. Propose a doc change instead.
 - **Money:** `decimal` / `decimal(19,4)` only, always with a currency (`Money` value object). No `float`/`double`/`real`. Rounding only where docs specify.
 - **Double assignment / double financing:** never weaken INV-R1…R6. Keep the filtered unique indexes. Acceptance stays a single transaction (ADR-006).
-- **Idempotency:** every financial or state-changing command endpoint requires `Idempotency-Key`.
+- **Idempotency:** every financial or state-changing command endpoint requires `Idempotency-Key`. Exception (product owner, 2026-10-22): `/auth/*`, `/me/sessions` and `/me/step-up-check` act before or outside an organization context and are rate limited instead (api.md §1).
 - **Audit:** every state change and financial action writes an audit event **in the same transaction**. Never update or delete audit or financial rows; use compensating records.
 - **Authorization:** every handler checks the organization context **and** resource ownership/visibility. A factor never sees competing offers. Add a cross-tenant test for every new endpoint.
 - **Security:** no secrets in code or config; no public blob URLs; no PII, tokens or account numbers in logs.

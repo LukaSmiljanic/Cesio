@@ -55,6 +55,19 @@ const messages: Record<string, string> = {
   validation_failed: 'Podaci nisu ispravni.',
   PasswordBreached: 'Ova lozinka se pojavljuje u poznatim curenjima podataka. Izaberite drugu.',
   PasswordTooShort: 'Lozinka mora imati najmanje 12 znakova.',
+  invalid_pib: 'PIB nije ispravan (9 cifara sa kontrolnom cifrom).',
+  invalid_mb: 'Matični broj nije ispravan (8 cifara sa kontrolnom cifrom).',
+  member_limit_reached: 'Firma ne može imati više članova.',
+  signatory_requires_representative:
+    'Potpisnik mora biti povezan sa zakonskim zastupnikom ili punomoćjem.',
+  signatory_via_pristupnica: 'Nalog prodavca postaje potpisnik kada se prihvati pristupnica.',
+  last_owner: 'Poslednji vlasnik ne može biti uklonjen.',
+  organization_incomplete:
+    'Nedostaju podaci: poslovno ime, matični broj, zastupnik ili prihvaćeni Uslovi.',
+  concurrency_conflict: 'Podatke je u međuvremenu promenio neko drugi. Osvežite stranicu.',
+  conflict_state: 'Ova radnja nije moguća u trenutnom statusu.',
+  already_member: 'Već ste član ove firme.',
+  not_found: 'Nije pronađeno.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {
