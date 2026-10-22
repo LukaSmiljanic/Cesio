@@ -266,7 +266,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
         using var deleteRepresentative = await outsider.DeleteAsync($"/api/v1/organizations/{own}/legal-representatives/{representative}");
 
         Assert.All([patch, delete, put, deleteRepresentative], r => Assert.Equal(HttpStatusCode.NotFound, r.StatusCode));
-        Assert.Equal(1, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM orgs.legal_representatives WHERE id = '{representative}' AND name = 'Petar Petrović'"));
+        Assert.Equal(1, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM orgs.legal_representatives WHERE id = '{representative}' AND name = N'Petar Petrović'"));
     }
 
     [Fact]

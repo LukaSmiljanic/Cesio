@@ -562,6 +562,11 @@ internal sealed class OrganizationService(
         {
             return Problems.ConcurrencyConflict();
         }
+        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 1205 })
+        {
+            // Deadlock victim between two concurrent membership changes: the other one won.
+            return Problems.ConcurrencyConflict();
+        }
         catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
         {
             // A unique index: an MB already claimed by another organization, or a duplicate membership.

@@ -5,11 +5,11 @@
 set -euo pipefail
 
 output="${1:-test-output.txt}"
-{
-  grep -E "^\s*failed " "$output" | sed -E 's/^\s+//' | sort -u | head -40
-  grep -E "(Exception|Error)( :|:) " "$output" | sed -E 's/^\s+//' | sort -u | head -40
-  grep -E "^\s*(Expected|Actual):" "$output" | sed -E 's/^\s+//' | head -20
-} > failures.txt || true
+sed -E 's/\x1B\[[0-9;]*[A-Za-z]//g; s/^\s+//' "$output" \
+  | grep -E "failed |SqlException|---> |Exception: |Exception : |^(Expected|Actual):|\.cs:line [0-9]+" \
+  | grep -vE "^at (Microsoft|System)\." \
+  | awk '!seen[$0]++' \
+  | head -80 > failures.txt || true
 
 body=$(sed -e 's/%/%25/g' failures.txt | awk 'BEGIN { ORS = "%0A" } { print }')
 echo "::error title=Test failures::${body}"
