@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
-# Turns failed tests in the dotnet test output into GitHub annotations, which are readable without signing in.
+# Turns failed tests in the dotnet test output into one GitHub annotation, readable without signing in.
+# GitHub shows at most 10 annotations per step, so the failed test names and the distinct exception messages
+# (including inner exceptions such as SqlException) are joined into a single multi-line annotation.
 set -euo pipefail
 
-grep -E "^\s*failed |^\s*(Assert|Xunit|System|Microsoft)\.[A-Za-z.]*(Exception|Error)|^\s*(Expected|Actual):" "${1:-test-output.txt}" \
-  | head -60 \
-  | while IFS= read -r line; do echo "::error title=Test failure::${line}"; done
+output="${1:-test-output.txt}"
+{
+  grep -E "^\s*failed " "$output" | sed -E 's/^\s+//' | sort -u | head -40
+  grep -E "(Exception|Error)( :|:) " "$output" | sed -E 's/^\s+//' | sort -u | head -40
+  grep -E "^\s*(Expected|Actual):" "$output" | sed -E 's/^\s+//' | head -20
+} > failures.txt || true
+
+body=$(sed -e 's/%/%25/g' failures.txt | awk 'BEGIN { ORS = "%0A" } { print }')
+echo "::error title=Test failures::${body}"
