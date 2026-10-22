@@ -12,6 +12,7 @@ using Shared.Infrastructure;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.AddPlatformDefaults("platform-worker");
+builder.Services.AddWorkerInfrastructure();
 
 builder.Services
     .AddIdentityModule()
@@ -22,6 +23,7 @@ builder.Services
     .AddDealsModule()
     .AddFeesModule()
     .AddNotificationsModule()
-    .AddAuditModule();
+    .AddAuditModule()
+    .AddAuditJobs();
 
 builder.Build().Run();

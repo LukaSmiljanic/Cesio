@@ -48,7 +48,14 @@ dotnet test
 cd web && npm ci && npm run dev
 ```
 
-- API: `dotnet run --project src/Platform.Api` → `http://localhost:5080/health/live`, `/health/ready`.
-- Worker: `dotnet run --project src/Platform.Worker`.
-- Container: `docker build -t cesio .` then `docker run cesio api` or `docker run cesio worker`.
+- Connection strings are not in config files. Set them once per project with user secrets (or `ConnectionStrings__Cesio` / `ConnectionStrings__AuditDigests` environment variables), using the SA password from `.env`:
+  ```
+  dotnet user-secrets --project src/Platform.Api set ConnectionStrings:Cesio "Server=localhost,1433;Database=cesio;User Id=sa;Password=<from .env>;TrustServerCertificate=True"
+  ```
+  The same `Cesio` value is needed for `src/Platform.Worker` and `src/Platform.Migrator`; the worker also needs `ConnectionStrings:AuditDigests` = `UseDevelopmentStorage=true` (Azurite).
+- Database: `dotnet run --project src/Platform.Migrator` applies every module's migrations and the `app_rw` / `migrator` / `readonly_reporting` roles. New migration: `dotnet tool restore && dotnet ef migrations add <Name> --project <module project> --context <Module>DbContext --output-dir Persistence/Migrations`.
+- API: `dotnet run --project src/Platform.Api` → `http://localhost:5080/health/live`, `/health/ready` (includes the database).
+- Worker: `dotnet run --project src/Platform.Worker` (outbox dispatcher, idempotency cleanup, daily audit chain digest).
+- Container: `docker build -t cesio .` then `docker run cesio api`, `docker run cesio worker` or `docker run cesio migrator`.
+- Integration tests (`tests/Platform.Integration.Tests`) start their own SQL Server with Testcontainers, so Docker must be running for `dotnet test`.
 - Rules checked in CI: web lint and format, architecture tests (`tests/Architecture.Tests`), `scripts/check-no-float.sh` (ADR-008), gitleaks, CodeQL, dependency review.

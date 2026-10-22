@@ -16,7 +16,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddPlatformDefaults("platform-api");
 builder.Services.AddProblemDetails();
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.AddKernelConverters());
-builder.Services.AddHealthChecks();
+builder.Services.AddApiInfrastructure();
 
 builder.Services
     .AddIdentityModule()
@@ -40,9 +40,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-// Liveness has no checks; readiness gets the database check in task 003.
+// Liveness has no checks; readiness includes the database.
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
-app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains(HostSetup.ReadyTag) });
 
 app.Run();
 

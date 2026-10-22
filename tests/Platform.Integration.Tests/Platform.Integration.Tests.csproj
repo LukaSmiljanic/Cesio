@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.MsSql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Platform.Api/Platform.Api.csproj" />
+    <ProjectReference Include="../../src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+    <ProjectReference Include="../../src/Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -42,7 +42,7 @@ public static class PlatformDefaults
             })
             .WithMetrics(metrics =>
             {
-                metrics.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation();
+                metrics.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddMeter("Cesio.*");
                 if (exportToConsole)
                 {
                     metrics.AddConsoleExporter();

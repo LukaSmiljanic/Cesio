@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
+  <PropertyGroup>
+    <UserSecretsId>cesio-platform-worker</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
     <ProjectReference Include="../Modules/Identity/Modules.Identity/Modules.Identity.csproj" />

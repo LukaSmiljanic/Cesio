@@ -5,6 +5,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Kernel/Shared.Kernel.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />

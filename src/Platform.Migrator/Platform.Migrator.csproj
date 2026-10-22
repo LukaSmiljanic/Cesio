@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>cesio-platform-migrator</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+    <ProjectReference Include="../Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
+  </ItemGroup>
+
+</Project>

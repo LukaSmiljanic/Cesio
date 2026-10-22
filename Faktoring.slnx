@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Platform.Api/Platform.Api.csproj" />
+    <Project Path="src/Platform.Migrator/Platform.Migrator.csproj" />
     <Project Path="src/Platform.Worker/Platform.Worker.csproj" />
   </Folder>
   <Folder Name="/src/Integrations/">
@@ -53,6 +54,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Architecture.Tests/Architecture.Tests.csproj" />
     <Project Path="tests/Platform.Api.Tests/Platform.Api.Tests.csproj" />
+    <Project Path="tests/Platform.Integration.Tests/Platform.Integration.Tests.csproj" />
     <Project Path="tests/Shared.Kernel.Tests/Shared.Kernel.Tests.csproj" />
   </Folder>
 </Solution>

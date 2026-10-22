@@ -14,7 +14,7 @@ internal static class ProjectClassifier
 {
     public static ProjectKind Classify(string project) => project switch
     {
-        "Platform.Api" or "Platform.Worker" => ProjectKind.Host,
+        "Platform.Api" or "Platform.Worker" or "Platform.Migrator" => ProjectKind.Host,
         "Shared.Kernel" => ProjectKind.SharedKernel,
         "Shared.Infrastructure" => ProjectKind.SharedInfrastructure,
         _ when project.StartsWith("Modules.", StringComparison.Ordinal) && project.EndsWith(".Contracts", StringComparison.Ordinal) => ProjectKind.ModuleContracts,
