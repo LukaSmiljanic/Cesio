@@ -29,7 +29,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
     [Fact]
     public async Task Two_users_hold_draft_claims_for_the_same_pib_without_seeing_each_other()
     {
-        var pib = NewPib();
+        var pib = TestIds.NewPib();
         using var alice = _app.NewClient();
         await alice.SignUpAsync();
         using var bob = _app.NewClient();
@@ -63,7 +63,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
         using var client = _app.NewClient();
         await client.SignUpAsync();
         var key = Guid.NewGuid().ToString();
-        var pib = NewPib();
+        var pib = TestIds.NewPib();
 
         var first = await ApiClient.ReadAsync(await client.SendAsync(HttpMethod.Post, "/api/v1/organizations", new { pib }, key));
         var second = await ApiClient.ReadAsync(await client.SendAsync(HttpMethod.Post, "/api/v1/organizations", new { pib }, key));
@@ -77,7 +77,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
     {
         using var owner = _app.NewClient();
         await owner.SignUpAsync();
-        var org = await CreateSellerAsync(owner, NewPib());
+        var org = await CreateSellerAsync(owner, TestIds.NewPib());
         await owner.StepUpAsync();
 
         var code = await ApiClient.ErrorCodeAsync(await owner.PostAsync($"/api/v1/organizations/{org}/members", new { email = "colleague@example.rs" }));
@@ -185,12 +185,12 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
     {
         using var owner = _app.NewClient();
         await owner.SignUpAsync();
-        var org = await CreateSellerAsync(owner, NewPib());
+        var org = await CreateSellerAsync(owner, TestIds.NewPib());
 
         Assert.Equal("organization_incomplete", await ApiClient.ErrorCodeAsync(await owner.PostAsync($"/api/v1/organizations/{org}/submit")));
 
         var details = await ApiClient.ReadAsync(await owner.SendAsync(HttpMethod.Patch, $"/api/v1/organizations/{org}",
-            new { legalName = "Primer d.o.o.", mb = NewMb(), legalForm = "d.o.o.", registeredAddress = "Bulevar 1, Beograd" }, ifMatch: 0));
+            new { legalName = "Primer d.o.o.", mb = TestIds.NewMb(), legalForm = "d.o.o.", registeredAddress = "Bulevar 1, Beograd" }, ifMatch: 0));
         Assert.Equal("Primer d.o.o.", details.GetProperty("legalName").GetString());
         await AddRepresentativeAsync(owner, org);
         var terms = await ApiClient.ReadAsync(await owner.GetAsync("/api/v1/terms/current"));
@@ -355,7 +355,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
         (await ApiClient.ReadAsync(await client.PostAsync("/api/v1/organizations", new { pib }))).GetProperty("id").GetGuid();
 
     private static async Task<Guid> CreateFactorAsync(ApiClient client) =>
-        (await ApiClient.ReadAsync(await client.PostAsync("/api/v1/dev/factor-organizations", new { pib = NewPib(), legalName = "Faktor a.d." }))).GetProperty("id").GetGuid();
+        (await ApiClient.ReadAsync(await client.PostAsync("/api/v1/dev/factor-organizations", new { pib = TestIds.NewPib(), legalName = "Faktor a.d." }))).GetProperty("id").GetGuid();
 
     private static async Task<Guid> AddRepresentativeAsync(ApiClient client, Guid org) =>
         (await ApiClient.ReadAsync(await client.PostAsync($"/api/v1/organizations/{org}/legal-representatives", new { name = "Petar Petrović", role = "Direktor" })))
@@ -363,25 +363,5 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
 
     private Task<int> AuditCountAsync(Guid org, string action) =>
         _database.ScalarAsync<int>($"SELECT COUNT(*) FROM audit.audit_events WHERE entity_id = '{org}' AND action = '{action}'");
-
-    /// <summary>A random PIB with a valid check digit.</summary>
-    private static string NewPib() => WithCheckDigit(8, value => Pib.TryParse(value, out _));
-
-    /// <summary>A random matični broj with a valid check digit.</summary>
-    private static string NewMb() => WithCheckDigit(7, value => MaticniBroj.TryParse(value, out _));
-
-    private static string WithCheckDigit(int length, Func<string, bool> valid)
-    {
-        while (true)
-        {
-            var prefix = string.Concat(Enumerable.Range(0, length).Select(i => (char)('0' + Random.Shared.Next(i == 0 ? 1 : 0, 10))));
-            for (var digit = 0; digit < 10; digit++)
-            {
-                if (valid(prefix + digit))
-                {
-                    return prefix + digit;
-                }
-            }
-        }
-    }
 }
+

@@ -15,17 +15,23 @@ using Shared.Infrastructure.Persistence;
 namespace Platform.Integration.Tests.Infrastructure;
 
 /// <summary>Platform.Api on a test database, with captured emails, no external breach API and no rate limit.</summary>
-public sealed class ApiApp(TestDatabase database) : IAsyncDisposable
+public sealed class ApiApp(TestDatabase database, IDictionary<string, string?>? settings = null, Action<IServiceCollection>? configureServices = null) : IAsyncDisposable
 {
     private readonly WebApplicationFactory<Program> _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
     {
         host.UseSetting($"ConnectionStrings:{PersistenceSetup.ConnectionStringName}", database.ConnectionString);
         host.UseSetting("Auth:BreachCheck:UseOnlineApi", "false");
         host.UseSetting("Auth:RateLimitPerMinute", "100000");
+        foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
+        {
+            host.UseSetting(key, value);
+        }
+
         host.ConfigureTestServices(services =>
         {
             services.RemoveAll<IEmailSender>();
             services.AddSingleton<IEmailSender>(database.Emails);
+            configureServices?.Invoke(services);
         });
     });
 
@@ -152,7 +158,7 @@ public sealed class ApiClient(HttpClient http, CapturingEmailSender emails) : ID
         }
     }
 
-    private async Task<string> AntiforgeryTokenAsync()
+    public async Task<string> AntiforgeryTokenAsync()
     {
         var token = await ReadAsync(await GetAsync("/api/v1/auth/antiforgery"));
         return token.GetProperty("token").GetString()!;

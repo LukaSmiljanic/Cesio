@@ -13,6 +13,7 @@
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.Azurite" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,6 +22,7 @@
     <ProjectReference Include="../../src/Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
     <ProjectReference Include="../../src/Modules/Identity/Modules.Identity/Modules.Identity.csproj" />
     <ProjectReference Include="../../src/Modules/Organizations/Modules.Organizations/Modules.Organizations.csproj" />
+    <ProjectReference Include="../../src/Modules/Documents/Modules.Documents/Modules.Documents.csproj" />
   </ItemGroup>
 
 </Project>

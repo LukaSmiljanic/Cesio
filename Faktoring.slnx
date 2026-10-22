@@ -23,6 +23,10 @@
     <Project Path="src/Modules/Deals/Modules.Deals.Contracts/Modules.Deals.Contracts.csproj" />
     <Project Path="src/Modules/Deals/Modules.Deals/Modules.Deals.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Documents/">
+    <Project Path="src/Modules/Documents/Modules.Documents.Contracts/Modules.Documents.Contracts.csproj" />
+    <Project Path="src/Modules/Documents/Modules.Documents/Modules.Documents.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Fees/">
     <Project Path="src/Modules/Fees/Modules.Fees.Contracts/Modules.Fees.Contracts.csproj" />
     <Project Path="src/Modules/Fees/Modules.Fees/Modules.Fees.csproj" />

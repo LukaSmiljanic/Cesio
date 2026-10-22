@@ -22,6 +22,8 @@
     <ProjectReference Include="../../src/Integrations/Integrations.Signatures/Integrations.Signatures.csproj" />
     <ProjectReference Include="../../src/Modules/Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
     <ProjectReference Include="../../src/Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
+    <ProjectReference Include="../../src/Modules/Documents/Modules.Documents.Contracts/Modules.Documents.Contracts.csproj" />
+    <ProjectReference Include="../../src/Modules/Documents/Modules.Documents/Modules.Documents.csproj" />
     <ProjectReference Include="../../src/Modules/Compliance/Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
     <ProjectReference Include="../../src/Modules/Compliance/Modules.Compliance/Modules.Compliance.csproj" />
     <ProjectReference Include="../../src/Modules/Deals/Modules.Deals.Contracts/Modules.Deals.Contracts.csproj" />

@@ -8,6 +8,7 @@
   <ItemGroup>
     <ProjectReference Include="../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
     <ProjectReference Include="../Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
+    <ProjectReference Include="../Modules/Documents/Modules.Documents/Modules.Documents.csproj" />
     <ProjectReference Include="../Modules/Identity/Modules.Identity/Modules.Identity.csproj" />
     <ProjectReference Include="../Modules/Organizations/Modules.Organizations/Modules.Organizations.csproj" />
   </ItemGroup>

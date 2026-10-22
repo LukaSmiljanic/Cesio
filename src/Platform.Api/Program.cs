@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Modules.Audit;
+using Modules.Documents;
 using Modules.Compliance;
 using Modules.Deals;
 using Modules.Fees;
@@ -34,7 +35,8 @@ builder.Services
     .AddDealsModule()
     .AddFeesModule()
     .AddNotificationsModule()
-    .AddAuditModule();
+    .AddAuditModule()
+    .AddDocumentsModule();
 
 var app = builder.Build();
 
@@ -57,6 +59,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check 
 
 app.MapIdentityEndpoints();
 app.MapOrganizationEndpoints(includeDevelopmentEndpoints: app.Environment.IsDevelopment());
+app.MapDocumentEndpoints();
 
 app.Run();
 

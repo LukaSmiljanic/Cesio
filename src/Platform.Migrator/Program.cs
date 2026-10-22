@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Modules.Audit;
+using Modules.Documents;
 using Modules.Identity;
 using Modules.Organizations;
 using Shared.Infrastructure.Persistence;
@@ -14,6 +15,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services
     .AddPersistence()
     .AddAuditModule()
+    .AddDocumentsModule()
     .AddIdentityModule()
     .AddOrganizationsModule();
 

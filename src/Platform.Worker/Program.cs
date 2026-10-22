@@ -1,4 +1,5 @@
 using Modules.Audit;
+using Modules.Documents;
 using Modules.Compliance;
 using Modules.Deals;
 using Modules.Fees;
@@ -24,6 +25,7 @@ builder.Services
     .AddFeesModule()
     .AddNotificationsModule()
     .AddAuditModule()
+    .AddDocumentsModule()
     .AddAuditJobs();
 
 builder.Build().Run();

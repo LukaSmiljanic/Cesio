@@ -38,6 +38,7 @@ src/
     Marketplace/                -- listings, audience, offers
     Deals/                      -- deal workflow, contract, signatures, CEF, notification, funding, outcomes, disputes
     Fees/                       -- fee schedules, fee charges, statements
+    Documents/                  -- stored files: upload, malware scan, hash, authorized download (task 006; access rules come from the owning modules through IDocumentAccessPolicy)
     Notifications/              -- in-app + email, templates, preferences
     Audit/                      -- append-only audit store, query API
   Shared/
