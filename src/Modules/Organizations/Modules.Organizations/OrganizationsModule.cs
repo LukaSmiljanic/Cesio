@@ -1,3 +1,4 @@
+using Integrations.Sef;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Modules.Organizations.Contracts;
@@ -15,6 +16,9 @@ public static class OrganizationsModule
         services.AddOptions<OrganizationOptions>().BindConfiguration("Auth");
         services.AddScoped<IOrganizationQuery, OrganizationQuery>();
         services.AddScoped<OrganizationService>();
+        services.AddSef();
+        services.AddScoped<SefConnectionService>();
+        services.AddScoped<ISefConnections>(provider => provider.GetRequiredService<SefConnectionService>());
         return services;
     }
 

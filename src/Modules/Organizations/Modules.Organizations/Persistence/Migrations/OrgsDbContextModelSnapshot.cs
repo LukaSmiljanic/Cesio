@@ -307,6 +307,54 @@ namespace Modules.Organizations.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Modules.Organizations.Persistence.SefConnection", b =>
+                {
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("SecretName")
+                        .IsRequired()
+                        .HasMaxLength(127)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(127)")
+                        .HasColumnName("secret_name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SupplierPib")
+                        .HasMaxLength(9)
+                        .IsUnicode(false)
+                        .HasColumnType("char(9)")
+                        .HasColumnName("supplier_pib")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<DateTimeOffset?>("ValidatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("validated_at");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("OrgId")
+                        .HasName("pk_sef_connections");
+
+                    b.ToTable("sef_connections", "orgs");
+                });
+
             modelBuilder.Entity("Modules.Organizations.Persistence.TermsAcceptance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -381,6 +429,16 @@ namespace Modules.Organizations.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_memberships_organizations_org_id");
+                });
+
+            modelBuilder.Entity("Modules.Organizations.Persistence.SefConnection", b =>
+                {
+                    b.HasOne("Modules.Organizations.Persistence.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_sef_connections_organizations_org_id");
                 });
 
             modelBuilder.Entity("Modules.Organizations.Persistence.TermsAcceptance", b =>

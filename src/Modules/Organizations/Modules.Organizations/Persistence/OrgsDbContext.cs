@@ -36,6 +36,8 @@ public sealed class OrgsDbContext : ModuleDbContext
 
     internal DbSet<Invitation> Invitations => Set<Invitation>();
 
+    internal DbSet<SefConnection> SefConnections => Set<SefConnection>();
+
     protected override string Schema => SchemaName;
 
     private Guid? CurrentOrganizationId => _request?.OrganizationId;
@@ -109,6 +111,17 @@ public sealed class OrgsDbContext : ModuleDbContext
             invitation.HasIndex(i => i.TokenHash).IsUnique();
             invitation.HasOne<Organization>().WithMany().HasForeignKey(i => i.OrgId);
             invitation.HasQueryFilter(i => i.OrgId == CurrentOrganizationId);
+        });
+
+        modelBuilder.Entity<SefConnection>(connection =>
+        {
+            connection.ToTable("sef_connections");
+            connection.HasKey(c => c.OrgId);
+            connection.Property(c => c.SecretName).HasMaxLength(127).IsUnicode(false);
+            connection.Property(c => c.Status).HasConversion<string>().HasMaxLength(40).IsUnicode(false);
+            connection.Property(c => c.SupplierPib).HasMaxLength(9).IsFixedLength().IsUnicode(false);
+            connection.HasOne<Organization>().WithMany().HasForeignKey(c => c.OrgId);
+            connection.HasQueryFilter(c => c.OrgId == CurrentOrganizationId);
         });
     }
 }

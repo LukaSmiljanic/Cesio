@@ -7,6 +7,7 @@ using Shared.Infrastructure.Idempotency;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
+using Shared.Infrastructure.Secrets;
 
 namespace Shared.Infrastructure;
 
@@ -20,6 +21,7 @@ public static class HostSetup
         services.AddPersistence();
         services.AddHttpContextAccessor();
         services.AddEmail();
+        services.AddSecrets();
         services.AddScoped<IRequestContext, HttpRequestContext>();
         services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database", tags: [ReadyTag]);
         return services;
@@ -30,6 +32,7 @@ public static class HostSetup
     {
         services.AddPersistence();
         services.AddScoped<IRequestContext, SystemRequestContext>();
+        services.AddSecrets();
         services.AddHostedService<OutboxDispatcherService>();
         services.AddHostedService<IdempotencyCleanupJob>();
         return services;

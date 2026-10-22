@@ -51,6 +51,10 @@ public static class OrganizationEndpoints
         organization.MapDelete("/legal-representatives/{representativeId:guid}", (Guid representativeId, OrganizationService service, CancellationToken ct) =>
             service.RemoveRepresentativeAsync(representativeId, ct)).RequireIdempotency();
 
+        organization.MapGet("/sef-connection", (SefConnectionService service, CancellationToken ct) => service.GetStatusAsync(ct));
+        organization.MapPut("/sef-connection", (SefConnectionRequest body, SefConnectionService service, CancellationToken ct) => service.ConnectAsync(body, ct))
+            .RequireIdempotency().RequireStepUp();
+
         organization.MapGet("/terms-acceptances", (OrganizationService service, CancellationToken ct) => service.ListTermsAcceptancesAsync(ct));
         organization.MapPost("/terms-acceptances", (AcceptTermsRequest body, OrganizationService service, CancellationToken ct) => service.AcceptTermsAsync(body, ct))
             .RequireIdempotency();

@@ -43,3 +43,33 @@ public sealed record OrganizationSubmitted(Guid OrganizationId, OrganizationType
 {
     public static string EventType => "Organizations.OrganizationSubmitted";
 }
+
+public enum SefConnectionStatus
+{
+    Connected,
+    Invalid,
+}
+
+/// <param name="SecretName">Name of the API key in the secret store; the key itself never leaves it.</param>
+public sealed record SefConnectionInfo(Guid OrganizationId, SefConnectionStatus Status, string SecretName, string? SupplierPib);
+
+/// <summary>The organization's SEF connection for modules that call SEF on its behalf (Receivables).</summary>
+public interface ISefConnections
+{
+    Task<SefConnectionInfo?> GetAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    /// <summary>SEF answered 401 for the stored key: the connection becomes Invalid (integrations.md §1).</summary>
+    Task MarkInvalidAsync(Guid organizationId, CancellationToken cancellationToken);
+}
+
+/// <summary>A valid SEF key proved that the organization issues invoices under this PIB; task 007a claims the PIB from it (ADR-020).</summary>
+public sealed record SefConnectionValidated(Guid OrganizationId, string SupplierPib) : IIntegrationEvent
+{
+    public static string EventType => "Organizations.SefConnectionValidated";
+}
+
+/// <summary>The stored SEF key stopped working; Notifications tells the Owners (task 019).</summary>
+public sealed record SefConnectionInvalidated(Guid OrganizationId) : IIntegrationEvent
+{
+    public static string EventType => "Organizations.SefConnectionInvalidated";
+}

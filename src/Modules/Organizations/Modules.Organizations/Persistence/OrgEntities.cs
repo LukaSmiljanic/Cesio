@@ -130,3 +130,21 @@ internal sealed class Invitation
 
     public Guid? AcceptedBy { get; set; }
 }
+
+/// <summary>The SEF connection of a seller (task 010). The API key is in the secret store under <see cref="SecretName"/>.</summary>
+internal sealed class SefConnection
+{
+    public Guid OrgId { get; init; }
+
+    public required string SecretName { get; init; }
+
+    public SefConnectionStatus Status { get; set; }
+
+    public string? SupplierPib { get; set; }
+
+    public DateTimeOffset? ValidatedAt { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public int Version { get; set; }
+}
