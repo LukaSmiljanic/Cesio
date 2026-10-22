@@ -32,7 +32,7 @@ None (filters and infrastructure only).
 Schemas `platform`, `audit`; roles `app_rw`, `migrator`, `readonly_reporting` (created by Platform.Migrator; identities and IaC in 024).
 
 # Security Considerations
-Audit `changes` masking helper (account numbers, emails partially masked). Idempotency keys are scoped by org + endpoint so a key cannot replay another tenant's response.
+Audit `changes` masking helper (account numbers, emails partially masked). Idempotency keys are scoped by org (or by user outside an organization, task 005) + endpoint so a key cannot replay another tenant's or user's response.
 
 # Tests
 - Outbox: event delivered once to an idempotent consumer despite a simulated crash after publish.

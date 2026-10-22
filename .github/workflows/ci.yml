@@ -22,7 +22,13 @@ jobs:
           global-json-file: global.json
       - run: dotnet restore
       - run: dotnet build --no-restore -c Release
-      - run: dotnet test --no-build -c Release
+      - name: dotnet test
+        run: |
+          set -o pipefail
+          dotnet test --no-build -c Release 2>&1 | tee test-output.txt
+      - name: Report failed tests as annotations
+        if: failure()
+        run: bash scripts/annotate-test-failures.sh test-output.txt
       - name: Shared.Kernel branch coverage must be 100%
         run: |
           dotnet test --project tests/Shared.Kernel.Tests --no-build -c Release \

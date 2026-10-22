@@ -198,7 +198,7 @@ CREATE TABLE platform.idempotency_keys (
   idem_key nvarchar(200) NOT NULL, org_id uniqueidentifier NOT NULL, user_id uniqueidentifier NOT NULL, endpoint nvarchar(200) NOT NULL,
   request_sha256 char(64) NOT NULL, response_status int, response_body nvarchar(max) /* JSON, CHECK (ISJSON(...) = 1) */,
   created_at datetimeoffset(3) NOT NULL, expires_at datetimeoffset(3) NOT NULL,
-  PRIMARY KEY (org_id, endpoint, idem_key)
+  PRIMARY KEY (org_id, endpoint, idem_key)  -- org_id = the active organization, or the user ID for commands outside one (api.md §1)
 );
 CREATE TABLE platform.outbox (id uniqueidentifier PRIMARY KEY, type nvarchar(200) NOT NULL, payload nvarchar(max) /* JSON, CHECK (ISJSON(...) = 1) */ NOT NULL, occurred_at datetimeoffset(3) NOT NULL,
   next_attempt_at datetimeoffset(3) NOT NULL /* backoff and claim lease */, processed_at datetimeoffset(3), dead_lettered_at datetimeoffset(3),

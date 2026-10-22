@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Modules.Audit;
 using Modules.Compliance;
@@ -16,7 +17,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddPlatformDefaults("platform-api");
 builder.Services.AddProblemDetails();
-builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.AddKernelConverters());
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.AddKernelConverters();
+    // Enums are API strings ("Draft", "Seller"), never numbers.
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddApiInfrastructure();
 
 builder.Services

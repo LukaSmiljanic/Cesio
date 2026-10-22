@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Modules.Audit.Contracts;
@@ -125,7 +126,12 @@ internal sealed class OrganizationService(
             return Problems.ConflictState("Only a Draft organization can be edited.");
         }
 
-        if (ifMatch is { } expected && expected != organization.Version)
+        if (ifMatch is not { } expected)
+        {
+            return Problems.PreconditionRequired();
+        }
+
+        if (expected != organization.Version)
         {
             return Problems.ConcurrencyConflict();
         }
@@ -225,6 +231,7 @@ internal sealed class OrganizationService(
             return Problems.Error(StatusCodes.Status422UnprocessableEntity, "member_limit_reached", "This organization cannot have more members.");
         }
 
+        SerializeMembershipChanges(organization);
         var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         var now = timeProvider.GetUtcNow();
         var invitation = new Invitation
@@ -285,6 +292,7 @@ internal sealed class OrganizationService(
 
         invitation.AcceptedAt = now;
         invitation.AcceptedBy = UserId;
+        SerializeMembershipChanges(organization);
         if (membership is null)
         {
             membership = new Membership { Id = SequentialGuid.NewGuid(), OrgId = organization.Id, UserId = UserId, Status = MembershipStatus.Active, JoinedAt = now };
@@ -321,7 +329,12 @@ internal sealed class OrganizationService(
             return Problems.Error(StatusCodes.Status422UnprocessableEntity, "signatory_via_pristupnica", "A seller's account becomes Signatory when its pristupnica is accepted.");
         }
 
-        if (ifMatch is { } expected && expected != membership.Version)
+        if (ifMatch is not { } expected)
+        {
+            return Problems.PreconditionRequired();
+        }
+
+        if (expected != membership.Version)
         {
             return Problems.ConcurrencyConflict();
         }
@@ -331,7 +344,16 @@ internal sealed class OrganizationService(
             return Problems.Validation("legalRepresentativeId", "not_found", "The legal representative does not exist.");
         }
 
-        if (body.IsSignatory && body.LegalRepresentativeId is null && body.PowerOfAttorneyDocumentId is null)
+        // A power of attorney needs a stored, verified document (tasks 006 and 007); until then it cannot qualify a
+        // Signatory. Legal representatives entered here are verified by staff in task 007 before the organization is
+        // Approved, and only Approved organizations can transact (INV-A1).
+        if (body.PowerOfAttorneyDocumentId is not null)
+        {
+            return Problems.Error(StatusCodes.Status422UnprocessableEntity, "power_of_attorney_unverified",
+                "Powers of attorney can be used once document verification is available.");
+        }
+
+        if (body.IsSignatory && body.LegalRepresentativeId is null)
         {
             return Problems.Error(StatusCodes.Status422UnprocessableEntity, "signatory_requires_representative",
                 "A Signatory must be linked to a legal representative or a power-of-attorney document.");
@@ -364,6 +386,9 @@ internal sealed class OrganizationService(
 
         membership.Status = MembershipStatus.Removed;
         membership.IsSignatory = false;
+        membership.LegalRepresentativeId = null;
+        membership.PowerOfAttorneyDocumentId = null;
+        SerializeMembershipChanges(await orgs.Organizations.SingleAsync(o => o.Id == membership.OrgId, cancellationToken));
         return await SaveAsync(
             async ct => await audit.WriteAsync(new AuditEntry("Member.Removed", "Organization", membership.OrgId, membership.OrgId,
                 Related: [new AuditReference("Membership", membership.Id)]), ct),
@@ -449,7 +474,7 @@ internal sealed class OrganizationService(
             return conflict;
         }
 
-        if (await orgs.Memberships.AnyAsync(m => m.LegalRepresentativeId == representativeId, cancellationToken))
+        if (await orgs.Memberships.AnyAsync(m => m.LegalRepresentativeId == representativeId && m.Status == MembershipStatus.Active, cancellationToken))
         {
             return Problems.ConflictState("The legal representative is linked to a member.");
         }
@@ -537,9 +562,21 @@ internal sealed class OrganizationService(
         {
             return Problems.ConcurrencyConflict();
         }
+        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            // A unique index: an MB already claimed by another organization, or a duplicate membership.
+            return Problems.Error(StatusCodes.Status409Conflict, "already_exists", "This organization or membership already exists.");
+        }
 
         return result();
     }
+
+    /// <summary>
+    /// Marks the organization row as changed, so its version serialises concurrent membership changes: of two
+    /// Owners removing each other, or two acceptances over the seller limit, one gets 412 (last-Owner and limit checks).
+    /// </summary>
+    private void SerializeMembershipChanges(Organization organization) =>
+        orgs.Entry(organization).Property(o => o.Version).IsModified = true;
 
     private async Task<bool> AtSellerLimitAsync(CancellationToken cancellationToken)
     {
@@ -603,6 +640,9 @@ internal static class Problems
         Error(StatusCodes.Status400BadRequest, "validation_failed", message, new[] { new { field, code, message } });
 
     public static IResult ConflictState(string detail) => Error(StatusCodes.Status409Conflict, "conflict_state", detail);
+
+    public static IResult PreconditionRequired() =>
+        Error(StatusCodes.Status428PreconditionRequired, "precondition_required", "Send If-Match with the version you last read.");
 
     public static IResult ConcurrencyConflict() =>
         Error(StatusCodes.Status412PreconditionFailed, "concurrency_conflict", "The resource was changed by someone else. Reload it and try again.");

@@ -129,7 +129,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
         var memberId = colleagueMember.GetProperty("id").GetGuid();
 
         Assert.Equal("signatory_requires_representative", await ApiClient.ErrorCodeAsync(
-            await owner.SendAsync(HttpMethod.Patch, $"/api/v1/organizations/{org}/members/{memberId}", new { isSignatory = true })));
+            await owner.SendAsync(HttpMethod.Patch, $"/api/v1/organizations/{org}/members/{memberId}", new { isSignatory = true }, ifMatch: colleagueMember.GetProperty("version").GetInt32())));
 
         var representative = await AddRepresentativeAsync(owner, org);
         var updated = await ApiClient.ReadAsync(await owner.SendAsync(HttpMethod.Patch, $"/api/v1/organizations/{org}/members/{memberId}",
@@ -190,7 +190,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
         Assert.Equal("organization_incomplete", await ApiClient.ErrorCodeAsync(await owner.PostAsync($"/api/v1/organizations/{org}/submit")));
 
         var details = await ApiClient.ReadAsync(await owner.SendAsync(HttpMethod.Patch, $"/api/v1/organizations/{org}",
-            new { legalName = "Primer d.o.o.", mb = NewMb(), legalForm = "d.o.o.", registeredAddress = "Bulevar 1, Beograd" }));
+            new { legalName = "Primer d.o.o.", mb = NewMb(), legalForm = "d.o.o.", registeredAddress = "Bulevar 1, Beograd" }, ifMatch: 0));
         Assert.Equal("Primer d.o.o.", details.GetProperty("legalName").GetString());
         await AddRepresentativeAsync(owner, org);
         var terms = await ApiClient.ReadAsync(await owner.GetAsync("/api/v1/terms/current"));
@@ -200,7 +200,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
         }
 
         var submitted = await ApiClient.ReadAsync(await owner.PostAsync($"/api/v1/organizations/{org}/submit"));
-        using var editAfterSubmit = await owner.SendAsync(HttpMethod.Patch, $"/api/v1/organizations/{org}", new { legalName = "Drugo ime" });
+        using var editAfterSubmit = await owner.SendAsync(HttpMethod.Patch, $"/api/v1/organizations/{org}", new { legalName = "Drugo ime" }, ifMatch: submitted.GetProperty("version").GetInt32());
 
         Assert.Equal("Submitted", submitted.GetProperty("status").GetString());
         Assert.Equal(HttpStatusCode.Conflict, editAfterSubmit.StatusCode);
@@ -244,6 +244,92 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
             Assert.True(response.StatusCode == HttpStatusCode.NotFound, $"{method} {path} returned {(int)response.StatusCode}.");
         }
 
+    }
+
+    [Fact]
+    public async Task Ids_of_another_organization_are_not_found_under_ones_own_organization()
+    {
+        using var owner = _app.NewClient();
+        await owner.SignUpAsync();
+        var org = await CreateFactorAsync(owner);
+        var representative = await AddRepresentativeAsync(owner, org);
+        var member = (await ApiClient.ReadAsync(await owner.GetAsync($"/api/v1/organizations/{org}/members"))).EnumerateArray().Single();
+        using var outsider = _app.NewClient();
+        await outsider.SignUpAsync();
+        var own = await CreateFactorAsync(outsider);
+        await outsider.StepUpAsync();
+
+        using var patch = await outsider.SendAsync(HttpMethod.Patch, $"/api/v1/organizations/{own}/members/{member.GetProperty("id").GetGuid()}",
+            new { isSignatory = false }, ifMatch: member.GetProperty("version").GetInt32());
+        using var delete = await outsider.DeleteAsync($"/api/v1/organizations/{own}/members/{member.GetProperty("id").GetGuid()}");
+        using var put = await outsider.SendAsync(HttpMethod.Put, $"/api/v1/organizations/{own}/legal-representatives/{representative}", new { name = "x", role = "y" });
+        using var deleteRepresentative = await outsider.DeleteAsync($"/api/v1/organizations/{own}/legal-representatives/{representative}");
+
+        Assert.All([patch, delete, put, deleteRepresentative], r => Assert.Equal(HttpStatusCode.NotFound, r.StatusCode));
+        Assert.Equal(1, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM orgs.legal_representatives WHERE id = '{representative}' AND name = 'Petar Petrović'"));
+    }
+
+    [Fact]
+    public async Task An_invitation_works_once()
+    {
+        using var owner = _app.NewClient();
+        await owner.SignUpAsync();
+        var org = await CreateFactorAsync(owner);
+        using var colleague = _app.NewClient();
+        var email = $"colleague-{Guid.NewGuid():N}@example.rs";
+        await colleague.SignUpAsync(email);
+        await owner.StepUpAsync();
+        using (var invite = await owner.PostAsync($"/api/v1/organizations/{org}/members", new { email }))
+        {
+            Assert.Equal(HttpStatusCode.Accepted, invite.StatusCode);
+        }
+
+        var token = _database.Emails.LinkValue(email, "token");
+        using (var accept = await colleague.PostAsync("/api/v1/invitations/accept", new { token }))
+        {
+            Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
+        }
+
+        using var again = await colleague.PostAsync("/api/v1/invitations/accept", new { token });
+        using var expiredOrUnknown = await colleague.PostAsync("/api/v1/invitations/accept", new { token = "not-a-token" });
+
+        Assert.Equal(HttpStatusCode.NotFound, again.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, expiredOrUnknown.StatusCode);
+    }
+
+    [Fact]
+    public async Task Two_owners_removing_each_other_at_once_leave_one_owner()
+    {
+        using var first = _app.NewClient();
+        await first.SignUpAsync();
+        var org = await CreateFactorAsync(first);
+        using var second = _app.NewClient();
+        var email = $"second-{Guid.NewGuid():N}@example.rs";
+        await second.SignUpAsync(email);
+        await first.StepUpAsync();
+        using (var invite = await first.PostAsync($"/api/v1/organizations/{org}/members", new { email }))
+        {
+            Assert.Equal(HttpStatusCode.Accepted, invite.StatusCode);
+        }
+
+        using (var accept = await second.PostAsync("/api/v1/invitations/accept", new { token = _database.Emails.LinkValue(email, "token") }))
+        {
+            Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
+        }
+
+        await second.StepUpAsync();
+        var members = (await ApiClient.ReadAsync(await first.GetAsync($"/api/v1/organizations/{org}/members"))).EnumerateArray().Select(m => m.GetProperty("id").GetGuid()).ToList();
+
+        var responses = await Task.WhenAll(
+            first.DeleteAsync($"/api/v1/organizations/{org}/members/{members[1]}"),
+            second.DeleteAsync($"/api/v1/organizations/{org}/members/{members[0]}"));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+        Assert.Equal(1, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM orgs.memberships WHERE org_id = '{org}' AND status = 'Active'"));
+        foreach (var response in responses)
+        {
+            response.Dispose();
+        }
     }
 
     [Fact]

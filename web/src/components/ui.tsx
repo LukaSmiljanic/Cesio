@@ -68,6 +68,10 @@ const messages: Record<string, string> = {
   conflict_state: 'Ova radnja nije moguća u trenutnom statusu.',
   already_member: 'Već ste član ove firme.',
   not_found: 'Nije pronađeno.',
+  precondition_required: 'Osvežite stranicu i pokušajte ponovo.',
+  power_of_attorney_unverified:
+    'Punomoćje će moći da se koristi kada provera dokumenata bude dostupna.',
+  already_exists: 'Firma ili članstvo već postoje.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {
