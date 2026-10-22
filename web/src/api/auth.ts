@@ -46,6 +46,6 @@ export const authApi = {
   provisioning: () => api<Provisioning>('POST', '/auth/mfa/provisioning'),
   logout: () => changesSignIn(api('POST', '/auth/logout')),
   forgotPassword: (email: string) => api('POST', '/auth/password/forgot', { email }),
-  resetPassword: (email: string, token: string, newPassword: string) =>
-    api('POST', '/auth/password/reset', { email, token, newPassword }),
+  resetPassword: (userId: string, token: string, newPassword: string) =>
+    api('POST', '/auth/password/reset', { userId, token, newPassword }),
 }

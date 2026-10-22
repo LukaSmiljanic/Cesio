@@ -83,12 +83,20 @@ public static class AuthEndpoints
             : null;
     }
 
+    /// <summary>
+    /// The user of the pending sign-in, if the cookie is for <paramref name="stage"/> and the user's state still fits it:
+    /// the pending cookie lives 10 minutes, so an old "enrol" cookie must not work once MFA is enabled.
+    /// </summary>
     private static async Task<AuthUser?> PendingUserAsync(HttpContext http, UserManager<AuthUser> users, string stage)
     {
         var result = await http.AuthenticateAsync(AuthSchemes.Pending);
-        return result.Principal?.FindFirst(AuthSchemes.StageClaim)?.Value == stage
-            && result.Principal.FindFirst(CesioClaims.UserId)?.Value is { } userId
-            ? await users.FindByIdAsync(userId)
-            : null;
+        if (result.Principal?.FindFirst(AuthSchemes.StageClaim)?.Value != stage
+            || result.Principal.FindFirst(CesioClaims.UserId)?.Value is not { } userId
+            || await users.FindByIdAsync(userId) is not { } user)
+        {
+            return null;
+        }
+
+        return user.TwoFactorEnabled == (stage == AuthSchemes.VerifyStage) ? user : null;
     }
 }

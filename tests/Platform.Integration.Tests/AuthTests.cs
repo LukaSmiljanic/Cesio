@@ -222,7 +222,7 @@ public sealed class AuthTests(SqlServerContainer server) : IAsyncLifetime
 
         using (var reset = await anonymous.PostAsync("/api/v1/auth/password/reset", new
         {
-            email,
+            userId = Guid.Parse(_database.Emails.LinkValue(email, "userId")),
             token = _database.Emails.LinkValue(email, "token"),
             newPassword = "a brand new passphrase 2026",
         }))
@@ -272,6 +272,112 @@ public sealed class AuthTests(SqlServerContainer server) : IAsyncLifetime
 
         Assert.Equal(client.SharedKey, provisioning.GetProperty("sharedKey").GetString());
         Assert.StartsWith("otpauth://totp/", provisioning.GetProperty("otpauthUri").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Guessing_mfa_codes_across_password_sign_ins_still_locks_the_account()
+    {
+        using var owner = _app.NewClient();
+        var (email, _) = await owner.SignUpAsync();
+        using var attacker = _app.NewClient();
+
+        for (var round = 0; round < 2; round++)
+        {
+            using (var login = await attacker.PostAsync("/api/v1/auth/login", new { email, password = ApiClient.Password }))
+            {
+                Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+            }
+
+            for (var i = 0; i < 3; i++)
+            {
+                using var wrong = await attacker.PostAsync("/api/v1/auth/mfa/verify", new { code = "000000" });
+                Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode);
+            }
+        }
+
+        using var correct = await attacker.PostAsync("/api/v1/auth/mfa/verify", new { code = Totp.Code(owner.SharedKey!, 1) });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, correct.StatusCode);
+        Assert.Equal(1, await AuditCountAsync(email, "User.LockedOut"));
+    }
+
+    [Fact]
+    public async Task An_old_enrolment_sign_in_stops_working_once_mfa_is_enabled()
+    {
+        using var first = _app.NewClient();
+        var email = await first.RegisterAndLoginAsync();
+        using var second = _app.NewClient();
+        using (var login = await second.PostAsync("/api/v1/auth/login", new { email, password = ApiClient.Password }))
+        {
+            Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        }
+
+        var start = await ApiClient.ReadAsync(await first.PostAsync("/api/v1/auth/mfa/enrol/start"));
+        using (var confirm = await first.PostAsync("/api/v1/auth/mfa/enrol/confirm", new { code = Totp.Code(start.GetProperty("sharedKey").GetString()!) }))
+        {
+            Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
+        }
+
+        using var staleStart = await second.PostAsync("/api/v1/auth/mfa/enrol/start");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, staleStart.StatusCode);
+        Assert.Equal(10, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM auth.recovery_codes r JOIN auth.users u ON u.id = r.user_id WHERE u.email = '{email}'"));
+    }
+
+    [Fact]
+    public async Task A_recovery_code_used_concurrently_signs_in_once()
+    {
+        using var owner = _app.NewClient();
+        var (email, recoveryCodes) = await owner.SignUpAsync();
+        var clients = Enumerable.Range(0, 4).Select(_ => _app.NewClient()).ToList();
+        foreach (var client in clients)
+        {
+            using var login = await client.PostAsync("/api/v1/auth/login", new { email, password = ApiClient.Password });
+            Assert.Equal(HttpStatusCode.OK, login.StatusCode);
+        }
+
+        var responses = await Task.WhenAll(clients.Select(c => c.PostAsync("/api/v1/auth/mfa/verify", new { recoveryCode = recoveryCodes[1] })));
+
+        Assert.Single(responses, r => r.StatusCode == HttpStatusCode.NoContent);
+        foreach (var response in responses)
+        {
+            response.Dispose();
+        }
+
+        clients.ForEach(c => c.Dispose());
+    }
+
+    [Theory]
+    [InlineData("last_seen_at = DATEADD(minute, -31, SYSDATETIMEOFFSET())")]
+    [InlineData("expires_at = DATEADD(minute, -1, SYSDATETIMEOFFSET())")]
+    public async Task A_session_ends_after_the_idle_or_absolute_limit(string expire)
+    {
+        using var client = _app.NewClient();
+        var (email, _) = await client.SignUpAsync();
+
+        await _database.ExecuteAsync($"UPDATE s SET {expire} FROM auth.sessions s JOIN auth.users u ON u.id = s.user_id WHERE u.email = '{email}'");
+        using var me = await client.GetAsync("/api/v1/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_wrong_email_confirmation_token_is_rejected()
+    {
+        using var client = _app.NewClient();
+        var email = $"user-{Guid.NewGuid():N}@example.rs";
+        using (var register = await client.PostAsync("/api/v1/auth/register", new { email, password = ApiClient.Password }))
+        {
+            Assert.Equal(HttpStatusCode.Accepted, register.StatusCode);
+        }
+
+        var code = await ApiClient.ErrorCodeAsync(await client.PostAsync("/api/v1/auth/confirm-email", new
+        {
+            userId = Guid.Parse(_database.Emails.LinkValue(email, "userId")),
+            token = "not-the-token",
+        }));
+
+        Assert.Equal("invalid_token", code);
     }
 
     private Task<int> AuditCountAsync(string email, string action) =>

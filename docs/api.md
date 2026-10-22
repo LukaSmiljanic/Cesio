@@ -4,7 +4,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 
 ## 1. Conventions
 - **Org context:** header `X-Organization-Id` on all org-scoped endpoints. The server validates the membership and loads roles. Missing or invalid → 403.
-- **Auth:** cookie session (BFF) + anti-forgery header on unsafe methods. Endpoints marked 🔐 require **step-up MFA** (≤ 5 min).
+- **Auth:** cookie session (BFF) + anti-forgery header on unsafe methods. Endpoints marked 🔐 require **step-up MFA** (≤ 5 min). Sign-in and account-recovery endpoints (`/auth/*`, `/me/sessions`) act before or outside an organization context, so they take no `Idempotency-Key`; they are rate limited instead.
 - **Idempotency:** endpoints marked ♻ require `Idempotency-Key` (UUID). Replay → same response. Same key with a different body → `422 idempotency_key_reuse`.
 - **Concurrency:** resources return `ETag` (= version). Commands on existing aggregates accept `If-Match`; a mismatch → `412`.
 - **Money:** `{ "amount": "97000.00", "currency": "RSD" }`. The amount is a **string** decimal (no JSON float), validated against the currency's minor units.
@@ -18,7 +18,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 
 | Area | Endpoints |
 |------|-----------|
-| Auth/me | `POST /auth/register`, `POST /auth/login`, `POST /auth/mfa/verify`, `POST /auth/step-up`, `POST /auth/logout`, `GET /me`, `GET /me/organizations`, `GET/DELETE /me/sessions/{id}`, `POST /auth/mfa-reset-requests`, `GET /confirmations/{token}` (public, rate-limited; official-email confirmations, task 007a) |
+| Auth/me | `GET /auth/antiforgery`, `POST /auth/register`, `POST /auth/confirm-email`, `POST /auth/login`, `POST /auth/mfa/enrol/start`, `POST /auth/mfa/enrol/confirm`, `POST /auth/mfa/verify`, `POST /auth/mfa/provisioning` 🔐, `POST /auth/step-up`, `POST /auth/password/forgot`, `POST /auth/password/reset`, `POST /auth/logout`, `POST /me/step-up-check` 🔐 (sample step-up action, task 004), `GET /me`, `GET /me/organizations`, `GET/DELETE /me/sessions/{id}`, `POST /auth/mfa-reset-requests`, `GET /confirmations/{token}` (public, rate-limited; official-email confirmations, task 007a) |
 | Organizations | `POST /organizations` (seller Draft claim; the PIB is reserved only by a valid SEF key, ADR-020), `GET/POST /organizations/{id}/pristupnica`, `GET /organizations/{id}`, `PATCH /organizations/{id}` (draft only), `POST /organizations/{id}/submit`, `GET /organizations/{id}/members`, `POST /organizations/{id}/members` 🔐 (factor organizations; seller organizations have one account), `PATCH/DELETE /organizations/{id}/members/{memberId}` 🔐, `GET/POST /organizations/{id}/bank-accounts` 🔐, `PUT /organizations/{id}/sef-connection` 🔐, `GET /organizations/{id}/kyb`, `POST /organizations/{id}/kyb/beneficial-owners`, `POST /organizations/{id}/terms-acceptances` |
 | Factor authorization | `POST /organizations/{id}/factor-authorizations`, `GET /organizations/{id}/factor-authorizations` |
 | Documents | `POST /documents` (multipart; returns id + scan status), `GET /documents/{id}` (metadata), `GET /documents/{id}/content` (authorized stream/redirect) |

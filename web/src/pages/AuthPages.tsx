@@ -104,11 +104,17 @@ export function RegisterPage() {
   )
 }
 
-export function ConfirmEmailPage() {
+/** Reads the one-time link values once and removes them from the address bar and history. */
+function useLinkValues(...names: string[]) {
   const [params] = useSearchParams()
-  const confirm = useMutation({
-    mutationFn: () => authApi.confirmEmail(params.get('userId') ?? '', params.get('token') ?? ''),
-  })
+  const [values] = useState(() => names.map((name) => params.get(name) ?? ''))
+  useEffect(() => window.history.replaceState(null, '', window.location.pathname), [])
+  return values
+}
+
+export function ConfirmEmailPage() {
+  const [userId, token] = useLinkValues('userId', 'token')
+  const confirm = useMutation({ mutationFn: () => authApi.confirmEmail(userId, token) })
   const { mutate } = confirm
 
   useEffect(() => mutate(), [mutate])
@@ -259,12 +265,9 @@ export function ForgotPasswordPage() {
 }
 
 export function ResetPasswordPage() {
-  const [params] = useSearchParams()
+  const [userId, token] = useLinkValues('userId', 'token')
   const [password, setPassword] = useState('')
-  const reset = useMutation({
-    mutationFn: () =>
-      authApi.resetPassword(params.get('email') ?? '', params.get('token') ?? '', password),
-  })
+  const reset = useMutation({ mutationFn: () => authApi.resetPassword(userId, token, password) })
 
   function submit(event: FormEvent) {
     event.preventDefault()

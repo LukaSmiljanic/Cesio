@@ -25,7 +25,7 @@ public sealed record MfaCodeRequest(string? Code, string? RecoveryCode = null);
 
 public sealed record ForgotPasswordRequest(string Email);
 
-public sealed record ResetPasswordRequest(string Email, string Token, string NewPassword);
+public sealed record ResetPasswordRequest(Guid UserId, string Token, string NewPassword);
 
 public sealed class AuthOptions
 {
@@ -53,8 +53,19 @@ internal sealed class AuthService(
     private const int RecoveryCodeCount = 10;
     private const string RecoveryAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
+    private static readonly AuthUser DummyUser = new();
+
+    /// <summary>A hash to verify against for unknown emails, so they cost as much as a wrong password.</summary>
+    private static readonly Lazy<string> DummyHash = new(() =>
+        new PasswordHasher<AuthUser>().HashPassword(DummyUser, Convert.ToHexString(RandomNumberGenerator.GetBytes(16))));
+
     public async Task<IResult> RegisterAsync(RegisterRequest request, CancellationToken cancellationToken)
     {
+        if (!Input.IsEmail(request.Email) || !Input.IsPassword(request.Password))
+        {
+            return Problems.InvalidInput();
+        }
+
         var user = new AuthUser { UserName = request.Email, Email = request.Email };
         // The password is validated before the email is looked up, so the answer never depends on the email.
         var passwordErrors = new List<IdentityError>();
@@ -121,12 +132,17 @@ internal sealed class AuthService(
 
     public async Task<IResult> LoginAsync(HttpContext http, LoginRequest request, CancellationToken cancellationToken)
     {
+        if (!Input.IsEmail(request.Email) || !Input.IsPassword(request.Password))
+        {
+            return Problems.InvalidCredentials();
+        }
+
         var user = await users.FindByEmailAsync(request.Email);
         if (user is null)
         {
-            await unitOfWork.ExecuteInTransactionAsync(
-                ct => audit.WriteAsync(new AuditEntry("User.LoginFailed", "User", Guid.Empty, Reason: "unknown_email"), ct),
-                cancellationToken);
+            // Same work as a wrong password, so the timing does not reveal the email. Not audited: unknown emails
+            // are not an entity, and writing them to the hash chain would let anyone flood it.
+            users.PasswordHasher.VerifyHashedPassword(DummyUser, DummyHash.Value, request.Password);
             return Problems.InvalidCredentials();
         }
 
@@ -149,7 +165,8 @@ internal sealed class AuthService(
             return Problems.Error(StatusCodes.Status403Forbidden, "email_not_confirmed", "Confirm your email address first.");
         }
 
-        await users.ResetAccessFailedCountAsync(user);
+        // The failure count is not reset here but only after the second factor, so the lockout also covers MFA
+        // guessing across repeated password sign-ins.
         var stage = user.TwoFactorEnabled ? AuthSchemes.VerifyStage : AuthSchemes.EnrolStage;
         await http.SignInAsync(AuthSchemes.Pending, SessionStore.PendingPrincipal(user.Id, stage));
         return Results.Ok(new { next = stage });
@@ -169,7 +186,12 @@ internal sealed class AuthService(
 
     public async Task<IResult> ConfirmEnrolmentAsync(HttpContext http, AuthUser user, MfaCodeRequest request, CancellationToken cancellationToken)
     {
-        if (request.Code is null || !await users.VerifyTwoFactorTokenAsync(user, users.Options.Tokens.AuthenticatorTokenProvider, request.Code))
+        if (await users.IsLockedOutAsync(user))
+        {
+            return Problems.InvalidCode();
+        }
+
+        if (!Input.IsCode(request.Code) || !await users.VerifyTwoFactorTokenAsync(user, users.Options.Tokens.AuthenticatorTokenProvider, request.Code!))
         {
             await RecordFailureAsync(user, "User.MfaVerificationFailed", "enrolment_code", cancellationToken);
             return Problems.InvalidCode();
@@ -180,6 +202,7 @@ internal sealed class AuthService(
             async ct =>
             {
                 await users.SetTwoFactorEnabledAsync(user, true);
+                await users.ResetAccessFailedCountAsync(user);
                 var now = timeProvider.GetUtcNow();
                 auth.RecoveryCodes.AddRange(codes.Select(code => new RecoveryCode { Id = SequentialGuid.NewGuid(), UserId = user.Id, CodeHash = Hash(code), CreatedAt = now }));
                 await auth.SaveChangesAsync(ct);
@@ -203,16 +226,16 @@ internal sealed class AuthService(
             return Problems.InvalidCode();
         }
 
-        RecoveryCode? recovery = null;
+        Guid? recoveryCodeId = null;
         bool valid;
         if (request.RecoveryCode is { } recoveryCode)
         {
-            recovery = await FindRecoveryCodeAsync(user.Id, recoveryCode, cancellationToken);
-            valid = recovery is not null;
+            recoveryCodeId = Input.IsCode(recoveryCode) ? await FindRecoveryCodeAsync(user.Id, recoveryCode, cancellationToken) : null;
+            valid = recoveryCodeId is not null;
         }
         else
         {
-            valid = request.Code is not null && await users.VerifyTwoFactorTokenAsync(user, users.Options.Tokens.AuthenticatorTokenProvider, request.Code);
+            valid = Input.IsCode(request.Code) && await users.VerifyTwoFactorTokenAsync(user, users.Options.Tokens.AuthenticatorTokenProvider, request.Code!);
         }
 
         if (!valid)
@@ -224,19 +247,31 @@ internal sealed class AuthService(
         var session = await unitOfWork.ExecuteInTransactionAsync(
             async ct =>
             {
-                await users.ResetAccessFailedCountAsync(user);
-                if (recovery is not null)
+                if (recoveryCodeId is { } id)
                 {
-                    recovery.UsedAt = timeProvider.GetUtcNow();
-                    await auth.SaveChangesAsync(ct);
+                    // Claimed atomically: of two concurrent requests with the same code only one updates the row.
+                    var now = timeProvider.GetUtcNow();
+                    var claimed = await auth.RecoveryCodes
+                        .Where(c => c.Id == id && c.UsedAt == null)
+                        .ExecuteUpdateAsync(c => c.SetProperty(x => x.UsedAt, now), ct);
+                    if (claimed != 1)
+                    {
+                        return null;
+                    }
+
                     await audit.WriteAsync(new AuditEntry("User.RecoveryCodeUsed", "User", user.Id), ct);
                 }
 
+                await users.ResetAccessFailedCountAsync(user);
                 var created = await sessions.CreateAsync(user.Id, ct);
                 await audit.WriteAsync(new AuditEntry("User.LoginSucceeded", "User", user.Id), ct);
                 return created;
             },
             cancellationToken);
+        if (session is null)
+        {
+            return Problems.InvalidCode();
+        }
 
         await SignInAsync(http, user.Id, session.Id);
         return Results.NoContent();
@@ -244,7 +279,12 @@ internal sealed class AuthService(
 
     public async Task<IResult> StepUpAsync(AuthUser user, AuthSession session, MfaCodeRequest request, CancellationToken cancellationToken)
     {
-        if (request.Code is null || !await users.VerifyTwoFactorTokenAsync(user, users.Options.Tokens.AuthenticatorTokenProvider, request.Code))
+        if (await users.IsLockedOutAsync(user))
+        {
+            return Problems.InvalidCode();
+        }
+
+        if (!Input.IsCode(request.Code) || !await users.VerifyTwoFactorTokenAsync(user, users.Options.Tokens.AuthenticatorTokenProvider, request.Code!))
         {
             await RecordFailureAsync(user, "User.MfaVerificationFailed", "step_up", cancellationToken);
             return Problems.InvalidCode();
@@ -253,6 +293,7 @@ internal sealed class AuthService(
         await unitOfWork.ExecuteInTransactionAsync(
             async ct =>
             {
+                await users.ResetAccessFailedCountAsync(user);
                 session.MfaStepUpAt = timeProvider.GetUtcNow();
                 await auth.SaveChangesAsync(ct);
                 await audit.WriteAsync(new AuditEntry("User.StepUpCompleted", "User", user.Id), ct);
@@ -303,11 +344,17 @@ internal sealed class AuthService(
 
     public async Task<IResult> ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken)
     {
+        if (!Input.IsEmail(request.Email))
+        {
+            return Problems.InvalidInput();
+        }
+
         if (await users.FindByEmailAsync(request.Email) is { EmailConfirmed: true } user)
         {
+            // The link carries the user ID, not the email address (security.md §8: no personal data in URLs).
             var token = await users.GeneratePasswordResetTokenAsync(user);
             await email.SendAsync(
-                new EmailMessage(request.Email, "Promena lozinke", $"Novu lozinku za Cesio postavite ovde: {Link("reset-password", ("email", request.Email), ("token", token))}"),
+                new EmailMessage(request.Email, "Promena lozinke", $"Novu lozinku za Cesio postavite ovde: {Link("reset-password", ("userId", user.Id.ToString()), ("token", token))}"),
                 cancellationToken);
         }
 
@@ -316,7 +363,12 @@ internal sealed class AuthService(
 
     public async Task<IResult> ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken)
     {
-        if (await users.FindByEmailAsync(request.Email) is not { } user)
+        if (!Input.IsPassword(request.NewPassword) || string.IsNullOrEmpty(request.Token))
+        {
+            return Problems.InvalidInput();
+        }
+
+        if (await users.FindByIdAsync(request.UserId.ToString()) is not { } user)
         {
             return Problems.InvalidToken();
         }
@@ -360,10 +412,13 @@ internal sealed class AuthService(
         await Task.Delay(TimeSpan.FromMilliseconds(200 * Math.Min(user.AccessFailedCount, 5)), timeProvider, cancellationToken);
     }
 
-    private async Task<RecoveryCode?> FindRecoveryCodeAsync(Guid userId, string code, CancellationToken cancellationToken)
+    private async Task<Guid?> FindRecoveryCodeAsync(Guid userId, string code, CancellationToken cancellationToken)
     {
         var hash = Hash(code);
-        return await auth.RecoveryCodes.SingleOrDefaultAsync(c => c.UserId == userId && c.CodeHash == hash && c.UsedAt == null, cancellationToken);
+        return await auth.RecoveryCodes.AsNoTracking()
+            .Where(c => c.UserId == userId && c.CodeHash == hash && c.UsedAt == null)
+            .Select(c => (Guid?)c.Id)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     private static async Task SignInAsync(HttpContext http, Guid userId, Guid sessionId)
@@ -393,8 +448,26 @@ internal sealed class AuthService(
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(code.Replace("-", string.Empty, StringComparison.Ordinal).Trim().ToUpperInvariant())));
 }
 
+/// <summary>Length and shape limits on auth input; anything else is a 400 before any work is done.</summary>
+internal static class Input
+{
+    private const int MaxEmailLength = 256;
+    private const int MaxPasswordLength = 256;
+    private const int MaxCodeLength = 32;
+
+    public static bool IsEmail(string? email) =>
+        !string.IsNullOrWhiteSpace(email) && email.Length <= MaxEmailLength && email.Contains('@', StringComparison.Ordinal);
+
+    public static bool IsPassword(string? password) => !string.IsNullOrEmpty(password) && password.Length <= MaxPasswordLength;
+
+    public static bool IsCode(string? code) => !string.IsNullOrWhiteSpace(code) && code.Length <= MaxCodeLength;
+}
+
 internal static class Problems
 {
+    public static IResult InvalidInput() =>
+        Error(StatusCodes.Status400BadRequest, "validation_failed", "The request is not valid.");
+
     public static IResult InvalidCredentials() =>
         Error(StatusCodes.Status401Unauthorized, "invalid_credentials", "The email or password is wrong, or the account is temporarily locked.");
 
