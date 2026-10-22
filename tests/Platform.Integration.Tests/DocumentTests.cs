@@ -24,7 +24,7 @@ public sealed class DocumentTests(SqlServerContainer server, AzuriteContainer st
         await _database.InitializeAsync();
         _app = new ApiApp(
             _database,
-            new Dictionary<string, string?> { ["ConnectionStrings:Documents"] = storage.ConnectionString },
+            Settings(storage),
             services => services.AddSingleton<IDocumentAccessPolicy>(_policy));
     }
 
@@ -123,6 +123,95 @@ public sealed class DocumentTests(SqlServerContainer server, AzuriteContainer st
         Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
     }
 
+    [Fact]
+    public async Task A_retried_upload_with_the_same_key_returns_the_same_document()
+    {
+        var (client, org) = await SignedUpWithOrganizationAsync();
+        var key = Guid.NewGuid().ToString();
+
+        var first = await ApiClient.ReadAsync(await UploadAsync(client, org, Pdf, "a.pdf", idempotencyKey: key));
+        var second = await ApiClient.ReadAsync(await UploadAsync(client, org, Pdf, "a.pdf", idempotencyKey: key));
+
+        Assert.Equal(first.GetProperty("id").GetGuid(), second.GetProperty("id").GetGuid());
+        Assert.Equal(1, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM documents.stored_documents WHERE owner_org_id = '{org}'"));
+    }
+
+    [Fact]
+    public async Task The_stored_hash_matches_the_file()
+    {
+        var (client, org) = await SignedUpWithOrganizationAsync();
+
+        var id = (await ApiClient.ReadAsync(await UploadAsync(client, org, Pdf, "a.pdf"))).GetProperty("id").GetGuid();
+
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(Pdf)), await _database.ScalarAsync<string>($"SELECT sha256 FROM documents.stored_documents WHERE id = '{id}'"));
+    }
+
+    [Theory]
+    [InlineData("DELETE FROM documents.stored_documents")]
+    [InlineData("UPDATE documents.stored_documents SET sha256 = REPLICATE('0', 64)")]
+    [InlineData("UPDATE documents.stored_documents SET owner_org_id = NEWID()")]
+    public async Task Stored_documents_cannot_be_deleted_or_changed(string sql)
+    {
+        var (client, org) = await SignedUpWithOrganizationAsync();
+        using (var upload = await UploadAsync(client, org, Pdf, "a.pdf"))
+        {
+            Assert.Equal(HttpStatusCode.Created, upload.StatusCode);
+        }
+
+        await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(() => _database.ExecuteAsync(sql));
+    }
+
+    [Theory]
+    [InlineData(null, "KybEvidence")]
+    [InlineData("a.pdf", "NotAPurpose")]
+    public async Task An_upload_without_a_file_or_with_an_unknown_purpose_is_rejected(string? fileName, string purpose)
+    {
+        var (client, org) = await SignedUpWithOrganizationAsync();
+
+        using var response = fileName is null
+            ? await SendFormAsync(client, org, new MultipartFormDataContent { { new StringContent(purpose), "purpose" } })
+            : await UploadAsync(client, org, Pdf, fileName, purpose);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_scanner_failure_stores_the_document_as_failed_and_it_is_not_served()
+    {
+        await using var failing = new ApiApp(_database, Settings(storage), services => services.AddSingleton<Modules.Documents.IMalwareScanner, ThrowingScanner>());
+        using var client = failing.NewClient();
+        await client.SignUpAsync();
+        var org = (await ApiClient.ReadAsync(await client.PostAsync("/api/v1/organizations", new { pib = TestIds.NewPib() }))).GetProperty("id").GetGuid();
+
+        var uploaded = await ApiClient.ReadAsync(await UploadAsync(client, org, Pdf, "a.pdf"));
+        using var download = await GetAsync(client, org, $"/api/v1/documents/{uploaded.GetProperty("id").GetGuid()}/content");
+
+        Assert.Equal("Failed", uploaded.GetProperty("scanStatus").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, download.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_policy_reader_does_not_see_a_document_that_is_not_clean()
+    {
+        var (owner, ownerOrg) = await SignedUpWithOrganizationAsync();
+        var eicar = Encoding.ASCII.GetBytes("%PDF-1.4\nEICAR-STANDARD-ANTIVIRUS-TEST-FILE\n");
+        var infected = (await ApiClient.ReadAsync(await UploadAsync(owner, ownerOrg, eicar, "x.pdf", "ListingAttachment"))).GetProperty("id").GetGuid();
+        var (reader, readerOrg) = await SignedUpWithOrganizationAsync();
+        _policy.Granted = readerOrg;
+
+        using var metadata = await GetAsync(reader, readerOrg, $"/api/v1/documents/{infected}");
+        using var content = await GetAsync(reader, readerOrg, $"/api/v1/documents/{infected}/content");
+
+        Assert.Equal(HttpStatusCode.NotFound, metadata.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, content.StatusCode);
+    }
+
+    private static Dictionary<string, string?> Settings(AzuriteContainer storage) => new()
+    {
+        ["ConnectionStrings:Documents"] = storage.ConnectionString,
+        ["Documents:Scanner"] = "Fake",
+    };
+
     private async Task<(ApiClient Client, Guid Organization)> SignedUpWithOrganizationAsync()
     {
         var client = _app.NewClient();
@@ -131,18 +220,31 @@ public sealed class DocumentTests(SqlServerContainer server, AzuriteContainer st
         return (client, org);
     }
 
-    private static async Task<HttpResponseMessage> UploadAsync(ApiClient client, Guid org, byte[] bytes, string fileName, string purpose = "KybEvidence")
+    private static async Task<HttpResponseMessage> UploadAsync(
+        ApiClient client, Guid org, byte[] bytes, string fileName, string purpose = "KybEvidence", string? idempotencyKey = null)
     {
         using var form = new MultipartFormDataContent();
         var file = new ByteArrayContent(bytes);
         file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         form.Add(file, "file", fileName);
         form.Add(new StringContent(purpose), "purpose");
+        return await SendFormAsync(client, org, form, idempotencyKey);
+    }
+
+    /// <summary>Each call builds a new multipart body, so a retry has a new boundary like a real client.</summary>
+    private static async Task<HttpResponseMessage> SendFormAsync(ApiClient client, Guid org, MultipartFormDataContent form, string? idempotencyKey = null)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/documents") { Content = form };
         request.Headers.Add(IdentityModule.AntiforgeryHeader, await client.AntiforgeryTokenAsync());
-        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        request.Headers.Add("Idempotency-Key", idempotencyKey ?? Guid.NewGuid().ToString());
         request.Headers.Add(OrganizationScopedMetadata.Header, org.ToString());
         return await client.Http.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private sealed class ThrowingScanner : Modules.Documents.IMalwareScanner
+    {
+        public Task<ScanStatus> ScanAsync(Stream content, CancellationToken cancellationToken) =>
+            throw new IOException("scanner unavailable");
     }
 
     private static async Task<HttpResponseMessage> GetAsync(ApiClient client, Guid org, string path)

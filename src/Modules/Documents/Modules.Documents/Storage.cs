@@ -1,6 +1,7 @@
 using System.Text;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Configuration;
+using Modules.Documents.Contracts;
 
 namespace Modules.Documents;
 
@@ -14,10 +15,10 @@ public interface IDocumentStore
     Task<Stream> OpenCleanAsync(string key, CancellationToken cancellationToken);
 }
 
-/// <summary>Scans a file before it can be downloaded (task 006).</summary>
+/// <summary>Scans a file before it can be downloaded (task 006). Returns Clean, Infected or Pending (no verdict yet).</summary>
 public interface IMalwareScanner
 {
-    Task<bool> IsInfectedAsync(Stream content, CancellationToken cancellationToken);
+    Task<ScanStatus> ScanAsync(Stream content, CancellationToken cancellationToken);
 }
 
 internal sealed class BlobDocumentStore(IConfiguration configuration) : IDocumentStore
@@ -61,17 +62,27 @@ internal sealed class BlobDocumentStore(IConfiguration configuration) : IDocumen
 }
 
 /// <summary>
-/// Local and test scanner: a file containing the EICAR test string is infected. Production uses Microsoft Defender
+/// Local and test scanner (configuration <c>Documents:Scanner = Fake</c>): a file containing the EICAR test string is
+/// infected. Production uses Microsoft Defender
 /// for Storage scan results (task 024).
 /// </summary>
 internal sealed class FakeMalwareScanner : IMalwareScanner
 {
     private static readonly byte[] Eicar = Encoding.ASCII.GetBytes("EICAR-STANDARD-ANTIVIRUS-TEST-FILE");
 
-    public async Task<bool> IsInfectedAsync(Stream content, CancellationToken cancellationToken)
+    public async Task<ScanStatus> ScanAsync(Stream content, CancellationToken cancellationToken)
     {
         using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
-        return buffer.GetBuffer().AsSpan(0, (int)buffer.Length).IndexOf(Eicar) >= 0;
+        return buffer.GetBuffer().AsSpan(0, (int)buffer.Length).IndexOf(Eicar) >= 0 ? ScanStatus.Infected : ScanStatus.Clean;
     }
+}
+
+/// <summary>
+/// The scanner outside local development until Defender for Storage is wired in (task 024): it gives no verdict, so
+/// every upload stays Pending in quarantine and cannot be downloaded (fail closed).
+/// </summary>
+internal sealed class DeferredMalwareScanner : IMalwareScanner
+{
+    public Task<ScanStatus> ScanAsync(Stream content, CancellationToken cancellationToken) => Task.FromResult(ScanStatus.Pending);
 }

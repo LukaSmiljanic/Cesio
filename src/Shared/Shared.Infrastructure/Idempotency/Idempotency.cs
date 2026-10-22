@@ -178,6 +178,12 @@ internal sealed class IdempotencyMiddleware(RequestDelegate next)
         request.EnableBuffering();
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         hash.AppendData(System.Text.Encoding.UTF8.GetBytes($"{request.Path}{request.QueryString}\n"));
+        if (request.HasFormContentType)
+        {
+            await HashFormAsync(request, hash);
+            return Convert.ToHexStringLower(hash.GetHashAndReset());
+        }
+
         var buffer = new byte[8192];
         int read;
         while ((read = await request.Body.ReadAsync(buffer, request.HttpContext.RequestAborted)) > 0)
@@ -187,6 +193,31 @@ internal sealed class IdempotencyMiddleware(RequestDelegate next)
 
         request.Body.Position = 0;
         return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    /// <summary>
+    /// A form is hashed by its fields and files, not its raw bytes: multipart framing has a random boundary per send,
+    /// so the raw body of a legitimate retry differs. The parsed form is cached for the endpoint.
+    /// </summary>
+    private static async Task HashFormAsync(HttpRequest request, IncrementalHash hash)
+    {
+        var form = await request.ReadFormAsync(request.HttpContext.RequestAborted);
+        foreach (var field in form.OrderBy(f => f.Key, StringComparer.Ordinal))
+        {
+            hash.AppendData(System.Text.Encoding.UTF8.GetBytes($"{field.Key}={field.Value}\n"));
+        }
+
+        foreach (var file in form.Files.OrderBy(f => f.Name, StringComparer.Ordinal))
+        {
+            hash.AppendData(System.Text.Encoding.UTF8.GetBytes($"{file.Name}:{file.FileName}:{file.Length}\n"));
+            await using var content = file.OpenReadStream();
+            var buffer = new byte[8192];
+            int read;
+            while ((read = await content.ReadAsync(buffer, request.HttpContext.RequestAborted)) > 0)
+            {
+                hash.AppendData(buffer, 0, read);
+            }
+        }
     }
 
     private static bool IsJson(string? contentType) =>

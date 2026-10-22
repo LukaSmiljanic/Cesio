@@ -18,7 +18,11 @@ public sealed class DocumentsDbContext(DbContextOptions<DocumentsDbContext> opti
     protected override void ConfigureModel(ModelBuilder modelBuilder) =>
         modelBuilder.Entity<StoredDocument>(document =>
         {
-            document.ToTable("stored_documents");
+            document.ToTable("stored_documents", table =>
+            {
+                table.HasTrigger("tr_stored_documents_no_delete");
+                table.HasTrigger("tr_stored_documents_immutable");
+            });
             document.HasKey(d => d.Id);
             document.Property(d => d.Id).ValueGeneratedNever();
             document.Property(d => d.Purpose).HasConversion<string>().HasMaxLength(40).IsUnicode(false);

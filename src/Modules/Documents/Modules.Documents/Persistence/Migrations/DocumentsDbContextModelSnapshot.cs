@@ -103,7 +103,14 @@ namespace Modules.Documents.Persistence.Migrations
                     b.HasIndex("OwnerOrgId")
                         .HasDatabaseName("ix_stored_documents_owner_org_id");
 
-                    b.ToTable("stored_documents", "documents");
+                    b.ToTable("stored_documents", "documents", t =>
+                        {
+                            t.HasTrigger("tr_stored_documents_immutable");
+
+                            t.HasTrigger("tr_stored_documents_no_delete");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 #pragma warning restore 612, 618
         }

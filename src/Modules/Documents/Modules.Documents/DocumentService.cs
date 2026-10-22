@@ -13,7 +13,8 @@ namespace Modules.Documents;
 
 /// <summary>
 /// Upload, scan and authorized download of documents (task 006, security.md §4). The owner organization is the
-/// request's active organization; other readers need a module's <see cref="IDocumentAccessPolicy"/>.
+/// request's active organization; every member may upload and read its documents, since every member is an Owner
+/// (ADR-020, security.md §3). Other readers need a module's <see cref="IDocumentAccessPolicy"/>.
 /// </summary>
 internal sealed class DocumentService(
     DocumentsDbContext documents,
@@ -78,15 +79,8 @@ internal sealed class DocumentService(
 
         content.Position = 0;
         await store.PutQuarantinedAsync(document.BlobKey, content, cancellationToken);
-        content.Position = 0;
-        var infected = await scanner.IsInfectedAsync(content, cancellationToken);
-        if (!infected)
-        {
-            await store.ReleaseAsync(document.BlobKey, cancellationToken);
-        }
-
-        document.ScanStatus = infected ? ScanStatus.Infected : ScanStatus.Clean;
-        document.ScannedAt = timeProvider.GetUtcNow();
+        document.ScanStatus = await ScanAndReleaseAsync(document.BlobKey, content, cancellationToken);
+        document.ScannedAt = document.ScanStatus == ScanStatus.Pending ? null : timeProvider.GetUtcNow();
         documents.StoredDocuments.Add(document);
         await unitOfWork.ExecuteInTransactionAsync(
             async ct =>
@@ -102,8 +96,35 @@ internal sealed class DocumentService(
         return Results.Created($"/api/v1/documents/{document.Id}", Metadata(document));
     }
 
+    /// <summary>
+    /// Scans the quarantined file and moves a clean one to the clean container. A scanner or storage failure leaves
+    /// the file in quarantine as <see cref="ScanStatus.Failed"/>; it can never be downloaded (fail closed).
+    /// </summary>
+    private async Task<ScanStatus> ScanAndReleaseAsync(string blobKey, MemoryStream content, CancellationToken cancellationToken)
+    {
+        try
+        {
+            content.Position = 0;
+            var verdict = await scanner.ScanAsync(content, cancellationToken);
+            if (verdict == ScanStatus.Clean)
+            {
+                await store.ReleaseAsync(blobKey, cancellationToken);
+            }
+
+            return verdict;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return ScanStatus.Failed;
+        }
+    }
+
+    /// <summary>Owners see their documents in any scan state; readers through a module policy see only clean ones.</summary>
     public async Task<IResult> GetAsync(Guid id, CancellationToken cancellationToken) =>
-        await ReadableAsync(id, cancellationToken) is { } document ? Results.Ok(Metadata(document)) : NotFound();
+        await ReadableAsync(id, cancellationToken) is { } document
+        && (document.OwnerOrgId == request.OrganizationId || document.ScanStatus == ScanStatus.Clean)
+            ? Results.Ok(Metadata(document))
+            : NotFound();
 
     public async Task<IResult> DownloadAsync(Guid id, HttpResponse response, CancellationToken cancellationToken)
     {
@@ -114,15 +135,18 @@ internal sealed class DocumentService(
 
         if (document.ScanStatus != ScanStatus.Clean)
         {
-            return Problems.Error(StatusCodes.Status409Conflict, "document_not_available", "This document cannot be downloaded (scan not clean).");
+            return document.OwnerOrgId == request.OrganizationId
+                ? Problems.Error(StatusCodes.Status409Conflict, "document_not_available", "This document cannot be downloaded (scan not clean).")
+                : NotFound();
         }
 
+        // The blob is opened first, so the access log only records downloads that can actually happen.
+        var stream = await store.OpenCleanAsync(document.BlobKey, cancellationToken);
         await unitOfWork.ExecuteInTransactionAsync(
             ct => accessLog.RecordAsync(new AccessLogEntry("Document.Downloaded", "Document", document.Id, document.OwnerOrgId), ct),
             cancellationToken);
 
         response.Headers.XContentTypeOptions = "nosniff";
-        var stream = await store.OpenCleanAsync(document.BlobKey, cancellationToken);
         return Results.Stream(stream, document.ContentType, fileDownloadName: document.FileName);
     }
 
@@ -177,13 +201,16 @@ internal sealed class DocumentService(
             start++;
         }
 
-        return text[start..].StartsWith("<?xml"u8) ? "application/xml" : null;
+        // UBL is accepted with or without an XML declaration. Consumers must parse XML with DTDs prohibited (no XXE).
+        var rest = text[start..];
+        return rest.StartsWith("<?xml"u8) || (rest.Length > 1 && rest[0] == (byte)'<' && char.IsAsciiLetter((char)rest[1])) ? "application/xml" : null;
     }
 
     /// <summary>Keeps letters, digits, dot, dash and underscore; the extension follows the detected type.</summary>
     internal static string SanitizeFileName(string? name, string contentType)
     {
-        var baseName = Path.GetFileNameWithoutExtension(Path.GetFileName(name ?? string.Empty));
+        // Windows paths are cut too, whatever the server OS.
+        var baseName = Path.GetFileNameWithoutExtension(Path.GetFileName((name ?? string.Empty).Replace('\\', '/')));
         var safe = new StringBuilder();
         foreach (var c in baseName)
         {

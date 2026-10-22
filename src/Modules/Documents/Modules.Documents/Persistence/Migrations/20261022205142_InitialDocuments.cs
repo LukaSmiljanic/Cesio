@@ -49,11 +49,28 @@ namespace Modules.Documents.Persistence.Migrations
                 schema: "documents",
                 table: "stored_documents",
                 column: "owner_org_id");
+
+            // Documents are immutable (task 006): no deletes, and only the scan result may change after insert.
+            migrationBuilder.Sql("""
+                CREATE TRIGGER documents.tr_stored_documents_no_delete ON documents.stored_documents
+                INSTEAD OF DELETE AS
+                THROW 51000, 'documents.stored_documents rows cannot be deleted.', 1;
+                """);
+            migrationBuilder.Sql("""
+                CREATE TRIGGER documents.tr_stored_documents_immutable ON documents.stored_documents
+                AFTER UPDATE AS
+                IF UPDATE(owner_org_id) OR UPDATE(uploaded_by) OR UPDATE(purpose) OR UPDATE(file_name) OR UPDATE(content_type)
+                   OR UPDATE(size_bytes) OR UPDATE(sha256) OR UPDATE(blob_key) OR UPDATE(created_at)
+                    THROW 51000, 'Only the scan result of a stored document can change.', 1;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("DROP TRIGGER documents.tr_stored_documents_immutable;");
+            migrationBuilder.Sql("DROP TRIGGER documents.tr_stored_documents_no_delete;");
+
             migrationBuilder.DropTable(
                 name: "stored_documents",
                 schema: "documents");
