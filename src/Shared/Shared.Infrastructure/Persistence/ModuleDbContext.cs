@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Shared.Kernel;
 
 namespace Shared.Infrastructure.Persistence;
@@ -10,8 +11,6 @@ namespace Shared.Infrastructure.Persistence;
 /// </summary>
 public abstract class ModuleDbContext : DbContext
 {
-    private const string VersionProperty = "Version";
-
     protected ModuleDbContext(DbContextOptions options, UnitOfWork? unitOfWork)
         : base(options) => unitOfWork?.Enlist(this);
 
@@ -19,21 +18,33 @@ public abstract class ModuleDbContext : DbContext
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
-        foreach (var entry in ChangeTracker.Entries())
-        {
-            if (entry.State == EntityState.Modified && entry.Metadata.FindProperty(VersionProperty) is { IsConcurrencyToken: true })
-            {
-                var version = entry.Property(VersionProperty);
-                version.CurrentValue = (int)version.OriginalValue! + 1;
-            }
-        }
-
+        ModuleConventions.IncrementVersions(ChangeTracker);
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
     protected abstract void ConfigureModel(ModelBuilder modelBuilder);
 
-    protected sealed override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    protected sealed override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder) =>
+        ModuleConventions.Configure(configurationBuilder);
+
+    protected sealed override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(modelBuilder);
+        modelBuilder.HasDefaultSchema(Schema);
+        ConfigureModel(modelBuilder);
+        ModuleConventions.Finish(modelBuilder);
+    }
+}
+
+/// <summary>
+/// The conventions of <see cref="ModuleDbContext"/>, for contexts that must derive from another base class
+/// (the Identity context derives from <c>IdentityUserContext</c>).
+/// </summary>
+public static class ModuleConventions
+{
+    private const string VersionProperty = "Version";
+
+    public static void Configure(ModelConfigurationBuilder configurationBuilder)
     {
         ArgumentNullException.ThrowIfNull(configurationBuilder);
         configurationBuilder.Properties<decimal>().HavePrecision(19, 4);
@@ -45,12 +56,10 @@ public abstract class ModuleDbContext : DbContext
         }
     }
 
-    protected sealed override void OnModelCreating(ModelBuilder modelBuilder)
+    /// <summary>Marks <c>Version</c> properties as concurrency tokens and renames everything to snake_case. Call last.</summary>
+    public static void Finish(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
-        modelBuilder.HasDefaultSchema(Schema);
-        ConfigureModel(modelBuilder);
-
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             var version = entityType.FindProperty(VersionProperty);
@@ -61,5 +70,19 @@ public abstract class ModuleDbContext : DbContext
         }
 
         SnakeCaseNames.Apply(modelBuilder.Model);
+    }
+
+    /// <summary>Increments the <c>version</c> token of every modified entity before saving.</summary>
+    public static void IncrementVersions(ChangeTracker changeTracker)
+    {
+        ArgumentNullException.ThrowIfNull(changeTracker);
+        foreach (var entry in changeTracker.Entries())
+        {
+            if (entry.State == EntityState.Modified && entry.Metadata.FindProperty(VersionProperty) is { IsConcurrencyToken: true })
+            {
+                var version = entry.Property(VersionProperty);
+                version.CurrentValue = (int)version.OriginalValue! + 1;
+            }
+        }
     }
 }

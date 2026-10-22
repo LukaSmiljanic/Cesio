@@ -40,13 +40,19 @@ internal sealed class IdempotencyMiddleware(RequestDelegate next)
     private const int SqlUniqueViolation = 2627;
     private const int SqlUniqueIndexViolation = 2601;
 
-    public async Task InvokeAsync(HttpContext http, UnitOfWork unitOfWork, PlatformDbContext platform, IRequestContext request, TimeProvider timeProvider)
+    public async Task InvokeAsync(HttpContext http)
     {
         if (http.GetEndpoint()?.Metadata.GetMetadata<RequiresIdempotencyMetadata>() is null)
         {
             await next(http);
             return;
         }
+
+        // Resolved only for idempotent endpoints, so other requests never open a database connection.
+        var unitOfWork = http.RequestServices.GetRequiredService<UnitOfWork>();
+        var platform = http.RequestServices.GetRequiredService<PlatformDbContext>();
+        var request = http.RequestServices.GetRequiredService<IRequestContext>();
+        var timeProvider = http.RequestServices.GetRequiredService<TimeProvider>();
 
         var key = request.IdempotencyKey;
         if (key is null || key.Length > IdempotencyRecord.MaxKeyLength)

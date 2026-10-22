@@ -54,7 +54,8 @@ cd web && npm ci && npm run dev
   ```
   The same `Cesio` value is needed for `src/Platform.Worker` and `src/Platform.Migrator`; the worker also needs `ConnectionStrings:AuditDigests` = `UseDevelopmentStorage=true` (Azurite).
 - Database: `dotnet run --project src/Platform.Migrator` applies every module's migrations and the `app_rw` / `migrator` / `readonly_reporting` roles. New migration: `dotnet tool restore && dotnet ef migrations add <Name> --project <module project> --context <Module>DbContext --output-dir Persistence/Migrations`.
-- API: `dotnet run --project src/Platform.Api` → `http://localhost:5080/health/live`, `/health/ready` (includes the database).
+- API: `dotnet run --project src/Platform.Api` → `https://localhost:7080/health/live`, `/health/ready` (includes the database). The session cookies are Secure and SameSite=Strict, so the API runs on HTTPS: trust the development certificate once with `dotnet dev-certs https --trust`.
+- SPA: `cd web && npm run dev` → `http://localhost:5173`; Vite proxies `/api` to the API. Confirmation and password-reset emails arrive in smtp4dev (`http://localhost:5000`).
 - Worker: `dotnet run --project src/Platform.Worker` (outbox dispatcher, idempotency cleanup, daily audit chain digest).
 - Container: `docker build -t cesio .` then `docker run cesio api`, `docker run cesio worker` or `docker run cesio migrator`.
 - Integration tests (`tests/Platform.Integration.Tests`) start their own SQL Server with Testcontainers, so Docker must be running for `dotnet test`.

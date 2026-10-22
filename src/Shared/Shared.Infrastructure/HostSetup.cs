@@ -2,6 +2,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Shared.Infrastructure.Email;
 using Shared.Infrastructure.Idempotency;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
@@ -18,6 +19,7 @@ public static class HostSetup
     {
         services.AddPersistence();
         services.AddHttpContextAccessor();
+        services.AddEmail();
         services.AddScoped<IRequestContext, HttpRequestContext>();
         services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database", tags: [ReadyTag]);
         return services;

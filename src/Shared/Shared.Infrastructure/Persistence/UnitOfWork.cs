@@ -104,7 +104,8 @@ public sealed class UnitOfWork : IAsyncDisposable
         await Connection.DisposeAsync();
     }
 
-    internal void Enlist(DbContext context)
+    /// <summary>Makes <paramref name="context"/> use this scope's transaction; module contexts call it from their constructor.</summary>
+    public void Enlist(DbContext context)
     {
         _contexts.Add(context);
         if (Transaction is not null)

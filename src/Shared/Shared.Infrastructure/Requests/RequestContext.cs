@@ -59,7 +59,10 @@ public sealed class SystemRequestContext : IRequestContext
     public DateTimeOffset? MfaStepUpAt => null;
 }
 
-/// <summary>The request context of an HTTP request. User and organization come with authentication (task 004).</summary>
+/// <summary>
+/// The request context of an HTTP request. The user comes from the authentication cookie (task 004); the active
+/// organization comes with memberships (task 005).
+/// </summary>
 public sealed class HttpRequestContext(IHttpContextAccessor accessor) : IRequestContext
 {
     public const string IdempotencyKeyHeader = "Idempotency-Key";
@@ -71,7 +74,7 @@ public sealed class HttpRequestContext(IHttpContextAccessor accessor) : IRequest
 
     public ActorType ActorType => ActorType.User;
 
-    public Guid? UserId => null;
+    public Guid? UserId => Guid.TryParse(Http.User.FindFirst(CesioClaims.UserId)?.Value, out var id) ? id : null;
 
     public Guid? OrganizationId => null;
 
@@ -87,5 +90,5 @@ public sealed class HttpRequestContext(IHttpContextAccessor accessor) : IRequest
 
     public string? IdempotencyKey => Http.Request.Headers[IdempotencyKeyHeader].ToString() is { Length: > 0 } key ? key : null;
 
-    public DateTimeOffset? MfaStepUpAt => null;
+    public DateTimeOffset? MfaStepUpAt => Http.Items[CesioClaims.MfaStepUpAtItem] as DateTimeOffset?;
 }

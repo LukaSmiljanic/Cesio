@@ -40,8 +40,8 @@ Audit `changes` masking helper (account numbers, emails partially masked). Idemp
 - Audit: UPDATE/DELETE with the app role fails; chain verification detects a tampered row; a business rollback leaves no audit row.
 
 # Acceptance Criteria
-- [ ] All tests above green in CI with Testcontainers.
-- [ ] Sample command in a test module demonstrates state change + audit + outbox in one transaction.
+- [x] All tests above green in CI with Testcontainers (CI on `main`, 2026-10-22).
+- [x] Sample command in a test module demonstrates state change + audit + outbox in one transaction (`tests/Platform.Integration.Tests/SampleCommandTests.cs`).
 
 # Out of Scope
 Business tables; Azure WORM policy (024).

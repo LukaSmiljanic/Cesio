@@ -9,6 +9,7 @@ using Modules.Notifications;
 using Modules.Organizations;
 using Modules.Receivables;
 using Shared.Infrastructure;
+using Shared.Infrastructure.Idempotency;
 using Shared.Kernel;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,9 +41,14 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseIdentityModule();
+app.UseIdempotency();
+
 // Liveness has no checks; readiness includes the database.
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains(HostSetup.ReadyTag) });
+
+app.MapIdentityEndpoints();
 
 app.Run();
 

@@ -1,4 +1,6 @@
+@import 'tailwindcss';
+
 body {
-  margin: 0;
+  @apply bg-slate-50 text-slate-900 antialiased;
   font-family: system-ui, sans-serif;
 }

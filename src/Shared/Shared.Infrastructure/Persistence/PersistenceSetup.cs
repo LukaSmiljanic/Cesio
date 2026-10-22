@@ -34,7 +34,7 @@ public static class PersistenceSetup
     /// Platform.Migrator. Lower <paramref name="migrationOrder"/> migrates first.
     /// </summary>
     public static IServiceCollection AddModuleDbContext<TContext>(this IServiceCollection services, string schema, int migrationOrder)
-        where TContext : ModuleDbContext
+        where TContext : DbContext
     {
         services.AddDbContext<TContext>((provider, options) =>
             options.UseSqlServer(provider.GetRequiredService<UnitOfWork>().Connection, sql => sql.MigrationsHistoryTable(MigrationsHistoryTable, schema)));
@@ -44,7 +44,7 @@ public static class PersistenceSetup
 
     /// <summary>A context on its own connection string, outside any unit of work: for migrations and design-time tools.</summary>
     public static TContext CreateStandalone<TContext>(string connectionString, string schema)
-        where TContext : ModuleDbContext
+        where TContext : DbContext
     {
         var options = new DbContextOptionsBuilder<TContext>()
             .UseSqlServer(connectionString, sql => sql.MigrationsHistoryTable(MigrationsHistoryTable, schema))
@@ -54,7 +54,7 @@ public static class PersistenceSetup
 
     /// <summary>Design-time context for <c>dotnet ef migrations add</c>; it never connects.</summary>
     public static TContext CreateForDesignTime<TContext>(string schema)
-        where TContext : ModuleDbContext =>
+        where TContext : DbContext =>
         CreateStandalone<TContext>("Server=design-time;Database=design-time", schema);
 }
 
@@ -69,7 +69,7 @@ public interface IModuleMigrator
 }
 
 internal sealed class ModuleMigrator<TContext>(string schema, int order) : IModuleMigrator
-    where TContext : ModuleDbContext
+    where TContext : DbContext
 {
     public string Schema => schema;
 

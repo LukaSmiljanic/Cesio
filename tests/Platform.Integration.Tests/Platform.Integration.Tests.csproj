@@ -19,6 +19,7 @@
     <ProjectReference Include="../../src/Platform.Api/Platform.Api.csproj" />
     <ProjectReference Include="../../src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
+    <ProjectReference Include="../../src/Modules/Identity/Modules.Identity/Modules.Identity.csproj" />
   </ItemGroup>
 
 </Project>
