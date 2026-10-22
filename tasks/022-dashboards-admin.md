@@ -25,7 +25,7 @@ Read-only SQL queries (Dapper or EF no-tracking) against the primary DB in the M
 `GET /dashboards/seller`, `GET /dashboards/factor`, admin `GET /admin/dashboard`, `GET/PUT /admin/parameters/{key}`, `GET /admin/audit`, `GET /admin/audit/export`.
 
 # Database Changes
-Indexes only (documented).
+Indexes only (documented). If a reporting principal is used, define the `readonly_reporting` grants here (database.md §6: no personal-data columns, no `platform.idempotency_keys`).
 
 # Security Considerations
 Dashboards respect tenant isolation (tests); Support role sees masked PII; audit exports.

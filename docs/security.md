@@ -77,7 +77,7 @@ Signatory requires a link to an APR legal representative or a verified power of 
 | Scraping/data leakage | Audience control, rate limits, watermarking, download audit |
 
 ## 8. Logging & monitoring
-- Structured logs with correlation IDs. **Never log**: passwords, tokens, API keys, full document contents, bank account numbers (masked), personal identifiers (masked). A log-scrubbing enricher plus unit tests enforce this.
+- Structured logs with correlation IDs. **Never log**: passwords, tokens, API keys, full document contents, bank account numbers (masked), personal identifiers (masked). A log-scrubbing enricher plus unit tests enforce this. Stored error texts (e.g. `platform.outbox.last_error`) hold the exception type only, never the message.
 - Alerts: authentication anomalies, spikes in 403/404 (enumeration), SEF sync failures, outbox backlog, failed malware scans, audit-chain verification failures, admin actions outside business hours.
 - Security event log is retained ≥ 1 year online (subject to LQ-38/LQ-47).
 

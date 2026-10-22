@@ -88,7 +88,7 @@ Integrations.* ← used by Receivables (SEF), Deals (CEF, Signatures), Complianc
 
 ## 6. Environments & deployment
 - `local` (compose), `dev`, `staging` (SEF **demo** environment), `prod` (SEF production). Separate Azure subscriptions or resource groups; no prod data outside prod.
-- Pipeline: build → unit tests → integration tests (Testcontainers) → architecture tests → SAST/dependency scan → container image (signed) → deploy to staging → smoke tests → manual approval → prod. DB migrations are applied by a dedicated migration job with the `migrator` role, and must be backward compatible (expand/contract).
+- Pipeline: build → unit tests → integration tests (Testcontainers) → architecture tests → SAST/dependency scan → container image (signed) → deploy to staging → smoke tests → manual approval → prod. DB migrations are applied by a dedicated migration job (Platform.Migrator) whose principal holds the `migrator` DDL role and may manage roles and grants (database.md §6), and must be backward compatible (expand/contract).
 - Region: an EU region (e.g. Germany West Central / West Europe), pending LQ-35. Backups stay in the paired EU region.
 
 ## 7. Scaling path (only when needed)
