@@ -64,3 +64,12 @@ describe('api', () => {
     expect(posts).toBe(2)
   })
 })
+
+describe('formatMoney', () => {
+  it('groups thousands and keeps the decimals without floats', async () => {
+    const { formatMoney } = await import('./receivables')
+
+    expect(formatMoney({ amount: '1200000.00', currency: 'RSD' })).toBe('1.200.000,00 RSD')
+    expect(formatMoney({ amount: '999.5', currency: 'EUR' })).toBe('999,5 EUR')
+  })
+})

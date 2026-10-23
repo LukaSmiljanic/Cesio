@@ -37,9 +37,9 @@ Key Vault access via managed identity; key never logged; SEF 401 → connection 
 Fake SEF: import success; NotIssuer; duplicate import; foreign currency; malformed UBL; 401 handling; retry on 503; unique-constraint race (two parallel imports of the same invoice → one invoice).
 
 # Acceptance Criteria
-- [ ] SEF endpoints used are documented from the official Swagger.
+- [x] SEF endpoints used are documented from the official Swagger (integrations.md §1.1).
 - [ ] Import against the SEF demo environment works with a test company key (manual check, recorded in the PR).
-- [ ] No write endpoint exists in the SEF client.
+- [x] No write endpoint exists in the SEF client (`ISefClient`: key check, list IDs, get invoice, get UBL).
 
 # Out of Scope
 Verification/eligibility (011), status monitoring job (020), CEF.

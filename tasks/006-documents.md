@@ -33,9 +33,9 @@ No public containers; filename sanitisation; Content-Disposition attachment; `X-
 Wrong magic bytes rejected; EICAR → Infected and not downloadable; unauthorized org → 404; SAS expiry ≤ 60 s; hash stored and correct.
 
 # Acceptance Criteria
-- [ ] Upload → scan → download works locally with the fake scanner.
-- [ ] Access policy hook is used (no direct download bypass).
-- [ ] Access log entries are written.
+- [x] Upload → scan → download works locally with the fake scanner (`DocumentTests`, Azurite; CI on `main`, 2026-10-22). Downloads are streamed (no SAS); the PDF watermark is not built yet (optional).
+- [x] Access policy hook is used (no direct download bypass).
+- [x] Access log entries are written.
 
 # Out of Scope
 Document previews, OCR, e-signature validation (016).

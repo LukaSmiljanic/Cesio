@@ -37,6 +37,7 @@ public static class DocumentsModule
         });
         services.AddScoped<DocumentService>();
         services.AddScoped<IDocumentQuery, DocumentQuery>();
+        services.AddScoped<IDocumentWriter>(provider => provider.GetRequiredService<DocumentService>());
         return services;
     }
 

@@ -23,6 +23,8 @@
     <ProjectReference Include="../../src/Modules/Identity/Modules.Identity/Modules.Identity.csproj" />
     <ProjectReference Include="../../src/Modules/Organizations/Modules.Organizations/Modules.Organizations.csproj" />
     <ProjectReference Include="../../src/Modules/Documents/Modules.Documents/Modules.Documents.csproj" />
+    <ProjectReference Include="../../src/Modules/Receivables/Modules.Receivables/Modules.Receivables.csproj" />
+    <ProjectReference Include="../../src/Integrations/Integrations.Sef/Integrations.Sef.csproj" />
   </ItemGroup>
 
 </Project>

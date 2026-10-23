@@ -28,6 +28,9 @@ function MyOrganizations() {
       {mine.data?.length === 0 && (
         <p className="text-sm text-slate-600">Još niste član nijedne firme.</p>
       )}
+      <Link to="/receivables" className={`${linkButton} mr-2`}>
+        Potraživanja
+      </Link>
       <Link to="/organizations/new" className={linkButton}>
         Dodaj firmu (prodavac)
       </Link>

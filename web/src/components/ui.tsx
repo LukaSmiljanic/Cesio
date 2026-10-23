@@ -72,6 +72,12 @@ const messages: Record<string, string> = {
   power_of_attorney_unverified:
     'Punomoćje će moći da se koristi kada provera dokumenata bude dostupna.',
   already_exists: 'Firma ili članstvo već postoje.',
+  sef_connection_invalid: 'Prvo povežite važeći SEF API ključ.',
+  sef_key_rejected: 'SEF je odbio API ključ.',
+  sef_pib_mismatch: 'SEF ključ pripada firmi sa drugim PIB-om.',
+  sef_no_invoices:
+    'Za ovaj ključ SEF nema izlaznih faktura u poslednjih 90 dana, pa PIB ne može da se potvrdi.',
+  upstream_unavailable: 'SEF trenutno nije dostupan. Pokušajte kasnije.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

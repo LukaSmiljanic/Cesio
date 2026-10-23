@@ -60,6 +60,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check 
 app.MapIdentityEndpoints();
 app.MapOrganizationEndpoints(includeDevelopmentEndpoints: app.Environment.IsDevelopment());
 app.MapDocumentEndpoints();
+app.MapReceivableEndpoints();
 
 app.Run();
 

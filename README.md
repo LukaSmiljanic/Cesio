@@ -58,5 +58,6 @@ cd web && npm ci && npm run dev
 - SPA: `cd web && npm run dev` → `http://localhost:5173`; Vite proxies `/api` to the API. Confirmation and password-reset emails arrive in smtp4dev (`http://localhost:5000`).
 - Worker: `dotnet run --project src/Platform.Worker` (outbox dispatcher, idempotency cleanup, daily audit chain digest).
 - Container: `docker build -t cesio .` then `docker run cesio api`, `docker run cesio worker` or `docker run cesio migrator`.
+- SEF locally: `Sef:Client = Fake` (appsettings.Development.json). Connect any seller with the API key `demo-{its PIB}` to get three demo invoices to import; remove the setting to use the SEF demo environment with a real key. Outside Development the key goes to Key Vault (`KeyVault:Uri`).
 - Integration tests (`tests/Platform.Integration.Tests`) start their own SQL Server with Testcontainers, so Docker must be running for `dotnet test`.
 - Rules checked in CI: web lint and format, architecture tests (`tests/Architecture.Tests`), `scripts/check-no-float.sh` (ADR-008), gitleaks, CodeQL, dependency review.

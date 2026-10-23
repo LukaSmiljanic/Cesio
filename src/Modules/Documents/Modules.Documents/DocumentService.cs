@@ -25,7 +25,7 @@ internal sealed class DocumentService(
     IAuditWriter audit,
     IAccessLog accessLog,
     IRequestContext request,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider) : IDocumentWriter
 {
     public const long MaxSizeBytes = 20 * 1024 * 1024;
 
@@ -62,13 +62,39 @@ internal sealed class DocumentService(
             return Problems.Error(StatusCodes.Status415UnsupportedMediaType, "unsupported_file_type", "Only PDF, XML, PNG and JPEG files are accepted.");
         }
 
+        var document = await StoreCoreAsync(
+            request.OrganizationId ?? throw new InvalidOperationException("An organization context is required."),
+            purpose, file.FileName, contentType, content, cancellationToken);
+
+        // An infected upload is kept in quarantine and never served; notifying the uploader is task 019.
+        return Results.Created($"/api/v1/documents/{document.Id}", Metadata(document));
+    }
+
+    /// <inheritdoc />
+    public async Task<DocumentInfo?> StoreAsync(Guid ownerOrgId, DocumentPurpose purpose, string fileName, byte[] content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        if (content.Length == 0 || content.Length > MaxSizeBytes || DetectContentType(content) is not { } contentType)
+        {
+            return null;
+        }
+
+        using var stream = new MemoryStream(content.Length);
+        await stream.WriteAsync(content, cancellationToken);
+        return (await StoreCoreAsync(ownerOrgId, purpose, fileName, contentType, stream, cancellationToken)).ToInfo();
+    }
+
+    /// <summary>Quarantine, scan, release if clean, and the row with its audit event in the unit-of-work transaction.</summary>
+    private async Task<StoredDocument> StoreCoreAsync(
+        Guid ownerOrgId, DocumentPurpose purpose, string? fileName, string contentType, MemoryStream content, CancellationToken cancellationToken)
+    {
         var document = new StoredDocument
         {
             Id = SequentialGuid.NewGuid(),
-            OwnerOrgId = request.OrganizationId ?? throw new InvalidOperationException("An organization context is required."),
+            OwnerOrgId = ownerOrgId,
             UploadedBy = request.UserId ?? throw new InvalidOperationException("An authenticated user is required."),
             Purpose = purpose,
-            FileName = SanitizeFileName(file.FileName, contentType),
+            FileName = SanitizeFileName(fileName, contentType),
             ContentType = contentType,
             SizeBytes = content.Length,
             Sha256 = Convert.ToHexStringLower(SHA256.HashData(content.GetBuffer().AsSpan(0, (int)content.Length))),
@@ -91,9 +117,7 @@ internal sealed class DocumentService(
                     Changes: new Dictionary<string, string?> { ["purpose"] = purpose.ToString(), ["sha256"] = document.Sha256, ["contentType"] = contentType }), ct);
             },
             cancellationToken);
-
-        // An infected upload is kept in quarantine and never served; notifying the uploader is task 019.
-        return Results.Created($"/api/v1/documents/{document.Id}", Metadata(document));
+        return document;
     }
 
     /// <summary>

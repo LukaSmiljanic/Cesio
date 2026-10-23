@@ -10,6 +10,9 @@ public enum DocumentPurpose
     ReceivableEvidence,
     ListingAttachment,
     Contract,
+
+    /// <summary>The UBL of an imported SEF invoice (task 010).</summary>
+    InvoiceUbl,
 }
 
 public enum ScanStatus
@@ -40,4 +43,14 @@ public interface IDocumentAccessPolicy
 public interface IDocumentQuery
 {
     Task<DocumentInfo?> GetAsync(Guid documentId, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Stores a file produced by another module (e.g. the UBL of an imported invoice) with the same checks as an upload:
+/// allowed type, size, hash, malware scan.
+/// </summary>
+public interface IDocumentWriter
+{
+    /// <returns>The stored document, or null when the content is not an allowed type.</returns>
+    Task<DocumentInfo?> StoreAsync(Guid ownerOrgId, DocumentPurpose purpose, string fileName, byte[] content, CancellationToken cancellationToken);
 }

@@ -11,6 +11,7 @@ import {
   OrganizationPage,
   StartSellerPage,
 } from './pages/OrganizationPages'
+import { ImportPage, ReceivablesPage } from './pages/ReceivablePages'
 import {
   ConfirmEmailPage,
   ForgotPasswordPage,
@@ -56,6 +57,14 @@ export function AppRoutes() {
       <Route
         path="/invitations/accept"
         element={<RequireSession>{() => <AcceptInvitationPage />}</RequireSession>}
+      />
+      <Route
+        path="/receivables"
+        element={<RequireSession>{() => <ReceivablesPage />}</RequireSession>}
+      />
+      <Route
+        path="/receivables/import"
+        element={<RequireSession>{() => <ImportPage />}</RequireSession>}
       />
       <Route
         path="/"
