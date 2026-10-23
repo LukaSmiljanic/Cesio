@@ -30,7 +30,9 @@ scan() { # pattern grep-flags files...
 findings=$(
   scan "$csharp_types" '' "${domain_files[@]}" "${migration_files[@]}" "${mapping_files[@]}"
   # Migrations hold SQL, often in multi-line strings, so every line is checked.
-  scan "$sql_types" -i "${migration_files[@]}"
+  # The Money value object appears in EF snapshots as a CLR name ("...FaceValue#Money", "Shared.Kernel.Money"),
+  # which is not the SQL money type.
+  scan "$sql_types" -i "${migration_files[@]}" | grep -vE '[#.]Money\b' || true
   scan "$sql_types_in_strings" -i "${mapping_files[@]}"
 )
 

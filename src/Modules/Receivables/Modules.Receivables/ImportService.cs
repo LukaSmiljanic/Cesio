@@ -89,24 +89,28 @@ internal sealed partial class ImportService(
     }
 
     public async Task<IResult> ListAsync(CancellationToken cancellationToken) =>
-        Results.Ok((await Views().OrderByDescending(r => r.CreatedAt).Take(200).ToListAsync(cancellationToken)).Select(ForApi));
+        Results.Ok((await Rows().OrderByDescending(row => row.Receivable.CreatedAt).Take(200).ToListAsync(cancellationToken)).Select(ToView));
 
     public async Task<IResult> GetAsync(Guid id, CancellationToken cancellationToken) =>
-        await Views().SingleOrDefaultAsync(r => r.Id == id, cancellationToken) is { } view
-            ? Results.Ok(ForApi(view))
+        await Rows().SingleOrDefaultAsync(row => row.Receivable.Id == id, cancellationToken) is { } row
+            ? Results.Ok(ToView(row))
             : Results.Problem(statusCode: StatusCodes.Status404NotFound, extensions: new Dictionary<string, object?> { ["errorCode"] = "not_found" });
 
-    /// <summary>Amounts are stored as decimal(19,4) and shown with the currency's minor units ("1200000.00", api.md §1).</summary>
-    private static ReceivableView ForApi(ReceivableView view) =>
-        view with { FaceValue = view.FaceValue.Round(), Invoice = view.Invoice with { Gross = view.Invoice.Gross.Round() } };
-
-    private IQueryable<ReceivableView> Views() =>
+    /// <summary>The entities are loaded and mapped in memory; Money (a complex type) does not translate inside a SQL projection.</summary>
+    private IQueryable<ReceivableRow> Rows() =>
         from r in receivables.Receivables.AsNoTracking()
-        join i in receivables.Invoices on r.InvoiceId equals i.Id
-        join d in receivables.Debtors on r.DebtorId equals d.Id
-        select new ReceivableView(r.Id, r.State, r.FaceValue, r.MaturityDate, r.CreatedAt, r.Version,
-            new InvoiceView(i.Id, i.SefInvoiceId, i.InvoiceNumber, i.IssueDate, i.DueDate, new Money(i.GrossAmount, i.Currency), i.SefStatus, i.UblDocumentId, i.UblSha256),
-            new DebtorView(d.Id, d.Pib, d.LegalName));
+        join i in receivables.Invoices.AsNoTracking() on r.InvoiceId equals i.Id
+        join d in receivables.Debtors.AsNoTracking() on r.DebtorId equals d.Id
+        select new ReceivableRow(r, i, d);
+
+    /// <summary>Amounts are stored as decimal(19,4) and shown with the currency's minor units ("1200000.00", api.md §1).</summary>
+    private static ReceivableView ToView(ReceivableRow row) =>
+        new(row.Receivable.Id, row.Receivable.State, row.Receivable.FaceValue.Round(), row.Receivable.MaturityDate, row.Receivable.CreatedAt, row.Receivable.Version,
+            new InvoiceView(row.Invoice.Id, row.Invoice.SefInvoiceId, row.Invoice.InvoiceNumber, row.Invoice.IssueDate, row.Invoice.DueDate,
+                new Money(row.Invoice.GrossAmount, row.Invoice.Currency).Round(), row.Invoice.SefStatus, row.Invoice.UblDocumentId, row.Invoice.UblSha256),
+            new DebtorView(row.Debtor.Id, row.Debtor.Pib, row.Debtor.LegalName));
+
+    private sealed record ReceivableRow(Receivable Receivable, Invoice Invoice, Debtor Debtor);
 
     private async Task<IReadOnlyList<long>?> RequestedIdsAsync(ImportFromSefRequest body, string apiKey, CancellationToken cancellationToken)
     {
