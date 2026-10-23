@@ -13,7 +13,7 @@ using Modules.Receivables.Persistence;
 namespace Modules.Receivables.Persistence.Migrations
 {
     [DbContext(typeof(ReceivablesDbContext))]
-    [Migration("20261023062612_InitialReceivables")]
+    [Migration("20261023064443_InitialReceivables")]
     partial class InitialReceivables
     {
         /// <inheritdoc />
@@ -313,7 +313,7 @@ namespace Modules.Receivables.Persistence.Migrations
                     b.HasOne("Modules.Receivables.Persistence.Debtor", null)
                         .WithMany()
                         .HasForeignKey("DebtorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_invoices_debtors_debtor_id");
                 });
@@ -323,14 +323,14 @@ namespace Modules.Receivables.Persistence.Migrations
                     b.HasOne("Modules.Receivables.Persistence.Debtor", null)
                         .WithMany()
                         .HasForeignKey("DebtorId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_receivables_debtors_debtor_id");
 
                     b.HasOne("Modules.Receivables.Persistence.Invoice", null)
                         .WithMany()
                         .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_receivables_invoices_invoice_id");
                 });
@@ -340,7 +340,7 @@ namespace Modules.Receivables.Persistence.Migrations
                     b.HasOne("Modules.Receivables.Persistence.Invoice", null)
                         .WithMany()
                         .HasForeignKey("InvoiceId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_sef_status_history_invoices_invoice_id");
                 });

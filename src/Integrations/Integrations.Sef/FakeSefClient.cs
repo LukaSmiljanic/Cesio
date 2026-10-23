@@ -35,7 +35,7 @@ public sealed class FakeSefClient : ISefClient
     {
         Guard(apiKey);
         IReadOnlyList<long> ids = [.. For(apiKey)
-            .Where(i => UblParser.Parse(i.Value.Ubl).IssueDate is var date && date >= from && date <= to)
+            .Where(i => IssueDate(i.Value.Ubl) is { } date && date >= from && date <= to)
             .Select(i => i.Key)
             .Order()];
         return Task.FromResult(ids);
@@ -91,6 +91,19 @@ public sealed class FakeSefClient : ISefClient
             </Invoice>
             """);
         return Encoding.UTF8.GetBytes(xml);
+    }
+
+    /// <summary>Malformed test invoices are simply not listed by date.</summary>
+    private static DateOnly? IssueDate(byte[] ubl)
+    {
+        try
+        {
+            return UblParser.Parse(ubl).IssueDate;
+        }
+        catch (UblFormatException)
+        {
+            return null;
+        }
     }
 
     private ConcurrentDictionary<long, (string Status, byte[] Ubl)> For(string apiKey)

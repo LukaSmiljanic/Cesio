@@ -64,7 +64,7 @@ namespace Modules.Receivables.Persistence.Migrations
                         principalSchema: "receivables",
                         principalTable: "debtors",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -95,14 +95,14 @@ namespace Modules.Receivables.Persistence.Migrations
                         principalSchema: "receivables",
                         principalTable: "debtors",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "fk_receivables_invoices_invoice_id",
                         column: x => x.invoice_id,
                         principalSchema: "receivables",
                         principalTable: "invoices",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -126,7 +126,7 @@ namespace Modules.Receivables.Persistence.Migrations
                         principalSchema: "receivables",
                         principalTable: "invoices",
                         principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateIndex(

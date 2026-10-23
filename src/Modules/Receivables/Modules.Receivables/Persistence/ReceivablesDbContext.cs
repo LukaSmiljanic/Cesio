@@ -66,7 +66,7 @@ public sealed class ReceivablesDbContext : ModuleDbContext
             invoice.Property(i => i.InvoiceNumber).HasMaxLength(200);
             invoice.Property(i => i.UblSha256).HasMaxLength(64).IsFixedLength().IsUnicode(false);
             invoice.Property(i => i.SefStatus).HasMaxLength(40).IsUnicode(false);
-            invoice.HasOne<Debtor>().WithMany().HasForeignKey(i => i.DebtorId);
+            invoice.HasOne<Debtor>().WithMany().HasForeignKey(i => i.DebtorId).OnDelete(DeleteBehavior.Restrict);
             invoice.HasIndex(i => i.SefInvoiceId).IsUnique();
             invoice.HasIndex(i => new { i.SellerOrgId, i.InvoiceNumber, i.IssueDate }).IsUnique();
             invoice.HasQueryFilter(i => i.SellerOrgId == CurrentOrganizationId);
@@ -80,8 +80,8 @@ public sealed class ReceivablesDbContext : ModuleDbContext
             receivable.HasMoney(r => r.FaceValue, "face_value", "currency");
             receivable.Property(r => r.State).HasConversion<string>().HasMaxLength(40).IsUnicode(false);
             receivable.Property(r => r.Fingerprint).HasMaxLength(64).IsFixedLength().IsUnicode(false);
-            receivable.HasOne<Invoice>().WithMany().HasForeignKey(r => r.InvoiceId);
-            receivable.HasOne<Debtor>().WithMany().HasForeignKey(r => r.DebtorId);
+            receivable.HasOne<Invoice>().WithMany().HasForeignKey(r => r.InvoiceId).OnDelete(DeleteBehavior.Restrict);
+            receivable.HasOne<Debtor>().WithMany().HasForeignKey(r => r.DebtorId).OnDelete(DeleteBehavior.Restrict);
             // MVP: one live receivable per invoice; a Rejected or Cancelled one may be replaced (database.md §2).
             receivable.HasIndex(r => r.InvoiceId).IsUnique()
                 .HasFilter($"[state] <> '{nameof(ReceivableState.Rejected)}' AND [state] <> '{nameof(ReceivableState.Cancelled)}'")
@@ -98,7 +98,7 @@ public sealed class ReceivablesDbContext : ModuleDbContext
             observation.Property(o => o.Id).ValueGeneratedNever();
             observation.Property(o => o.Status).HasMaxLength(40).IsUnicode(false);
             observation.HasJsonCheck("raw");
-            observation.HasOne<Invoice>().WithMany().HasForeignKey(o => o.InvoiceId);
+            observation.HasOne<Invoice>().WithMany().HasForeignKey(o => o.InvoiceId).OnDelete(DeleteBehavior.Restrict);
             observation.HasIndex(o => new { o.InvoiceId, o.ObservedAt });
         });
     }

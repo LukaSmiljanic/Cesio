@@ -20,6 +20,7 @@ A seller connects its SEF account with an API key, and imports sales invoices in
 - Currency other than RSD → `Unsupported` (ADR-009).
 - Debtor must be identified by a PIB (B2B); otherwise `Unsupported`.
 - Re-importing an already imported SEF invoice returns `AlreadyImported` with the existing receivable ID (if it is not Rejected/Cancelled).
+- Implementation notes (2026-10-23): faceValue = gross, because no credit notes are known at import; credit notes, invoices with a deducted prepayment (PayableAmount ≠ gross) and amounts with more than 2 decimals are `Unsupported`. An invoice imported by another organization is reported as `NotFound` to the caller.
 
 # Technical Requirements
 UBL parsing with `System.Xml` (no new dependency unless justified); amounts parsed as decimal with invariant culture; `gross = net + vat` asserted (mismatch → `Unsupported` + log).

@@ -67,11 +67,18 @@ public sealed class SefImportTests(SqlServerContainer server, AzuriteContainer s
         var euro = Sef.AddInvoice(seller.Key, FakeSefClient.Ubl(seller.Pib, BuyerPib, "X-2", 100m, 20m, currency: "EUR"));
         var badTotals = Sef.AddInvoice(seller.Key, FakeSefClient.Ubl(seller.Pib, BuyerPib, "X-3", 100m, 20m, gross: 150m));
         var malformed = Sef.AddInvoice(seller.Key, "<Invoice><broken"u8.ToArray());
+        var noDebtorPib = Sef.AddInvoice(seller.Key, FakeSefClient.Ubl(seller.Pib, "123456789", "X-4", 100m, 20m));
+        var threeDecimals = Sef.AddInvoice(seller.Key, System.Text.Encoding.UTF8.GetBytes(
+            System.Text.Encoding.UTF8.GetString(FakeSefClient.Ubl(seller.Pib, BuyerPib, "X-5", 100m, 20m)).Replace(">100.00<", ">100.005<", StringComparison.Ordinal)));
+        var ids = new[] { $"{otherIssuer}", $"{euro}", $"{badTotals}", $"{malformed}", "999999999", $"{noDebtorPib}", $"{threeDecimals}" };
 
-        var results = (await ApiClient.ReadAsync(await ImportAsync(seller, new { sefInvoiceIds = new[] { $"{otherIssuer}", $"{euro}", $"{badTotals}", $"{malformed}", "999999999" } })))
-            .GetProperty("results").EnumerateArray().Select(r => r.GetProperty("status").GetString()).ToList();
+        var results = (await ApiClient.ReadAsync(await ImportAsync(seller, new { sefInvoiceIds = ids })))
+            .GetProperty("results").EnumerateArray().Select(r => (r.GetProperty("status").GetString(), r.TryGetProperty("reason", out var reason) ? reason.GetString() : null)).ToList();
 
-        Assert.Equal(["NotIssuer", "Unsupported", "Unsupported", "Unsupported", "NotFound"], results);
+        Assert.Equal(
+            [("NotIssuer", "supplier_pib_differs"), ("Unsupported", "currency_not_rsd"), ("Unsupported", "totals_inconsistent"), ("Unsupported", "malformed_ubl"),
+             ("NotFound", null), ("Unsupported", "debtor_without_pib"), ("Unsupported", "malformed_ubl")],
+            results);
         Assert.Equal(0, await _database.ScalarAsync<int>("SELECT COUNT(*) FROM receivables.invoices"));
     }
 
@@ -135,7 +142,39 @@ public sealed class SefImportTests(SqlServerContainer server, AzuriteContainer s
         Assert.Equal("sef_pib_mismatch", mismatch);
         Assert.Equal("sef_no_invoices", empty);
         Assert.Equal(0, await _database.ScalarAsync<int>("SELECT COUNT(*) FROM platform.outbox WHERE type = 'Organizations.SefConnectionValidated'"));
-        Assert.NotNull(pib);
+    }
+
+    [Fact]
+    public async Task A_failed_key_rotation_keeps_the_working_connection()
+    {
+        var seller = await ConnectedSellerAsync();
+        var otherCompanyKey = $"k-{Guid.NewGuid():N}";
+        Sef.AddInvoice(otherCompanyKey, FakeSefClient.Ubl(TestIds.NewPib(), BuyerPib, "O-2", 500m, 100m));
+
+        var code = await ApiClient.ErrorCodeAsync(await seller.Client.SendAsync(HttpMethod.Put, $"/api/v1/organizations/{seller.Org}/sef-connection", new { apiKey = otherCompanyKey }));
+        var connection = await ApiClient.ReadAsync(await seller.Client.GetAsync($"/api/v1/organizations/{seller.Org}/sef-connection"));
+        var id = Sef.AddInvoice(seller.Key, FakeSefClient.Ubl(seller.Pib, BuyerPib, "O-3", 500m, 100m));
+
+        Assert.Equal("sef_pib_mismatch", code);
+        Assert.Equal("Connected", connection.GetProperty("status").GetString());
+        Assert.Equal("Imported", (await ImportOneAsync(seller, id)).GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task Another_organization_cannot_read_or_set_the_sef_connection()
+    {
+        var owner = await ConnectedSellerAsync();
+        var (outsider, _, _) = await SellerAsync();
+        await outsider.StepUpAsync();
+
+        using var read = await outsider.GetAsync($"/api/v1/organizations/{owner.Org}/sef-connection");
+        using var write = await outsider.SendAsync(HttpMethod.Put, $"/api/v1/organizations/{owner.Org}/sef-connection", new { apiKey = $"demo-{owner.Pib}" });
+        var connection = await ApiClient.ReadAsync(await owner.Client.GetAsync($"/api/v1/organizations/{owner.Org}/sef-connection"));
+
+        Assert.Equal(HttpStatusCode.NotFound, read.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, write.StatusCode);
+        Assert.Equal("Connected", connection.GetProperty("status").GetString());
+        Assert.Equal(1, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM audit.audit_events WHERE entity_id = '{owner.Org}' AND action LIKE 'Organization.SefKey%'"));
     }
 
     [Fact]
@@ -162,7 +201,7 @@ public sealed class SefImportTests(SqlServerContainer server, AzuriteContainer s
 
         Assert.Equal(HttpStatusCode.NotFound, read.StatusCode);
         Assert.Empty(list.EnumerateArray());
-        Assert.Equal("AlreadyImported", reimport.GetProperty("status").GetString());
+        Assert.Equal("NotFound", reimport.GetProperty("status").GetString());
         Assert.False(reimport.TryGetProperty("receivableId", out var leaked) && leaked.ValueKind != System.Text.Json.JsonValueKind.Null);
     }
 

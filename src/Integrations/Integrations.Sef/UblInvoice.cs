@@ -15,7 +15,8 @@ public sealed record UblInvoice(
     UblParty Buyer,
     decimal NetAmount,
     decimal VatAmount,
-    decimal GrossAmount);
+    decimal GrossAmount,
+    decimal? PayableAmount);
 
 /// <param name="Pib">9 digits without the "RS" prefix, or null when the party has no Serbian PIB.</param>
 public sealed record UblParty(string? Pib, string? Mb, string? Name);
@@ -49,6 +50,14 @@ public static class UblParser
         var root = document.Root ?? throw new UblFormatException("The UBL document is empty.");
         var isCreditNote = root.Name.LocalName == "CreditNote" || Text(root, Cbc + "InvoiceTypeCode") == "381";
         var totals = root.Element(Cac + "LegalMonetaryTotal") ?? throw new UblFormatException("LegalMonetaryTotal is missing.");
+        var currency = Required(root, Cbc + "DocumentCurrencyCode");
+
+        // Only the VAT total in the document currency; a second TaxTotal in the tax currency must not be added to it.
+        var vat = root.Elements(Cac + "TaxTotal")
+            .Select(t => t.Element(Cbc + "TaxAmount"))
+            .Where(a => a is not null && (a.Attribute("currencyID")?.Value ?? currency) == currency)
+            .Select(a => Amount(a!, currency))
+            .FirstOrDefault();
 
         return new UblInvoice(
             isCreditNote,
@@ -56,12 +65,13 @@ public static class UblParser
             Date(Required(root, Cbc + "IssueDate")),
             Text(root, Cbc + "DueDate") is { } due ? Date(due)
                 : root.Element(Cac + "PaymentMeans")?.Element(Cbc + "PaymentDueDate")?.Value is { } paymentDue ? Date(paymentDue) : null,
-            Required(root, Cbc + "DocumentCurrencyCode"),
+            currency,
             Party(root.Element(Cac + "AccountingSupplierParty")),
             Party(root.Element(Cac + "AccountingCustomerParty")),
-            Amount(Required(totals, Cbc + "TaxExclusiveAmount")),
-            root.Elements(Cac + "TaxTotal").Select(t => Amount(Required(t, Cbc + "TaxAmount"))).Sum(),
-            Amount(Required(totals, Cbc + "TaxInclusiveAmount")));
+            Amount(RequiredElement(totals, Cbc + "TaxExclusiveAmount"), currency),
+            vat,
+            Amount(RequiredElement(totals, Cbc + "TaxInclusiveAmount"), currency),
+            totals.Element(Cbc + "PayableAmount") is { } payable ? Amount(payable, currency) : null);
     }
 
     private static UblParty Party(XElement? wrapper)
@@ -91,8 +101,28 @@ public static class UblParser
             ? date
             : throw new UblFormatException($"'{value}' is not a date (yyyy-MM-dd).");
 
-    private static decimal Amount(string value) =>
-        decimal.TryParse(value, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var amount)
-            ? amount
-            : throw new UblFormatException($"'{value}' is not an amount.");
+    private static XElement RequiredElement(XElement parent, XName name) =>
+        parent.Element(name) ?? throw new UblFormatException($"{name.LocalName} is missing.");
+
+    /// <summary>
+    /// An amount in the document currency with at most 2 decimals and 15 integer digits (it must fit decimal(19,4)
+    /// without rounding, database.md §1); anything else is a malformed invoice, never silently rounded.
+    /// </summary>
+    private static decimal Amount(XElement element, string currency)
+    {
+        if ((element.Attribute("currencyID")?.Value ?? currency) != currency)
+        {
+            throw new UblFormatException($"{element.Name.LocalName} is not in the document currency.");
+        }
+
+        var value = element.Value.Trim();
+        if (!decimal.TryParse(value, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var amount)
+            || decimal.Round(amount, 2) != amount
+            || Math.Abs(decimal.Truncate(amount)) >= 1_000_000_000_000_000m)
+        {
+            throw new UblFormatException($"{element.Name.LocalName} is not an amount with at most 2 decimals.");
+        }
+
+        return amount;
+    }
 }

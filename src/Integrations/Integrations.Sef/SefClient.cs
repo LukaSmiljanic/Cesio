@@ -41,7 +41,7 @@ internal sealed partial class HttpSefClient(HttpClient http, ILogger<HttpSefClie
     public async Task CheckKeyAsync(string apiKey, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(HttpMethod.Get, "api/publicApi/getEfakturaVersion", apiKey, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
     }
 
     public async Task<IReadOnlyList<long>> ListSalesInvoiceIdsAsync(string apiKey, DateOnly from, DateOnly to, CancellationToken cancellationToken)
@@ -49,7 +49,7 @@ internal sealed partial class HttpSefClient(HttpClient http, ILogger<HttpSefClie
         var path = string.Create(CultureInfo.InvariantCulture,
             $"api/publicApi/sales-invoice/ids?dateFrom={from:yyyy-MM-dd}T00:00:00&dateTo={to:yyyy-MM-dd}T23:59:59");
         using var response = await SendAsync(HttpMethod.Post, path, apiKey, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         var body = await response.Content.ReadFromJsonAsync<SalesInvoicesDto>(cancellationToken)
             ?? throw new SefUnavailableException("SEF returned an empty invoice list.");
         return body.SalesInvoiceIds ?? [];
@@ -63,7 +63,7 @@ internal sealed partial class HttpSefClient(HttpClient http, ILogger<HttpSefClie
             return null;
         }
 
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         var dto = await response.Content.ReadFromJsonAsync<SimpleSalesInvoiceDto>(cancellationToken)
             ?? throw new SefUnavailableException("SEF returned an empty invoice.");
         return new SefSalesInvoice(dto.InvoiceId, dto.Status ?? "Unknown", dto.LastModifiedUtc);
@@ -72,7 +72,7 @@ internal sealed partial class HttpSefClient(HttpClient http, ILogger<HttpSefClie
     public async Task<byte[]> GetSalesInvoiceUblAsync(string apiKey, long invoiceId, CancellationToken cancellationToken)
     {
         using var response = await SendAsync(HttpMethod.Get, $"api/publicApi/sales-invoice/xml?invoiceId={invoiceId}", apiKey, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        EnsureSuccess(response);
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
@@ -108,6 +108,15 @@ internal sealed partial class HttpSefClient(HttpClient http, ILogger<HttpSefClie
         }
 
         return response;
+    }
+
+    /// <summary>Any other non-success answer (403, 429, unexpected 4xx) is treated as SEF being unavailable, never as data.</summary>
+    private static void EnsureSuccess(HttpResponseMessage response)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new SefUnavailableException($"SEF answered {(int)response.StatusCode}.");
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "SEF {Method} {Path} → {Status}")]

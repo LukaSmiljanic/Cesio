@@ -6,6 +6,7 @@ using Integrations.Sef;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Modules.Audit.Contracts;
 using Modules.Documents.Contracts;
 using Modules.Organizations.Contracts;
@@ -27,7 +28,7 @@ public sealed record ImportResult(string SefInvoiceId, string Status, Guid? Rece
 /// <c>POST /receivables/import-from-sef</c> (api.md §3.1, task 010): each SEF invoice becomes an immutable Invoice
 /// with its UBL stored as a document and a Draft receivable. Problems are reported per item, not as a failed batch.
 /// </summary>
-internal sealed class ImportService(
+internal sealed partial class ImportService(
     ReceivablesDbContext receivables,
     ISefClient sef,
     ISefConnections connections,
@@ -37,7 +38,8 @@ internal sealed class ImportService(
     UnitOfWork unitOfWork,
     IAuditWriter audit,
     IRequestContext request,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<ImportService> logger)
 {
     public const int MaxBatch = 50;
 
@@ -57,6 +59,7 @@ internal sealed class ImportService(
             return SefConnectionInvalid();
         }
 
+        var results = new List<ImportResult>();
         try
         {
             if (await RequestedIdsAsync(body, apiKey, cancellationToken) is not { } ids)
@@ -65,7 +68,6 @@ internal sealed class ImportService(
                     $"Send 1 to {MaxBatch} numeric sefInvoiceIds, or issueDateFrom ≤ issueDateTo of at most 31 days.");
             }
 
-            var results = new List<ImportResult>();
             foreach (var id in ids.Distinct())
             {
                 results.Add(await ImportOneAsync(orgId, organization.Pib, apiKey, id, cancellationToken));
@@ -76,7 +78,9 @@ internal sealed class ImportService(
         catch (SefUnauthorizedException)
         {
             await connections.MarkInvalidAsync(orgId, cancellationToken);
-            return SefConnectionInvalid();
+            // Items imported before the key stopped working stay imported (409 is final) and are listed.
+            return Results.Problem(detail: "SEF rejected the stored API key. Connect a valid key.", statusCode: StatusCodes.Status409Conflict,
+                extensions: new Dictionary<string, object?> { ["errorCode"] = "sef_connection_invalid", ["results"] = results });
         }
         catch (SefUnavailableException)
         {
@@ -134,14 +138,16 @@ internal sealed class ImportService(
     private async Task<ImportResult> ImportOneAsync(Guid orgId, string orgPib, string apiKey, long id, CancellationToken cancellationToken)
     {
         var sefId = id.ToString(CultureInfo.InvariantCulture);
-        if (await ExistingAsync(sefId, cancellationToken) is { } existing)
-        {
-            return existing;
-        }
-
+        // SEF first: only invoices this seller's key can see are looked up, so the answer never reveals what other
+        // organizations imported.
         if (await sef.GetSalesInvoiceAsync(apiKey, id, cancellationToken) is not { } sefInvoice)
         {
             return new ImportResult(sefId, "NotFound");
+        }
+
+        if (await ExistingAsync(sefId, cancellationToken) is { } existing)
+        {
+            return existing;
         }
 
         var ubl = await sef.GetSalesInvoiceUblAsync(apiKey, id, cancellationToken);
@@ -150,13 +156,14 @@ internal sealed class ImportService(
         {
             invoice = UblParser.Parse(ubl);
         }
-        catch (UblFormatException exception)
+        catch (UblFormatException)
         {
-            return new ImportResult(sefId, "Unsupported", Reason: $"malformed_ubl: {exception.Message}");
+            return new ImportResult(sefId, "Unsupported", Reason: "malformed_ubl");
         }
 
         if (Unsupported(invoice, orgPib) is { } rejection)
         {
+            LogRejected(logger, sefId, rejection.Reason);
             return new ImportResult(sefId, rejection.Status, Reason: rejection.Reason);
         }
 
@@ -166,16 +173,27 @@ internal sealed class ImportService(
             return new ImportResult(sefId, "Unsupported", Reason: "ubl_not_storable");
         }
 
-        try
+        // A parallel import may win a unique index: the same invoice (→ AlreadyImported), or a new debtor shared with
+        // another invoice (→ one retry, the debtor now exists). A lost race can leave its UBL document unused.
+        for (var attempt = 0; ; attempt++)
         {
-            return await CreateAsync(orgId, sefId, sefInvoice, invoice, document, cancellationToken);
-        }
-        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
-        {
-            // A parallel import of the same invoice won the unique index (sef_invoice_id or seller + number + date).
-            receivables.ChangeTracker.Clear();
-            return await ExistingAsync(sefId, cancellationToken)
-                ?? new ImportResult(sefId, "AlreadyImported", Reason: "duplicate_invoice_number");
+            try
+            {
+                return await CreateAsync(orgId, sefId, sefInvoice, invoice, document, cancellationToken);
+            }
+            catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+            {
+                receivables.ChangeTracker.Clear();
+                if (await ExistingAsync(sefId, cancellationToken) is { } winner)
+                {
+                    return winner;
+                }
+
+                if (attempt > 0)
+                {
+                    return new ImportResult(sefId, "AlreadyImported", Reason: "duplicate_invoice_number");
+                }
+            }
         }
     }
 
@@ -202,9 +220,17 @@ internal sealed class ImportService(
             return ("Unsupported", "debtor_without_pib");
         }
 
-        if (invoice.NetAmount + invoice.VatAmount != invoice.GrossAmount || invoice.GrossAmount <= 0)
+        if (invoice.NetAmount < 0 || invoice.VatAmount < 0 || invoice.GrossAmount <= 0
+            || invoice.NetAmount + invoice.VatAmount != invoice.GrossAmount)
         {
             return ("Unsupported", "totals_inconsistent");
+        }
+
+        // A deducted prepayment means the debtor owes less than the gross amount; how to value such a receivable is
+        // not decided, so it is not imported (rather than overstating the face value).
+        if (invoice.PayableAmount is { } payable && payable != invoice.GrossAmount)
+        {
+            return ("Unsupported", "payable_differs_from_gross");
         }
 
         return invoice.DueDate is { } due && due >= invoice.IssueDate ? null : ("Unsupported", "due_date_missing");
@@ -250,7 +276,7 @@ internal sealed class ImportService(
             FaceValue = new Money(ubl.GrossAmount, Currency.Rsd),
             MaturityDate = invoice.DueDate,
             State = ReceivableState.Draft,
-            Fingerprint = Fingerprint(debtor.Pib, ubl.GrossAmount, invoice.IssueDate, invoice.DueDate),
+            Fingerprint = Fingerprint(debtor.Pib, ubl.GrossAmount, invoice.Currency, invoice.IssueDate, invoice.DueDate),
             CreatedAt = now,
         };
         receivables.Invoices.Add(invoice);
@@ -269,7 +295,7 @@ internal sealed class ImportService(
             {
                 await receivables.SaveChangesAsync(ct);
                 await audit.WriteAsync(new AuditEntry("Invoice.Imported", "Invoice", invoice.Id, orgId,
-                    Changes: new Dictionary<string, string?> { ["sefInvoiceId"] = sefId, ["ublSha256"] = document.Sha256, ["gross"] = ubl.GrossAmount.ToString("0.00", CultureInfo.InvariantCulture) },
+                    Changes: new Dictionary<string, string?> { ["sefInvoiceId"] = sefId, ["ublSha256"] = document.Sha256, ["gross"] = new Money(ubl.GrossAmount, Currency.Rsd).ToString() },
                     EvidenceDocumentIds: [document.Id]), ct);
                 await audit.WriteAsync(new AuditEntry("Receivable.Created", "Receivable", receivable.Id, orgId,
                     NewState: nameof(ReceivableState.Draft), Related: [new AuditReference("Invoice", invoice.Id)]), ct);
@@ -280,7 +306,7 @@ internal sealed class ImportService(
 
     /// <summary>
     /// An invoice already imported (by anyone: the SEF ID is unique). For the same seller the live receivable is
-    /// returned; another seller's import is reported without its ID.
+    /// returned; another seller's import is reported as NotFound, so nothing about it is revealed.
     /// </summary>
     private async Task<ImportResult?> ExistingAsync(string sefId, CancellationToken cancellationToken)
     {
@@ -292,7 +318,7 @@ internal sealed class ImportService(
 
         if (invoice.SellerOrgId != request.OrganizationId)
         {
-            return new ImportResult(sefId, "AlreadyImported", Reason: "imported_by_another_organization");
+            return new ImportResult(sefId, "NotFound");
         }
 
         var live = await receivables.Receivables.AsNoTracking()
@@ -302,9 +328,13 @@ internal sealed class ImportService(
         return new ImportResult(sefId, "AlreadyImported", live);
     }
 
-    private static string Fingerprint(string debtorPib, decimal gross, DateOnly issue, DateOnly due) =>
+    private static string Fingerprint(string debtorPib, decimal gross, Currency currency, DateOnly issue, DateOnly due) =>
         Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
-            string.Create(CultureInfo.InvariantCulture, $"{debtorPib}|{gross:0.0000}|RSD|{issue:yyyy-MM-dd}|{due:yyyy-MM-dd}"))));
+            string.Create(CultureInfo.InvariantCulture, $"{debtorPib}|{gross:0.0000}|{currency.Code}|{issue:yyyy-MM-dd}|{due:yyyy-MM-dd}"))));
+
+    /// <summary>The SEF ID and the reason only: no parties or amounts in logs (security.md §8).</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "SEF invoice {SefInvoiceId} not imported: {Reason}")]
+    private static partial void LogRejected(ILogger logger, string sefInvoiceId, string reason);
 
     private static IResult SefConnectionInvalid() =>
         Problems.Error(StatusCodes.Status409Conflict, "sef_connection_invalid", "Connect a valid SEF API key first.");

@@ -15,6 +15,7 @@ public sealed record SefConnectionRequest(string ApiKey);
 /// <summary>
 /// <c>PUT /organizations/{id}/sef-connection</c> (task 010 item 3): the key is validated against SEF before it is
 /// stored, and only if SEF returns invoices issued under the organization's PIB. The key is never returned or logged.
+/// Confirming a key change through the organization's official APR email (security.md §2) comes with task 007a.
 /// </summary>
 internal sealed class SefConnectionService(
     OrgsDbContext orgs,
@@ -136,14 +137,20 @@ internal sealed class SefConnectionService(
     /// <summary>A rejected key or another company's key: the connection is (or stays) Invalid, and the key is not stored.</summary>
     private async Task<IResult> RecordInvalidAsync(Guid organizationId, string errorCode, string detail, CancellationToken cancellationToken)
     {
+        // A failed rotation keeps a working connection as it is: only a first or already broken connection becomes Invalid.
         var existing = await orgs.SefConnections.SingleOrDefaultAsync(cancellationToken);
-        Upsert(existing, organizationId, SefConnectionStatus.Invalid, existing?.SupplierPib);
+        var keepsConnection = existing is { Status: SefConnectionStatus.Connected };
+        if (!keepsConnection)
+        {
+            Upsert(existing, organizationId, SefConnectionStatus.Invalid, existing?.SupplierPib);
+        }
+
         await unitOfWork.ExecuteInTransactionAsync(
             async ct =>
             {
                 await orgs.SaveChangesAsync(ct);
                 await audit.WriteAsync(new AuditEntry("Organization.SefKeyRejected", "Organization", organizationId, organizationId,
-                    NewState: nameof(SefConnectionStatus.Invalid), Reason: errorCode), ct);
+                    NewState: keepsConnection ? nameof(SefConnectionStatus.Connected) : nameof(SefConnectionStatus.Invalid), Reason: errorCode), ct);
             },
             cancellationToken);
         return Problems.Error(StatusCodes.Status422UnprocessableEntity, errorCode, detail);
