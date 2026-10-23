@@ -28,6 +28,7 @@ public static class MarketplaceModule
         services.AddScoped<ListingVisibility>();
         services.AddScoped<ListingService>();
         services.AddScoped<OfferService>();
+        services.AddScoped<IListingWriter, ListingWriter>();
         services.AddScoped<IDocumentAccessPolicy, ListingDocumentPolicy>();
         services.Configure<RateLimiterOptions>(options => options.AddPolicy(RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
             http.User.FindFirst(CesioClaims.UserId)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",

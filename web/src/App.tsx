@@ -11,6 +11,7 @@ import {
   OrganizationPage,
   StartSellerPage,
 } from './pages/OrganizationPages'
+import { DealPage, DealsPage } from './pages/DealPages'
 import { MarketplaceListingPage, MarketplacePage, SellerListingsPage } from './pages/ListingPages'
 import { ListingOffersPage, MyOffersPage } from './pages/OfferPages'
 import { ImportPage, ReceivablesPage } from './pages/ReceivablePages'
@@ -82,6 +83,8 @@ export function AppRoutes() {
         element={<RequireSession>{() => <ListingOffersPage />}</RequireSession>}
       />
       <Route path="/offers" element={<RequireSession>{() => <MyOffersPage />}</RequireSession>} />
+      <Route path="/deals" element={<RequireSession>{() => <DealsPage />}</RequireSession>} />
+      <Route path="/deals/:id" element={<RequireSession>{() => <DealPage />}</RequireSession>} />
       <Route
         path="/marketplace"
         element={<RequireSession>{() => <MarketplacePage />}</RequireSession>}

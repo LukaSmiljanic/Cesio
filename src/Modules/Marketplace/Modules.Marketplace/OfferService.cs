@@ -243,6 +243,7 @@ internal sealed class OfferService(
         {
             await audit.WriteAsync(new AuditEntry("Offer.Superseded", "Offer", offer.Id, offer.FactorOrgId,
                 PreviousState: nameof(OfferState.Active), NewState: nameof(OfferState.Superseded), Related: [new AuditReference("Listing", listingId)]), cancellationToken);
+            await outbox.AddAsync(new OfferSuperseded(offer.Id, listingId, offer.FactorOrgId), cancellationToken);
         }
     }
 

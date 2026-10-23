@@ -306,12 +306,12 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
         Assert.True(await CountAsync($"SELECT COUNT(*) FROM audit.access_log WHERE entity_id = '{documentId}' AND action = 'Document.Downloaded'") >= 1);
     }
 
-    private sealed record Party(ApiClient Client, Guid Org, string Pib, string Key);
+    private sealed record Party(ApiClient Client, Guid Org, string Pib, string Key, string Email = "");
 
     private async Task<Party> SellerAsync()
     {
         var client = _app.NewClient();
-        await client.SignUpAsync();
+        var (email, _) = await client.SignUpAsync();
         var pib = TestIds.NewPib();
         var org = (await ApiClient.ReadAsync(await client.PostAsync("/api/v1/organizations", new { pib }))).GetProperty("id").GetGuid();
         using (var approved = await client.PostAsync($"/api/v1/dev/organizations/{org}/approve"))
@@ -327,7 +327,7 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
             Assert.Equal(HttpStatusCode.OK, connect.StatusCode);
         }
 
-        return new Party(client, org, pib, key);
+        return new Party(client, org, pib, key, email);
     }
 
     private async Task<Party> FactorAsync(bool approve = true, string? pib = null)

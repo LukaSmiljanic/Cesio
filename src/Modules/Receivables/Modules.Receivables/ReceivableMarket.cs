@@ -7,13 +7,13 @@ using Shared.Kernel;
 
 namespace Modules.Receivables;
 
-/// <summary><see cref="IReceivableMarket"/> over the receivables schema; reads ignore the seller filter on purpose.</summary>
+/// <summary><see cref="IReceivableMarket"/> and <see cref="IReceivableWriter"/> over the receivables schema; reads ignore the seller filter on purpose.</summary>
 internal sealed class ReceivableMarket(
     ReceivablesDbContext receivables,
     SefStatusPoller poller,
     UnitOfWork unitOfWork,
     IAuditWriter audit,
-    TimeProvider timeProvider) : IReceivableMarket
+    TimeProvider timeProvider) : IReceivableMarket, IReceivableWriter
 {
     public async Task<MarketReceivable?> GetAsync(Guid receivableId, CancellationToken cancellationToken)
     {
@@ -92,4 +92,20 @@ internal sealed class ReceivableMarket(
         ?? await receivables.Receivables.IgnoreQueryFilters().AsNoTracking()
             .Where(r => receivables.Invoices.IgnoreQueryFilters().Any(i => i.Id == r.InvoiceId && i.UblDocumentId == documentId))
             .OrderByDescending(r => r.CreatedAt).Select(r => (Guid?)r.Id).FirstOrDefaultAsync(cancellationToken);
+
+    public async Task ReserveAsync(Guid receivableId, Guid dealId, CancellationToken cancellationToken)
+    {
+        await receivables.Database.ExecuteSqlAsync($"SELECT id FROM receivables.receivables WITH (UPDLOCK, ROWLOCK) WHERE id = {receivableId}", cancellationToken);
+        var receivable = await receivables.Receivables.IgnoreQueryFilters().SingleAsync(r => r.Id == receivableId, cancellationToken);
+        var invoice = await receivables.Invoices.IgnoreQueryFilters().AsNoTracking().SingleAsync(i => i.Id == receivable.InvoiceId, cancellationToken);
+        if (receivable.State != ReceivableState.Listed || receivable.FaceValue > new Money(invoice.GrossAmount, invoice.Currency))
+        {
+            throw new DomainConflictException("receivable_ineligible", "The receivable can no longer be reserved.");
+        }
+
+        receivable.State = ReceivableState.Reserved;
+        await receivables.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync(new AuditEntry("Receivable.Reserved", "Receivable", receivableId, receivable.SellerOrgId,
+            PreviousState: nameof(ReceivableState.Listed), NewState: nameof(ReceivableState.Reserved), Related: [new AuditReference("Deal", dealId)]), cancellationToken);
+    }
 }

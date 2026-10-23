@@ -115,13 +115,18 @@ internal sealed class OrganizationService(
 
     /// <summary>
     /// Development only (tasks/README "Phase 2 stubs"): approves the member's own organization, standing in for the
-    /// KYB decision of task 007 so the thin slice can be demonstrated.
+    /// KYB decision of task 007 so the thin slice can be demonstrated. For a seller it also makes the caller Signatory,
+    /// standing in for the accepted pristupnica of task 007a.
     /// </summary>
     public async Task<IResult> ApproveForDevelopmentAsync(Guid organizationId, CancellationToken cancellationToken)
     {
         var organization = await orgs.Organizations.SingleAsync(o => o.Id == organizationId, cancellationToken);
         var previous = organization.OnboardingStatus;
         organization.OnboardingStatus = OnboardingStatus.Approved;
+        if (organization.OrgType == OrganizationType.Seller)
+        {
+            (await orgs.Memberships.SingleAsync(m => m.OrgId == organizationId && m.UserId == UserId, cancellationToken)).IsSignatory = true;
+        }
         return await SaveAsync(
             async ct => await audit.WriteAsync(new AuditEntry("Organization.Approved", "Organization", organization.Id, organization.Id,
                 PreviousState: previous.ToString(), NewState: nameof(OnboardingStatus.Approved), Reason: "development_stub"), ct),

@@ -20,7 +20,7 @@ internal static class OfferMetrics
     {
         var discount = faceValue.Subtract(purchasePrice);
         var net = purchasePrice.Subtract(sellerFee);
-        var tenor = maturity.DayNumber - AddBusinessDays(today, fundingDeadlineBusinessDays).DayNumber;
+        var tenor = maturity.DayNumber - BusinessDays.Add(today, fundingDeadlineBusinessDays).DayNumber;
         decimal? cost = tenor > 0 && net.Amount > 0
             ? decimal.Round(discount.Add(sellerFee).Amount / net.Amount * DaysPerYear / tenor * 100m, 2, MidpointRounding.AwayFromZero)
             : null;
@@ -30,21 +30,5 @@ internal static class OfferMetrics
             net.Round(),
             tenor,
             cost);
-    }
-
-    /// <summary>Monday to Friday; public holidays are not known to the platform yet.</summary>
-    public static DateOnly AddBusinessDays(DateOnly from, int days)
-    {
-        var date = from;
-        while (days > 0)
-        {
-            date = date.AddDays(1);
-            if (date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday))
-            {
-                days--;
-            }
-        }
-
-        return date;
     }
 }

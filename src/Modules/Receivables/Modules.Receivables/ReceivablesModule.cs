@@ -20,7 +20,9 @@ public static class ReceivablesModule
         services.AddScoped<ImportService>();
         services.AddScoped<VerificationService>();
         services.AddScoped<SefStatusPoller>();
-        services.AddScoped<IReceivableMarket, ReceivableMarket>();
+        services.AddScoped<ReceivableMarket>();
+        services.AddScoped<IReceivableMarket>(provider => provider.GetRequiredService<ReceivableMarket>());
+        services.AddScoped<IReceivableWriter>(provider => provider.GetRequiredService<ReceivableMarket>());
 
         // The check pipeline of task 011, in the order of the task's table.
         services.AddScoped<IReceivableCheck, SefFreshApprovedCheck>();

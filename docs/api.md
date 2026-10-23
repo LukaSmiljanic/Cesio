@@ -26,7 +26,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 | Listings (seller) | `POST /receivables/{id}/listings` ♻, `GET /listings` (the seller's own), `GET /listings/{id}`, `POST /listings/{id}/withdraw` ♻, `GET /listings/{id}/offers` |
 | Marketplace (factor) | `GET /marketplace/listings` (filters: amount, tenor, debtor PIB, recourse preference), `GET /marketplace/listings/{id}`, `GET /marketplace/listings/{id}/documents/{docId}/content` (later scope; in the MVP a factor reads a listing's documents through `GET /documents/{id}/content`, granted by the listing visibility rule) |
 | Offers | `GET /marketplace/listings/{id}/fee-preview?purchasePrice=` (factor; the fee before submitting), `POST /marketplace/listings/{id}/offers` ♻ (factor), `GET /offers` (factor's own), `GET /offers/{id}`, `POST /offers/{id}/withdraw` ♻ (factor), `POST /offers/{id}/reject` ♻ (seller), `POST /offers/{id}/accept` ♻🔐 (seller Signatory) |
-| Deals | `GET /deals`, `GET /deals/{id}`, `POST /deals/{id}/cdd-decision` ♻🔐 (factor Signatory), `POST /deals/{id}/contract` ♻, `POST /deals/{id}/terms-confirmation` ♻🔐, `POST /deals/{id}/signed-contract` ♻🔐, `POST /deals/{id}/cef-registration` ♻, `POST /deals/{id}/debtor-notification` ♻, `POST /deals/{id}/funding-report` ♻🔐, `POST /deals/{id}/funding-confirmation` ♻🔐, `POST /deals/{id}/outcome` ♻🔐, `POST /deals/{id}/cancel` ♻🔐, `GET /deals/{id}/kyb-package` (factor), `GET /deals/{id}/timeline` |
+| Deals | `GET /deals`, `GET /deals/{id}`, `GET /deals/{id}/timeline` (the seller and the factor of the deal only), `POST /deals/{id}/cdd-decision` ♻🔐 (factor Signatory), `POST /deals/{id}/contract` ♻, `POST /deals/{id}/terms-confirmation` ♻🔐, `POST /deals/{id}/signed-contract` ♻🔐, `POST /deals/{id}/cef-registration` ♻, `POST /deals/{id}/debtor-notification` ♻, `POST /deals/{id}/funding-report` ♻🔐, `POST /deals/{id}/funding-confirmation` ♻🔐, `POST /deals/{id}/outcome` ♻🔐, `POST /deals/{id}/cancel` ♻🔐, `GET /deals/{id}/kyb-package` (factor) |
 | Disputes | `POST /deals/{id}/disputes` ♻, `GET /disputes/{id}`, `POST /disputes/{id}/comments` |
 | Fees | `GET /fees/charges`, `GET /fees/statements/{period}` |
 | Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `GET/PUT /notification-preferences` |
@@ -77,11 +77,11 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 - **Audit:** `Offer.Submitted`. Notification to the seller.
 
 ### 3.6 `POST /offers/{id}/accept` ♻🔐
-- **Auth:** seller org, **Signatory**, step-up MFA, `If-Match` on the listing version.
+- **Auth:** seller org, **Signatory**, step-up MFA, `If-Match` on the listing version (MVP: checked when sent).
 - **Request:** `{ "acknowledgements": { "netProceedsShown": true, "termsVersion": "2026-10" } }`
-- **Behaviour (single transaction, row locks on listing + receivable):** re-validate offer Active & unexpired; factor still authorized; no holds; fresh SEF status ≤ 1 h (re-poll before opening the transaction); INV-R5. Then offer → Accepted, the others → Superseded, listing → Closed, receivable → Reserved, Deal created (`AwaitingFactorCdd`, signature deadline computed), outbox events, audit.
+- **Behaviour (single transaction, row locks on listing + receivable):** re-validate offer Active & unexpired; factor still authorized; no holds; fresh SEF status ≤ 1 h (re-poll before opening the transaction); INV-R5. Then offer → Accepted, the others → Superseded, listing → Closed, receivable → Reserved, Deal created (`AwaitingFactorCdd`, signature deadline = end of the day `deals.signatureDeadlineBusinessDays` business days later, product-spec §parameters), outbox events, audit.
 - **Response 201:** `{ "dealId": "...", "reference": "DL-2026-000123" }`
-- **Errors:** 409 `offer_not_active`, 409 `listing_not_open`, 409 `receivable_ineligible` (SEF changed), 412 `concurrency_conflict`, 423 `hold_active`, 401 `step_up_required`, 503 `upstream_unavailable`.
+- **Errors:** 404 `not_found` (not the seller's offer), 403 `signatory_required`, 409 `offer_not_active`, 409 `listing_not_open`, 409 `receivable_ineligible` (SEF changed), 412 `concurrency_conflict`, 423 `hold_active`, 401 `step_up_required`, 503 `upstream_unavailable`.
 - **Audit:** `Offer.Accepted`, `Offer.Superseded` ×n, `Listing.Closed`, `Receivable.Reserved`, `Deal.Created`.
 
 ### 3.7 `POST /deals/{id}/signed-contract` ♻🔐

@@ -13,6 +13,7 @@ namespace Shared.Infrastructure.Persistence;
 public sealed class UnitOfWork : IAsyncDisposable
 {
     private readonly List<DbContext> _contexts = [];
+    private int _savepoints;
 
     public UnitOfWork(IConfiguration configuration)
     {
@@ -77,7 +78,7 @@ public sealed class UnitOfWork : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(work);
         if (Transaction is not null)
         {
-            return await work(cancellationToken);
+            return await JoinAsync(Transaction, work, cancellationToken);
         }
 
         await BeginAsync(cancellationToken);
@@ -119,6 +120,43 @@ public sealed class UnitOfWork : IAsyncDisposable
         if (Transaction is not null)
         {
             context.Database.UseTransaction(Transaction);
+        }
+    }
+
+    /// <summary>
+    /// Work inside the outer owner's transaction runs behind a savepoint: if it throws, its writes are undone (and the
+    /// contexts forget their tracked entities) before the exception continues. An idempotent endpoint commits 4xx
+    /// answers, so a handler that turns a failure into a 409 must not leave half of its writes behind (ADR-006).
+    /// </summary>
+    private async Task<T> JoinAsync<T>(SqlTransaction transaction, Func<CancellationToken, Task<T>> work, CancellationToken cancellationToken)
+    {
+        var savepoint = $"uow_{Interlocked.Increment(ref _savepoints)}";
+        await transaction.SaveAsync(savepoint, cancellationToken);
+        try
+        {
+            return await work(cancellationToken);
+        }
+        catch
+        {
+            try
+            {
+                await transaction.RollbackAsync(savepoint, CancellationToken.None);
+            }
+            catch (InvalidOperationException)
+            {
+                // The server already aborted the whole transaction (e.g. a deadlock victim); the owner rolls it back.
+            }
+            catch (SqlException)
+            {
+                // As above: the transaction is no longer committable.
+            }
+
+            foreach (var context in _contexts)
+            {
+                context.ChangeTracker.Clear();
+            }
+
+            throw;
         }
     }
 

@@ -165,4 +165,4 @@ Email + in-app. Events: verification result, KYB decision, authorization expirin
 - **Exports:** CSV of deals and fee statements, plus an audit extract per entity (admin).
 
 ## 10. Configurable business parameters (admin, versioned, audited)
-Minimum/maximum receivable amount; minimum days to maturity at listing (default 15) and at signing (default 7); maximum tenor (pending LQ-10); listing maximum duration (`marketplace.maxListingDays`, working default 30 days until decided, task 012); offer maximum validity; signature deadline (default 5 business days); funding deadline maximum; fee schedule; auto-verification thresholds.
+Minimum/maximum receivable amount; minimum days to maturity at listing (default 15) and at signing (default 7); maximum tenor (pending LQ-10); listing maximum duration (`marketplace.maxListingDays`, working default 30 days until decided, task 012); offer maximum validity; signature deadline (`deals.signatureDeadlineBusinessDays`, default 5 business days: the end of that day in UTC, Monday–Friday, no holiday calendar yet); funding deadline maximum; fee schedule; auto-verification thresholds.

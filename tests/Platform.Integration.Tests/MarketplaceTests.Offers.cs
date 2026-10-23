@@ -157,7 +157,7 @@ public sealed partial class MarketplaceTests
     {
         // financial-model.md §2, €100,000 example: t = 90 days. The funding date is 2 business days after a Monday.
         var monday = new DateOnly(2026, 10, 19);
-        var maturity = OfferMetrics.AddBusinessDays(monday, 2).AddDays(90);
+        var maturity = BusinessDays.Add(monday, 2).AddDays(90);
         var factorPays = OfferMetrics.Compute(Money.Parse("100000.00", Currency.Rsd), Money.Parse("97000.00", Currency.Rsd), Money.Zero(Currency.Rsd), maturity, monday, 2);
         var sellerPays = OfferMetrics.Compute(Money.Parse("100000.00", Currency.Rsd), Money.Parse("97000.00", Currency.Rsd), Money.Parse("450.00", Currency.Rsd), maturity, monday, 2);
 
@@ -167,6 +167,6 @@ public sealed partial class MarketplaceTests
         Assert.Equal(12.54m, factorPays.IndicativeAnnualCostPercent);
         Assert.Equal(Money.Parse("96550.00", Currency.Rsd), sellerPays.SellerNetProceeds);
         Assert.Equal(14.49m, sellerPays.IndicativeAnnualCostPercent);
-        Assert.Equal(new DateOnly(2026, 10, 26), OfferMetrics.AddBusinessDays(new DateOnly(2026, 10, 23), 1));
+        Assert.Equal(new DateOnly(2026, 10, 26), BusinessDays.Add(new DateOnly(2026, 10, 23), 1));
     }
 }

@@ -13,7 +13,7 @@ Target: Microsoft SQL Server 2022+ compatible, hosted as **Azure SQL Database** 
 - **Filtered unique indexes** replace PostgreSQL partial indexes. Their predicate allows only simple comparisons joined by `AND` (no `NOT IN`, no `OR`), and they need the standard ANSI `SET` options (EF Core's defaults). A unique index treats `NULL`s as equal, so nullable unique columns are filtered with `IS NOT NULL`.
 - **Deletion:** no hard deletes of business or financial rows. Soft delete (`deleted_at`) **only** for drafts, notification preferences and unsubmitted documents. Immutability (ADR-021):
   - **Fully append-only tables** (`audit.*`, `deals.deal_state_history`, `deals.signatures`, `deals.contract_documents`, `deals.funding_reports`, `deals.funding_confirmations`, `receivables.verification_checks`, `receivables.seller_declarations`, `receivables.sef_status_history`): `DENY UPDATE, DELETE` to `app_rw` + an INSTEAD OF UPDATE, DELETE trigger that throws.
-  - **Tables whose state changes but some columns are fixed** (`marketplace.offers`: price, recourse, terms and the fee snapshot `fee_schedule_version`, `platform_fee`, `seller_fee`, `vat_pending`; only `state` and the once-written `rejection_reason` change; `deals.deals`: parties, amounts, recourse; `fees.fee_charges`: amounts, payer): column-level `DENY UPDATE (col, …)` to `app_rw` + an AFTER UPDATE trigger with `IF UPDATE(col) THROW`.
+  - **Tables whose state changes but some columns are fixed** (`marketplace.offers`: price, recourse, terms and the fee snapshot `fee_schedule_version`, `platform_fee`, `seller_fee`, `vat_pending`; only `state` and the once-written `rejection_reason` change; `deals.deals`: parties, amounts, recourse, terms, fee snapshot and acceptance; `fees.fee_charges`: amounts, payer): column-level `DENY UPDATE (col, …)` to `app_rw` + an AFTER UPDATE trigger with `IF UPDATE(col) THROW`.
   - **Versioned configuration** (`fees.fee_schedules`): an AFTER UPDATE trigger allows only the one-time approval (`approved_by`, `approved_at`) and an INSTEAD OF DELETE trigger throws. The seed version is created by the system user (all zeros) and approved by a distinct system approver ID, so the four-eyes CHECK holds for it too.
   - **EF Core:** every table with a trigger is declared with `ToTable(t => t.HasTrigger("…"))` in its mapping. Otherwise EF Core's `OUTPUT` clause fails on tables with triggers.
 
@@ -173,6 +173,10 @@ CREATE TABLE deals.deals (
   face_value decimal(19,4) NOT NULL, purchase_price decimal(19,4) NOT NULL, currency char(3) NOT NULL,
   recourse_type nvarchar(200) NOT NULL, state nvarchar(200) NOT NULL,
   signature_deadline datetimeoffset(3) NOT NULL, funding_deadline date,
+  -- terms and fee snapshot copied from the accepted offer (task 014); fixed by a trigger and a column DENY
+  funding_deadline_bdays int NOT NULL, conditions_text nvarchar(1000), fee_schedule_version int NOT NULL,
+  platform_fee decimal(19,4) NOT NULL, seller_fee decimal(19,4) NOT NULL, vat_pending bit NOT NULL,
+  accepted_by uniqueidentifier NOT NULL, accepted_at datetimeoffset(3) NOT NULL, accepted_step_up_at datetimeoffset(3) NOT NULL,
   version int NOT NULL DEFAULT 0,
   CHECK (purchase_price < face_value)
 );

@@ -69,3 +69,14 @@ public interface IReceivableMarket
     /// <summary>The receivable a document belongs to (its invoice UBL or an attached supporting document).</summary>
     Task<Guid?> ReceivableOfDocumentAsync(Guid documentId, CancellationToken cancellationToken);
 }
+
+/// <summary>The Receivables side of offer acceptance (task 014), operating on the caller's transaction.</summary>
+public interface IReceivableWriter
+{
+    /// <summary>
+    /// Locks the receivable (UPDLOCK, ROWLOCK), requires Listed and INV-R5 (the face value still within the invoice
+    /// gross), and moves it to Reserved with an audit event.
+    /// </summary>
+    /// <exception cref="Shared.Kernel.DomainConflictException"><c>receivable_ineligible</c>.</exception>
+    Task ReserveAsync(Guid receivableId, Guid dealId, CancellationToken cancellationToken);
+}

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
+import { dealsApi } from '../api/deals'
+import { useStepUp } from '../auth/stepUpContext'
 import { offersApi, type FactorOffer, type RecourseType, type SellerOffer } from '../api/offers'
 import { formatMoney } from '../api/receivables'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
@@ -199,6 +201,13 @@ export function ListingOffersPage() {
     mutationFn: (offerId: string) => offersApi.reject(offerId, null),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['listing-offers', id] }),
   })
+  const navigate = useNavigate()
+  const withStepUp = useStepUp()
+  const [confirming, setConfirming] = useState<SellerOffer | null>(null)
+  const accept = useMutation({
+    mutationFn: (offerId: string) => withStepUp(() => dealsApi.accept(offerId)),
+    onSuccess: (deal) => navigate(`/deals/${deal.dealId}`),
+  })
   const rows = [...(offers.data ?? [])].sort((a, b) => compare(a, b, sort))
 
   return (
@@ -246,13 +255,16 @@ export function ListingOffersPage() {
               <td>{offerStates[o.state] ?? o.state}</td>
               <td>
                 {o.state === 'Active' && (
-                  <Button
-                    variant="secondary"
-                    disabled={reject.isPending}
-                    onClick={() => reject.mutate(o.id)}
-                  >
-                    Odbij
-                  </Button>
+                  <span className="flex gap-1">
+                    <Button onClick={() => setConfirming(o)}>Prihvati</Button>
+                    <Button
+                      variant="secondary"
+                      disabled={reject.isPending}
+                      onClick={() => reject.mutate(o.id)}
+                    >
+                      Odbij
+                    </Button>
+                  </span>
                 )}
               </td>
             </tr>
@@ -264,7 +276,29 @@ export function ListingOffersPage() {
         ponuda niti savet.
       </p>
       {offers.data?.length === 0 && <p className="text-sm text-slate-600">Još nema ponuda.</p>}
-      <ErrorMessage error={offers.error ?? reject.error} />
+      {confirming && (
+        <div className="mt-4 space-y-2 rounded border border-slate-300 p-3 text-sm">
+          <h2 className="font-medium">Prihvatanje ponude</h2>
+          <p>
+            Faktor {confirming.factorName ?? confirming.factorOrgId} plaća{' '}
+            {formatMoney(confirming.purchasePrice)}; vi primate neto{' '}
+            {formatMoney(confirming.metrics.sellerNetProceeds)} ·{' '}
+            {recourseLabels[confirming.recourseType]} · isplata{' '}
+            {confirming.fundingDeadlineBusinessDays} radnih dana posle potpisa.
+          </p>
+          {confirming.conditions && <p>Uslovi: {confirming.conditions}</p>}
+          <p>Ostale ponude se zatvaraju, a potraživanje se rezerviše za ovaj posao.</p>
+          <div className="flex gap-2">
+            <Button disabled={accept.isPending} onClick={() => accept.mutate(confirming.id)}>
+              Potvrdi prihvatanje
+            </Button>
+            <Button variant="secondary" onClick={() => setConfirming(null)}>
+              Odustani
+            </Button>
+          </div>
+        </div>
+      )}
+      <ErrorMessage error={offers.error ?? reject.error ?? accept.error} />
       <Link to="/listings" className="mt-4 block text-sm underline">
         Nazad
       </Link>

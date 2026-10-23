@@ -14,7 +14,7 @@ A seller Signatory accepts one offer. In a single atomic transaction this closes
 3. Transaction (Deals module application service, shared connection):
    - `SELECT … WITH (UPDLOCK, ROWLOCK)` on the listing and receivable rows; verify versions/states;
    - offer → Accepted; other Active offers → Superseded; listing → Closed; receivable → Reserved;
-   - insert Deal (`AwaitingFactorCdd`, reference `DL-YYYY-NNNNNN`, terms copied from the offer, fee snapshot, `signatureDeadline` = now + `signatureDeadlineBusinessDays`);
+   - insert Deal (`AwaitingFactorCdd`, reference `DL-YYYY-NNNNNN`, terms copied from the offer, fee snapshot, `signatureDeadline` = the end of the day `signatureDeadlineBusinessDays` business days after acceptance, product-spec §parameters);
    - deal_state_history row; audit events; outbox events (`OfferAccepted`, `DealCreated`, `OfferSuperseded`×n).
 4. Deal read endpoints: `GET /deals`, `GET /deals/{id}`, `GET /deals/{id}/timeline` (seller and factor of the deal only).
 5. UI: accept confirmation dialog showing net proceeds and key terms + step-up; deal page skeleton with timeline.
@@ -22,6 +22,7 @@ A seller Signatory accepts one offer. In a single atomic transaction this closes
 # Business Rules
 - Only Signatory, with step-up ≤ 5 min.
 - The offer must be Active and `validUntil` > now; the listing Open; the receivable Listed; the SEF status fresh ≤ 1 h and approved; faceValue still consistent.
+- Implementation notes (2026-10-23, simplest options): the write contracts are `IListingWriter.CloseForAcceptanceAsync` and `IReceivableWriter.ReserveAsync`; the row locks are taken with `SELECT … WITH (UPDLOCK, ROWLOCK)` before the rows are loaded; a refused step throws `DomainConflictException` and the unit of work rolls the step back to a savepoint, so a 4xx answer (which the idempotency middleware commits) never leaves partial writes; the deal reference comes from the sequence `deals.deal_reference_seq`; the signature deadline is the end of the day `deals.signatureDeadlineBusinessDays` (default 5, product-spec §parameters) business days after acceptance, Monday–Friday, UTC; `If-Match` with the listing version is checked when sent; a changed SEF status at acceptance makes the receivable Ineligible (the listing stays as it is until task 020); seller Signatory comes from the development approval until the pristupnica of task 007a; holds are a no-holds stub until task 007, so the 423 path is not testable yet.
 
 # Technical Requirements
 Write contracts: `Marketplace.Contracts.IListingWriter.CloseForAcceptance(...)`, `Receivables.Contracts.IReceivableWriter.Reserve(...)`, each operating on the shared transaction. No events are processed synchronously inside the transaction.
@@ -42,8 +43,8 @@ Audit all transitions with the step-up timestamp; non-party access → 404.
 - Idempotent replay returns the same dealId.
 
 # Acceptance Criteria
-- [ ] All tests above green.
-- [ ] One transaction per acceptance verified (rollback on any failure leaves no partial state).
+- [x] All tests above green (except the 423 hold path: holds are a stub until task 007).
+- [x] One transaction per acceptance verified (rollback on any failure leaves no partial state).
 
 # Out of Scope
 Deal steps after creation (015–017).

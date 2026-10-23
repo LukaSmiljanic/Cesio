@@ -92,6 +92,9 @@ const messages: Record<string, string> = {
   listing_closed: 'Rok za ponude je prošao.',
   offer_exists: 'Već imate aktivnu ponudu na ovom listingu; prvo je povucite.',
   offer_not_active: 'Ponuda više nije aktivna.',
+  listing_not_open: 'Listing više nije otvoren.',
+  receivable_ineligible: 'Potraživanje više ne ispunjava uslove (SEF status se promenio).',
+  signatory_required: 'Ponudu može da prihvati samo potpisnik firme.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

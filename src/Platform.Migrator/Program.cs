@@ -6,6 +6,7 @@ using Modules.Documents;
 using Modules.Identity;
 using Modules.Organizations;
 using Modules.Receivables;
+using Modules.Deals;
 using Modules.Fees;
 using Modules.Marketplace;
 using Shared.Infrastructure.Persistence;
@@ -23,7 +24,8 @@ builder.Services
     .AddOrganizationsModule()
     .AddReceivablesModule()
     .AddMarketplaceModule()
-    .AddFeesModule();
+    .AddFeesModule()
+    .AddDealsModule();
 
 using var host = builder.Build();
 await DatabaseMigrator.MigrateAsync(host.Services, PersistenceSetup.ConnectionString(builder.Configuration), CancellationToken.None);
