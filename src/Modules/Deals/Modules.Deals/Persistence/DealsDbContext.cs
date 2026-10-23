@@ -18,9 +18,16 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
 
     public const string DealImmutableTrigger = "tr_deals_immutable";
 
+
     internal DbSet<Deal> Deals => Set<Deal>();
 
     internal DbSet<DealStateChange> StateHistory => Set<DealStateChange>();
+
+    internal DbSet<CddDecision> CddDecisions => Set<CddDecision>();
+
+    internal DbSet<ContractDocument> ContractDocuments => Set<ContractDocument>();
+
+    internal DbSet<TermsConfirmation> TermsConfirmations => Set<TermsConfirmation>();
 
     protected override string Schema => SchemaName;
 
@@ -48,6 +55,7 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
             deal.Property(d => d.RecourseType).HasConversion<string>().HasMaxLength(20).IsUnicode(false);
             deal.Property(d => d.State).HasConversion<string>().HasMaxLength(40).IsUnicode(false);
             deal.Property(d => d.ConditionsText).HasMaxLength(1000);
+            deal.Property(d => d.AgreedContractSha256).HasMaxLength(64).IsFixedLength().IsUnicode(false);
             deal.HasIndex(d => d.OfferId).IsUnique();
             // INV-R1: the core anti-double-financing guarantee (database.md §2).
             deal.HasIndex(d => d.ReceivableId).IsUnique()
@@ -66,6 +74,37 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
             change.Property(c => c.ToState).HasConversion<string>().HasMaxLength(40).IsUnicode(false);
             change.HasOne<Deal>().WithMany().HasForeignKey(c => c.DealId).OnDelete(DeleteBehavior.Restrict);
             change.HasIndex(c => new { c.DealId, c.At });
+        });
+
+        modelBuilder.Entity<CddDecision>(decision =>
+        {
+            decision.ToTable("cdd_decisions", table => table.HasTrigger("tr_cdd_decisions_append_only"));
+            decision.HasKey(d => d.Id);
+            decision.Property(d => d.Id).ValueGeneratedNever();
+            decision.Property(d => d.Reason).HasMaxLength(400);
+            decision.HasOne<Deal>().WithMany().HasForeignKey(d => d.DealId).OnDelete(DeleteBehavior.Restrict);
+            decision.HasIndex(d => d.DealId).IsUnique();
+        });
+
+        modelBuilder.Entity<ContractDocument>(contract =>
+        {
+            contract.ToTable("contract_documents", table => table.HasTrigger("tr_contract_documents_append_only"));
+            contract.HasKey(c => c.Id);
+            contract.Property(c => c.Id).ValueGeneratedNever();
+            contract.Property(c => c.Sha256).HasMaxLength(64).IsFixedLength().IsUnicode(false);
+            contract.HasOne<Deal>().WithMany().HasForeignKey(c => c.DealId).OnDelete(DeleteBehavior.Restrict);
+            contract.HasIndex(c => new { c.DealId, c.UploadedAt });
+        });
+
+        modelBuilder.Entity<TermsConfirmation>(confirmation =>
+        {
+            confirmation.ToTable("terms_confirmations", table => table.HasTrigger("tr_terms_confirmations_append_only"));
+            confirmation.HasKey(c => c.Id);
+            confirmation.Property(c => c.Id).ValueGeneratedNever();
+            confirmation.Property(c => c.Sha256).HasMaxLength(64).IsFixedLength().IsUnicode(false);
+            confirmation.HasOne<Deal>().WithMany().HasForeignKey(c => c.DealId).OnDelete(DeleteBehavior.Restrict);
+            confirmation.HasOne<ContractDocument>().WithMany().HasForeignKey(c => c.ContractDocumentId).OnDelete(DeleteBehavior.Restrict);
+            confirmation.HasIndex(c => new { c.ContractDocumentId, c.PartyOrgId }).IsUnique();
         });
     }
 }
@@ -122,6 +161,9 @@ internal sealed class Deal
     /// <summary>The acceptor's MFA step-up time (task 014 security considerations).</summary>
     public DateTimeOffset AcceptedStepUpAt { get; init; }
 
+    /// <summary>SHA-256 of the contract both parties confirmed (task 015); set once, then the signing step checks against it.</summary>
+    public string? AgreedContractSha256 { get; set; }
+
     public int Version { get; set; }
 }
 
@@ -141,6 +183,60 @@ internal sealed class DealStateChange
     public DateTimeOffset At { get; init; }
 
     public string? Reason { get; init; }
+}
+
+/// <summary>The factor's CDD decision on a deal (ADR-015); one per deal, append-only.</summary>
+internal sealed class CddDecision
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public bool Approved { get; init; }
+
+    public string? Reason { get; init; }
+
+    public Guid DecidedBy { get; init; }
+
+    public DateTimeOffset DecidedAt { get; init; }
+
+    public DateTimeOffset StepUpAt { get; init; }
+}
+
+/// <summary>A version of the factor's agreement for the deal (ADR-018); the newest one is current, older ones stay as evidence.</summary>
+internal sealed class ContractDocument
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public Guid DocumentId { get; init; }
+
+    public required string Sha256 { get; init; }
+
+    public Guid UploadedBy { get; init; }
+
+    public DateTimeOffset UploadedAt { get; init; }
+}
+
+/// <summary>One party's confirmation that a contract version matches the deal terms (task 015).</summary>
+internal sealed class TermsConfirmation
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public Guid ContractDocumentId { get; init; }
+
+    public required string Sha256 { get; init; }
+
+    public Guid PartyOrgId { get; init; }
+
+    public Guid ConfirmedBy { get; init; }
+
+    public DateTimeOffset ConfirmedAt { get; init; }
+
+    public DateTimeOffset StepUpAt { get; init; }
 }
 
 internal sealed class DealsDbContextDesignTimeFactory : IDesignTimeDbContextFactory<DealsDbContext>

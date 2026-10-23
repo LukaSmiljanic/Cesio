@@ -1,8 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState, type ChangeEvent } from 'react'
 import { Link, useParams } from 'react-router'
-import { dealsApi } from '../api/deals'
+import { download } from '../api/client'
+import { dealsApi, type DealDetail } from '../api/deals'
 import { formatMoney } from '../api/receivables'
-import { Card, ErrorMessage } from '../components/ui'
+import { useStepUp } from '../auth/stepUpContext'
+import { Button, Card, ErrorMessage, Field } from '../components/ui'
 
 const dealStates: Record<string, string> = {
   AwaitingFactorCdd: 'Čeka proveru faktora (CDD)',
@@ -14,6 +17,12 @@ const dealStates: Record<string, string> = {
   Closed: 'Zatvoreno',
   Cancelled: 'Otkazano',
   Terminated: 'Raskinuto',
+}
+
+const waitingLabels: Record<string, string> = {
+  Seller: 'Na potezu je prodavac.',
+  Factor: 'Na potezu je faktor.',
+  Both: 'Na potezu su obe strane.',
 }
 
 function dateTime(value: string): string {
@@ -41,19 +50,157 @@ export function DealsPage() {
   )
 }
 
-/** A deal skeleton with its terms and timeline; the steps after creation come with tasks 015–017. */
+/** The steps before signing (task 015): CDD, agreement, terms checklist and cancellation. */
+function DealSteps({ detail }: { detail: DealDetail }) {
+  const queryClient = useQueryClient()
+  const withStepUp = useStepUp()
+  const [reason, setReason] = useState('')
+  const { deal, steps, myRole } = detail
+  const refresh = () =>
+    Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['deal', deal.id] }),
+      queryClient.invalidateQueries({ queryKey: ['deal-timeline', deal.id] }),
+    ])
+  const cdd = useMutation({
+    mutationFn: (approved: boolean) =>
+      withStepUp(() =>
+        dealsApi.cddDecision(deal.id, approved ? 'Approved' : 'Declined', reason.trim() || null),
+      ),
+    onSuccess: refresh,
+  })
+  const contract = useMutation({
+    mutationFn: async (file: File) =>
+      dealsApi.attachContract(deal.id, (await dealsApi.uploadContract(file)).id),
+    onSuccess: refresh,
+  })
+  const confirm = useMutation({
+    mutationFn: (contractDocumentId: string) =>
+      withStepUp(() => dealsApi.confirmTerms(deal.id, contractDocumentId)),
+    onSuccess: refresh,
+  })
+  const cancel = useMutation({
+    mutationFn: () =>
+      withStepUp(() => dealsApi.cancel(deal.id, 'PartyCancelled', reason.trim() || null)),
+    onSuccess: refresh,
+  })
+  const fetchContract = useMutation({
+    mutationFn: (documentId: string) => download(`/documents/${documentId}/content`, 'ugovor.pdf'),
+  })
+  const beforeSigning = ['AwaitingFactorCdd', 'AwaitingContract', 'AwaitingSignatures'].includes(
+    deal.state,
+  )
+  const iConfirmed = myRole === 'Seller' ? steps.sellerConfirmed : steps.factorConfirmed
+  const current = steps.contract
+
+  function onFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) {
+      contract.mutate(file)
+    }
+  }
+
+  return (
+    <section className="mt-4 space-y-3 text-sm">
+      {steps.waitingFor && (
+        <p className="rounded bg-amber-50 p-2 text-amber-900">{waitingLabels[steps.waitingFor]}</p>
+      )}
+      {beforeSigning && (
+        <Field
+          id="reason"
+          label="Razlog (za odbijanje CDD-a ili otkazivanje)"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      )}
+      {deal.state === 'AwaitingFactorCdd' && myRole === 'Factor' && (
+        <div className="space-y-2">
+          <h2 className="font-medium">CDD provera prodavca</h2>
+          <p>KYB paket prodavca biće dostupan kada prodavac da saglasnost za deljenje (KYB).</p>
+          <div className="flex gap-2">
+            <Button disabled={cdd.isPending} onClick={() => cdd.mutate(true)}>
+              CDD odobren
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={cdd.isPending || reason.trim() === ''}
+              onClick={() => cdd.mutate(false)}
+            >
+              Odbij (otkazuje posao)
+            </Button>
+          </div>
+        </div>
+      )}
+      {deal.state === 'AwaitingContract' && (
+        <div className="space-y-2">
+          <h2 className="font-medium">Ugovor o faktoringu</h2>
+          {myRole === 'Factor' && (
+            <input aria-label="Ugovor (PDF)" type="file" accept=".pdf" onChange={onFile} />
+          )}
+          {current ? (
+            <>
+              <button
+                type="button"
+                className="underline"
+                onClick={() => fetchContract.mutate(current.documentId)}
+              >
+                Preuzmi trenutnu verziju ugovora
+              </button>
+              <p>
+                Proverite u ugovoru: strane i PIB, broj fakture, iznos potraživanja{' '}
+                {formatMoney(deal.faceValue)}, kupoprodajnu cenu {formatMoney(deal.purchasePrice)},{' '}
+                {deal.recourseType === 'Recourse' ? 'sa regresom' : 'bez regresa'}, rok isplate{' '}
+                {deal.fundingDeadlineBusinessDays} radnih dana posle potpisa.
+              </p>
+              <p>
+                Prodavac {steps.sellerConfirmed ? 'je potvrdio' : 'nije potvrdio'} · faktor{' '}
+                {steps.factorConfirmed ? 'je potvrdio' : 'nije potvrdio'}
+              </p>
+              {!iConfirmed && (
+                <Button
+                  disabled={confirm.isPending}
+                  onClick={() => confirm.mutate(current.contractDocumentId)}
+                >
+                  Potvrđujem da ugovor odgovara uslovima posla
+                </Button>
+              )}
+            </>
+          ) : (
+            <p>Faktor još nije otpremio ugovor.</p>
+          )}
+        </div>
+      )}
+      {deal.state === 'AwaitingSignatures' && (
+        <p>Ugovor je usaglašen. Sledeći korak je potpis kvalifikovanim elektronskim potpisom.</p>
+      )}
+      {beforeSigning && (
+        <Button
+          variant="secondary"
+          disabled={cancel.isPending || reason.trim() === ''}
+          onClick={() => cancel.mutate()}
+        >
+          Otkaži posao
+        </Button>
+      )}
+      <ErrorMessage
+        error={cdd.error ?? contract.error ?? confirm.error ?? cancel.error ?? fetchContract.error}
+      />
+    </section>
+  )
+}
+
+/** A deal with its terms, the steps before signing and the timeline (tasks 014, 015). */
 export function DealPage() {
   const { id = '' } = useParams()
-  const deal = useQuery({ queryKey: ['deal', id], queryFn: () => dealsApi.get(id) })
+  const detail = useQuery({ queryKey: ['deal', id], queryFn: () => dealsApi.get(id) })
   const timeline = useQuery({
     queryKey: ['deal-timeline', id],
     queryFn: () => dealsApi.timeline(id),
   })
-  const d = deal.data
-  if (!d) {
+  const d = detail.data?.deal
+  if (!detail.data || !d) {
     return (
       <Card title="Posao">
-        <ErrorMessage error={deal.error} />
+        <ErrorMessage error={detail.error} />
       </Card>
     )
   }
@@ -76,6 +223,7 @@ export function DealPage() {
         <dt>Rok za potpise</dt>
         <dd>{dateTime(d.signatureDeadline)}</dd>
       </dl>
+      <DealSteps detail={detail.data} />
       <h2 className="mt-4 font-medium">Tok posla</h2>
       <ol className="text-sm">
         {timeline.data?.map((t) => (

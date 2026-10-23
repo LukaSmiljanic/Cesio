@@ -30,7 +30,7 @@ public sealed partial class MarketplaceTests
         var deal = await ApiClient.ReadAsync(accepted);
         var replay = await ApiClient.ReadAsync(await SendWithKey(seller, $"/api/v1/offers/{offerId}/accept", Accept, key));
         var dealId = deal.GetProperty("dealId").GetGuid();
-        var sellerView = await ApiClient.ReadAsync(await Send(seller, HttpMethod.Get, $"/api/v1/deals/{dealId}"));
+        var sellerView = (await ApiClient.ReadAsync(await Send(seller, HttpMethod.Get, $"/api/v1/deals/{dealId}"))).GetProperty("deal");
         var factorDeals = (await ApiClient.ReadAsync(await Send(winner, HttpMethod.Get, "/api/v1/deals"))).EnumerateArray().ToList();
         var timeline = (await ApiClient.ReadAsync(await Send(winner, HttpMethod.Get, $"/api/v1/deals/{dealId}/timeline"))).EnumerateArray().ToList();
         using var outsiderView = await Send(outsider, HttpMethod.Get, $"/api/v1/deals/{dealId}");

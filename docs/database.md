@@ -12,7 +12,7 @@ Target: Microsoft SQL Server 2022+ compatible, hosted as **Azure SQL Database** 
 - **Naming:** snake_case table and column names (kept for consistency with the docs); avoid T-SQL reserved words as names (`key` → `idem_key`/`param_key`).
 - **Filtered unique indexes** replace PostgreSQL partial indexes. Their predicate allows only simple comparisons joined by `AND` (no `NOT IN`, no `OR`), and they need the standard ANSI `SET` options (EF Core's defaults). A unique index treats `NULL`s as equal, so nullable unique columns are filtered with `IS NOT NULL`.
 - **Deletion:** no hard deletes of business or financial rows. Soft delete (`deleted_at`) **only** for drafts, notification preferences and unsubmitted documents. Immutability (ADR-021):
-  - **Fully append-only tables** (`audit.*`, `deals.deal_state_history`, `deals.signatures`, `deals.contract_documents`, `deals.funding_reports`, `deals.funding_confirmations`, `receivables.verification_checks`, `receivables.seller_declarations`, `receivables.sef_status_history`): `DENY UPDATE, DELETE` to `app_rw` + an INSTEAD OF UPDATE, DELETE trigger that throws.
+  - **Fully append-only tables** (`audit.*`, `deals.deal_state_history`, `deals.signatures`, `deals.contract_documents`, `deals.funding_reports`, `deals.funding_confirmations`, `receivables.verification_checks`, `receivables.seller_declarations`, `receivables.sef_status_history`, `deals.cdd_decisions`, `deals.terms_confirmations`): `DENY UPDATE, DELETE` to `app_rw` + an INSTEAD OF UPDATE, DELETE trigger that throws.
   - **Tables whose state changes but some columns are fixed** (`marketplace.offers`: price, recourse, terms and the fee snapshot `fee_schedule_version`, `platform_fee`, `seller_fee`, `vat_pending`; only `state` and the once-written `rejection_reason` change; `deals.deals`: parties, amounts, recourse, terms, fee snapshot and acceptance; `fees.fee_charges`: amounts, payer): column-level `DENY UPDATE (col, …)` to `app_rw` + an AFTER UPDATE trigger with `IF UPDATE(col) THROW`.
   - **Versioned configuration** (`fees.fee_schedules`): an AFTER UPDATE trigger allows only the one-time approval (`approved_by`, `approved_at`) and an INSTEAD OF DELETE trigger throws. The seed version is created by the system user (all zeros) and approved by a distinct system approver ID, so the four-eyes CHECK holds for it too.
   - **EF Core:** every table with a trigger is declared with `ToTable(t => t.HasTrigger("…"))` in its mapping. Otherwise EF Core's `OUTPUT` clause fails on tables with triggers.
@@ -185,7 +185,15 @@ CREATE UNIQUE INDEX ux_deal_live_per_receivable ON deals.deals(receivable_id)
   WHERE state <> 'Cancelled' AND state <> 'Terminated';
 CREATE TABLE deals.deal_state_history (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, from_state nvarchar(200), to_state nvarchar(200) NOT NULL,
   actor_user_id uniqueidentifier, at datetimeoffset(3) NOT NULL, reason nvarchar(max));
-CREATE TABLE deals.signatures (...), deals.contract_documents (...), deals.cef_registrations (...),
+-- task 015: append-only step records; deals.deals.agreed_contract_sha256 char(64) is set once, when both parties confirmed the same agreement
+CREATE TABLE deals.cdd_decisions (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL UNIQUE, approved bit NOT NULL, reason nvarchar(400),
+  decided_by uniqueidentifier NOT NULL, decided_at datetimeoffset(3) NOT NULL, step_up_at datetimeoffset(3) NOT NULL);
+CREATE TABLE deals.contract_documents (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, document_id uniqueidentifier NOT NULL,
+  sha256 char(64) NOT NULL, uploaded_by uniqueidentifier NOT NULL, uploaded_at datetimeoffset(3) NOT NULL);
+CREATE TABLE deals.terms_confirmations (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, contract_document_id uniqueidentifier NOT NULL,
+  sha256 char(64) NOT NULL, party_org_id uniqueidentifier NOT NULL, confirmed_by uniqueidentifier NOT NULL, confirmed_at datetimeoffset(3) NOT NULL,
+  step_up_at datetimeoffset(3) NOT NULL, UNIQUE (contract_document_id, party_org_id));
+CREATE TABLE deals.signatures (...), deals.cef_registrations (...),
              deals.debtor_notifications (...), deals.funding_reports (...), deals.funding_confirmations (...),
              deals.outcomes (... UNIQUE (deal_id) ...);
 CREATE TABLE deals.disputes (...);

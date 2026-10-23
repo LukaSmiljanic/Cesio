@@ -26,7 +26,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 | Listings (seller) | `POST /receivables/{id}/listings` ♻, `GET /listings` (the seller's own), `GET /listings/{id}`, `POST /listings/{id}/withdraw` ♻, `GET /listings/{id}/offers` |
 | Marketplace (factor) | `GET /marketplace/listings` (filters: amount, tenor, debtor PIB, recourse preference), `GET /marketplace/listings/{id}`, `GET /marketplace/listings/{id}/documents/{docId}/content` (later scope; in the MVP a factor reads a listing's documents through `GET /documents/{id}/content`, granted by the listing visibility rule) |
 | Offers | `GET /marketplace/listings/{id}/fee-preview?purchasePrice=` (factor; the fee before submitting), `POST /marketplace/listings/{id}/offers` ♻ (factor), `GET /offers` (factor's own), `GET /offers/{id}`, `POST /offers/{id}/withdraw` ♻ (factor), `POST /offers/{id}/reject` ♻ (seller), `POST /offers/{id}/accept` ♻🔐 (seller Signatory) |
-| Deals | `GET /deals`, `GET /deals/{id}`, `GET /deals/{id}/timeline` (the seller and the factor of the deal only), `POST /deals/{id}/cdd-decision` ♻🔐 (factor Signatory), `POST /deals/{id}/contract` ♻, `POST /deals/{id}/terms-confirmation` ♻🔐, `POST /deals/{id}/signed-contract` ♻🔐, `POST /deals/{id}/cef-registration` ♻, `POST /deals/{id}/debtor-notification` ♻, `POST /deals/{id}/funding-report` ♻🔐, `POST /deals/{id}/funding-confirmation` ♻🔐, `POST /deals/{id}/outcome` ♻🔐, `POST /deals/{id}/cancel` ♻🔐, `GET /deals/{id}/kyb-package` (factor) |
+| Deals | `GET /deals`, `GET /deals/{id}` (the deal, the state of its steps and whose turn it is), `GET /deals/{id}/timeline` (the seller and the factor of the deal only), `POST /deals/{id}/cdd-decision` ♻🔐 (factor Signatory), `POST /deals/{id}/contract` ♻, `POST /deals/{id}/terms-confirmation` ♻🔐, `POST /deals/{id}/signed-contract` ♻🔐, `POST /deals/{id}/cef-registration` ♻, `POST /deals/{id}/debtor-notification` ♻, `POST /deals/{id}/funding-report` ♻🔐, `POST /deals/{id}/funding-confirmation` ♻🔐, `POST /deals/{id}/outcome` ♻🔐, `POST /deals/{id}/cancel` ♻🔐, `GET /deals/{id}/kyb-package` (factor) |
 | Disputes | `POST /deals/{id}/disputes` ♻, `GET /disputes/{id}`, `POST /disputes/{id}/comments` |
 | Fees | `GET /fees/charges`, `GET /fees/statements/{period}` |
 | Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `GET/PUT /notification-preferences` |
@@ -83,6 +83,14 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 - **Response 201:** `{ "dealId": "...", "reference": "DL-2026-000123" }`
 - **Errors:** 404 `not_found` (not the seller's offer), 403 `signatory_required`, 409 `offer_not_active`, 409 `listing_not_open`, 409 `receivable_ineligible` (SEF changed), 412 `concurrency_conflict`, 423 `hold_active`, 401 `step_up_required`, 503 `upstream_unavailable`.
 - **Audit:** `Offer.Accepted`, `Offer.Superseded` ×n, `Listing.Closed`, `Receivable.Reserved`, `Deal.Created`.
+
+### 3.6a Deal steps before signing (task 015)
+- `POST /deals/{id}/cdd-decision` ♻🔐 (factor Signatory): `{ "decision": "Approved" | "Declined", "reason": "…" }` (reason required for Declined, ≤ 400). Approved → `AwaitingContract`; Declined → `Cancelled`, receivable → `Verified`.
+- `POST /deals/{id}/contract` ♻ (factor member): `{ "documentId": "…" }`, a clean PDF uploaded with purpose `Contract`; allowed in `AwaitingContract`; a new version voids earlier confirmations. Both parties may read every version.
+- `POST /deals/{id}/terms-confirmation` ♻🔐 (each party's Signatory): `{ "contractDocumentId": "…", "confirmed": true }` for the current version; when both parties confirmed it, `agreedContractSha256` is set → `AwaitingSignatures`.
+- `POST /deals/{id}/cancel` ♻🔐 (either party's Signatory, before `Signed`): `{ "reasonCode": "letters", "comment": "≤ 1000" }` → `Cancelled`, receivable → `Verified`; the listing does not reopen.
+- `GET /deals/{id}/kyb-package` (factor of the deal): needs the seller's KYB-sharing consent; until KYB exists (task 007) it answers 409 `kyb_consent_missing`.
+- **Errors:** 404 for non-parties, 403 `signatory_required`, 409 `conflict_state` (wrong state), 409 `contract_changed`, 409 `already_confirmed`, 422 `wrong_document`, 423 `hold_active`, 401 `step_up_required`.
 
 ### 3.7 `POST /deals/{id}/signed-contract` ♻🔐
 - **Auth:** either party's Signatory (the second upload completes the step).

@@ -79,4 +79,7 @@ public interface IReceivableWriter
     /// </summary>
     /// <exception cref="Shared.Kernel.DomainConflictException"><c>receivable_ineligible</c>.</exception>
     Task ReserveAsync(Guid receivableId, Guid dealId, CancellationToken cancellationToken);
+
+    /// <summary>A deal ended before signing (task 015): the receivable goes back from Reserved to Verified, so the seller may re-list it.</summary>
+    Task ReleaseAsync(Guid receivableId, Guid dealId, string reason, CancellationToken cancellationToken);
 }

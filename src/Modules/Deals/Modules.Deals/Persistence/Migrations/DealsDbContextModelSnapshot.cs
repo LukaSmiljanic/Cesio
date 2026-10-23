@@ -26,6 +26,99 @@ namespace Modules.Deals.Persistence.Migrations
 
             modelBuilder.HasSequence("deal_reference_seq");
 
+            modelBuilder.Entity("Modules.Deals.Persistence.CddDecision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Approved")
+                        .HasColumnType("bit")
+                        .HasColumnName("approved");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<DateTimeOffset>("DecidedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid>("DecidedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("StepUpAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("step_up_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cdd_decisions");
+
+                    b.HasIndex("DealId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_cdd_decisions_deal_id");
+
+                    b.ToTable("cdd_decisions", "deals", t =>
+                        {
+                            t.HasTrigger("tr_cdd_decisions_append_only");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.ContractDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .HasColumnName("sha256")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("uploaded_at");
+
+                    b.Property<Guid>("UploadedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("uploaded_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_contract_documents");
+
+                    b.HasIndex("DealId", "UploadedAt")
+                        .HasDatabaseName("ix_contract_documents_deal_id_uploaded_at");
+
+                    b.ToTable("contract_documents", "deals", t =>
+                        {
+                            t.HasTrigger("tr_contract_documents_append_only");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
             modelBuilder.Entity("Modules.Deals.Persistence.Deal", b =>
                 {
                     b.Property<Guid>("Id")
@@ -45,6 +138,13 @@ namespace Modules.Deals.Persistence.Migrations
                         .HasPrecision(3)
                         .HasColumnType("datetimeoffset(3)")
                         .HasColumnName("accepted_step_up_at");
+
+                    b.Property<string>("AgreedContractSha256")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .HasColumnName("agreed_contract_sha256")
+                        .IsFixedLength();
 
                     b.Property<string>("ConditionsText")
                         .HasMaxLength(1000)
@@ -237,6 +337,84 @@ namespace Modules.Deals.Persistence.Migrations
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
+            modelBuilder.Entity("Modules.Deals.Persistence.TermsConfirmation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ConfirmedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<Guid>("ConfirmedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("confirmed_by");
+
+                    b.Property<Guid>("ContractDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("contract_document_id");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<Guid>("PartyOrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("party_org_id");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .HasColumnName("sha256")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset>("StepUpAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("step_up_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_terms_confirmations");
+
+                    b.HasIndex("DealId")
+                        .HasDatabaseName("ix_terms_confirmations_deal_id");
+
+                    b.HasIndex("ContractDocumentId", "PartyOrgId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_terms_confirmations_contract_document_id_party_org_id");
+
+                    b.ToTable("terms_confirmations", "deals", t =>
+                        {
+                            t.HasTrigger("tr_terms_confirmations_append_only");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.CddDecision", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cdd_decisions_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.ContractDocument", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_contract_documents_deals_deal_id");
+                });
+
             modelBuilder.Entity("Modules.Deals.Persistence.DealStateChange", b =>
                 {
                     b.HasOne("Modules.Deals.Persistence.Deal", null)
@@ -245,6 +423,23 @@ namespace Modules.Deals.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_deal_state_history_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.TermsConfirmation", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.ContractDocument", null)
+                        .WithMany()
+                        .HasForeignKey("ContractDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_terms_confirmations_contract_documents_contract_document_id");
+
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_terms_confirmations_deals_deal_id");
                 });
 #pragma warning restore 612, 618
         }

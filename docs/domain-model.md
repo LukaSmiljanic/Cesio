@@ -12,7 +12,7 @@ State machines are defined in [product-spec.md](product-spec.md) §7. This docum
 | Compliance | **KybCase** (BeneficialOwner, ScreeningResult, Document refs), **FactorAuthorization**, **Hold** |
 | Receivables | **Debtor**, **Invoice** (InvoiceLine snapshot, SefStatusSnapshot), **Receivable** (SellerDeclaration, SupportingDocument refs, VerificationCheck) |
 | Marketplace | **Listing** (Audience), **Offer** |
-| Deals | **Deal** (ContractDocument, Signature, CefRegistration, DebtorNotification, FundingReport, FundingConfirmation, Outcome), **Dispute** |
+| Deals | **Deal** (CddDecision, ContractDocument, TermsConfirmation, Signature, CefRegistration, DebtorNotification, FundingReport, FundingConfirmation, Outcome), **Dispute** |
 | Fees | **FeeSchedule**, **FeeCharge**, FeeStatement |
 | Documents | **StoredDocument** (shared technical service: blob metadata, hash, scan status) |
 | Notifications | **Notification**, NotificationPreference |
@@ -60,8 +60,10 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 
 **Offer** — id, listingId, factorOrgId, purchasePrice (Money), recourseType (`Recourse | NonRecourse`), fundingDeadlineBusinessDays, validUntil, conditionsText (≤ 1000 chars), feeScheduleSnapshot (version), computedPlatformFee (Money), sellerFee (the seller's part of the fee, 0 when the factor pays), vatPending, state, rejectionReason (set once, at rejection), createdByUserId. **Immutable** except for state and rejectionReason.
 
-**Deal** — id, receivableId, listingId, offerId, sellerOrgId, factorOrgId, purchasePrice, faceValue, recourseType, fundingDeadlineBusinessDays, conditionsText, feeSnapshot (feeScheduleVersion, platformFee, sellerFee, vatPending), acceptedBy, acceptedAt, acceptedStepUpAt, state, signatureDeadline, fundingDeadline, version. The parties, terms, fee snapshot and acceptance are **immutable**; only state, fundingDeadline and version change.
-- **ContractDocument** — documentId, sha256, uploadedBy, termsChecklist confirmations (seller & factor).
+**Deal** — id, receivableId, listingId, offerId, sellerOrgId, factorOrgId, purchasePrice, faceValue, recourseType, fundingDeadlineBusinessDays, conditionsText, feeSnapshot (feeScheduleVersion, platformFee, sellerFee, vatPending), acceptedBy, acceptedAt, acceptedStepUpAt, state, signatureDeadline, fundingDeadline, agreedContractSha256 (set once, when both parties confirmed the same contract version), version. The parties, terms, fee snapshot and acceptance are **immutable**; only state, fundingDeadline, agreedContractSha256 (once) and version change.
+- **CddDecision** — approved or declined (with a reason), decidedBy, decidedAt, step-up time; one per deal, append-only (ADR-015).
+- **ContractDocument** — a version of the factor's agreement: documentId, sha256, uploadedBy, uploadedAt; the newest is current, a replacement voids earlier confirmations; append-only.
+- **TermsConfirmation** — one party's confirmation (Signatory, step-up) that one ContractDocument version matches the deal terms; append-only.
 - **Signature** — party, signerName, certificate subject/issuer/serial, signingTime, validationResult, signer matched to an APR legal representative or verified attorney of the organization (bool + reference).
 - **CefRegistration** — status (`NotApplicable | Pending | Registered | Failed`), cefReference, evidenceDocumentId, recordedBy.
 - **DebtorNotification** — responsibleParty, channel, sentAt, evidenceDocumentId.

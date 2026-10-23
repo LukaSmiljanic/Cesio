@@ -33,7 +33,9 @@ Every member is **Owner**. **Signatory** is a flag on a member. Seller organizat
 | Payout accounts, SEF connection (changes confirmed via the APR email) | ✔ | ✔ |
 | Import/submit receivables, create listings (seller) | ✔ | ✔ |
 | Create/withdraw offers (factor) | ✔ | ✔ |
-| **Accept offer, confirm CDD, confirm contract terms, upload signed contract, confirm funding, report funding/outcome** | | ✔ |
+| **Accept offer, confirm CDD, confirm contract terms, cancel a deal before signing, upload signed contract, confirm funding, report funding/outcome** | | ✔ |
+| Upload the factoring agreement (factor) | ✔ | ✔ |
+| Download the seller's KYB package (factor of the deal; needs the seller's KYB-sharing consent, audited; never for the staff `Support` role) | ✔ | ✔ |
 | View | ✔ | ✔ |
 
 Signatory requires a link to an APR legal representative or a verified power of attorney. A seller's single account becomes Signatory when its pristupnica is accepted. Admin, Operator and Viewer roles are post-MVP.

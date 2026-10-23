@@ -22,3 +22,9 @@ public sealed record DealCreated(Guid DealId, string Reference, Guid ReceivableI
 {
     public static string EventType => "Deals.DealCreated";
 }
+
+/// <summary>Published when a deal ends before signing (task 015); the receivable is Verified again.</summary>
+public sealed record DealCancelled(Guid DealId, string Reason, Guid SellerOrgId, Guid FactorOrgId) : IIntegrationEvent
+{
+    public static string EventType => "Deals.DealCancelled";
+}

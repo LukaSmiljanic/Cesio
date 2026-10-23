@@ -94,7 +94,11 @@ const messages: Record<string, string> = {
   offer_not_active: 'Ponuda više nije aktivna.',
   listing_not_open: 'Listing više nije otvoren.',
   receivable_ineligible: 'Potraživanje više ne ispunjava uslove (SEF status se promenio).',
-  signatory_required: 'Ponudu može da prihvati samo potpisnik firme.',
+  signatory_required: 'Ovaj korak može da uradi samo potpisnik firme.',
+  contract_changed: 'Ugovor je u međuvremenu zamenjen; potvrdite trenutnu verziju.',
+  already_confirmed: 'Vaša firma je već potvrdila ovaj ugovor.',
+  wrong_document: 'Otpremite ugovor kao PDF.',
+  kyb_consent_missing: 'Prodavac još nije dao saglasnost za deljenje KYB paketa.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

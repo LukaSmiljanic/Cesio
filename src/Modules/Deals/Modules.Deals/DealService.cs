@@ -28,6 +28,7 @@ public sealed record AcceptanceAcknowledgements(bool NetProceedsShown, string? T
 internal sealed class DealService(
     DealsDbContext deals,
     IListingWriter listings,
+    DealStepService steps,
     IReceivableMarket receivables,
     IReceivableWriter receivableWriter,
     IOrganizationQuery organizations,
@@ -192,8 +193,11 @@ internal sealed class DealService(
         return Results.Ok(mine.Select(View));
     }
 
+    /// <summary>The deal with the state of its steps and whose turn it is (tasks 014, 015).</summary>
     public async Task<IResult> GetAsync(Guid id, CancellationToken cancellationToken) =>
-        await PartyDealAsync(id, cancellationToken) is { } deal ? Results.Ok(View(deal)) : NotFound();
+        await PartyDealAsync(id, cancellationToken) is { } deal
+            ? Results.Ok(new { deal = View(deal), steps = await steps.StepsAsync(deal.Id, deal.SellerOrgId, deal.FactorOrgId, deal.State, cancellationToken), myRole = deal.SellerOrgId == OrganizationId ? "Seller" : "Factor" })
+            : NotFound();
 
     public async Task<IResult> TimelineAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -249,6 +253,7 @@ internal sealed class DealService(
             signatureDeadline = deal.SignatureDeadline,
             fundingDeadline = deal.FundingDeadline,
             acceptedAt = deal.AcceptedAt,
+            agreedContractSha256 = deal.AgreedContractSha256,
             version = deal.Version,
         };
     }
