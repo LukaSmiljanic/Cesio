@@ -90,6 +90,8 @@ const messages: Record<string, string> = {
   unknown_factor: 'Jedan od navedenih ID-jeva nije faktor.',
   factor_not_authorized: 'Marketplace je dostupan samo odobrenim i ovlašćenim faktorima.',
   listing_closed: 'Rok za ponude je prošao.',
+  offer_exists: 'Već imate aktivnu ponudu na ovom listingu; prvo je povucite.',
+  offer_not_active: 'Ponuda više nije aktivna.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

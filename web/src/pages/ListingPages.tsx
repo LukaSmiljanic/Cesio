@@ -5,6 +5,7 @@ import { download } from '../api/client'
 import { listingsApi, type AudienceType, type FeedFilters } from '../api/listings'
 import { formatMoney } from '../api/receivables'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
+import { OfferForm } from './OfferPages'
 
 const listingStates: Record<string, string> = {
   Open: 'Otvoren',
@@ -127,7 +128,10 @@ export function SellerListingsPage() {
               <Link className="underline" to={`/receivables/${l.receivableId}`}>
                 {formatMoney(l.faceValue)}
               </Link>{' '}
-              · do {dateTime(l.closesAt)} · {listingStates[l.state] ?? l.state}
+              · do {dateTime(l.closesAt)} · {listingStates[l.state] ?? l.state} ·{' '}
+              <Link className="underline" to={`/listings/${l.id}/offers`}>
+                ponude
+              </Link>
               {l.reservePrice && <> · minimalna cena {formatMoney(l.reservePrice)}</>}
             </span>
             {(l.state === 'Open' || l.state === 'Suspended') && (
@@ -298,6 +302,7 @@ export function MarketplaceListingPage() {
         <dt>Naknada platforme</dt>
         <dd>{share} diskonta, plaća faktor</dd>
       </dl>
+      <OfferForm listingId={l.id} ownOffer={l.ownOffer} />
       <h2 className="mt-4 font-medium">Dokumenti</h2>
       <ul className="text-sm">
         {l.documents.map((d) => (

@@ -11,8 +11,8 @@ using Shared.Infrastructure.Requests;
 
 namespace Platform.Integration.Tests;
 
-/// <summary>Task 012: listings, the visibility rule of the marketplace, withdrawal and operations suspension.</summary>
-public sealed class MarketplaceTests(SqlServerContainer server, AzuriteContainer storage) : IAsyncLifetime
+/// <summary>Task 012: listings, the visibility rule of the marketplace, withdrawal and operations suspension (offers: task 013).</summary>
+public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteContainer storage) : IAsyncLifetime
 {
     private const string BuyerPib = "106006802";
 

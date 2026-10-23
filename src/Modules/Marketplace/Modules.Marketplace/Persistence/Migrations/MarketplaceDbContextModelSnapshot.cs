@@ -168,6 +168,135 @@ namespace Modules.Marketplace.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Modules.Marketplace.Persistence.Offer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ConditionsText")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("conditions_text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("created_by");
+
+                    b.Property<Guid>("FactorOrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("factor_org_id");
+
+                    b.Property<int>("FeeScheduleVersion")
+                        .HasColumnType("int")
+                        .HasColumnName("fee_schedule_version");
+
+                    b.Property<int>("FundingDeadlineBusinessDays")
+                        .HasColumnType("int")
+                        .HasColumnName("funding_deadline_bdays");
+
+                    b.Property<Guid>("ListingId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("listing_id");
+
+                    b.Property<decimal>("PlatformFeeAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)")
+                        .HasColumnName("platform_fee");
+
+                    b.Property<string>("RecourseType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("recourse_type");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<decimal>("SellerFeeAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)")
+                        .HasColumnName("seller_fee");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("state");
+
+                    b.Property<DateTimeOffset>("ValidUntil")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("valid_until");
+
+                    b.Property<bool>("VatPending")
+                        .HasColumnType("bit")
+                        .HasColumnName("vat_pending");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "PurchasePrice", "Modules.Marketplace.Persistence.Offer.PurchasePrice#Money", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(19, 4)
+                                .HasColumnType("decimal(19,4)")
+                                .HasColumnName("purchase_price");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .IsUnicode(false)
+                                .HasColumnType("char(3)")
+                                .HasColumnName("currency")
+                                .IsFixedLength();
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_offers");
+
+                    b.HasIndex("ListingId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_offer_accepted_per_listing")
+                        .HasFilter("[state] = 'Accepted'");
+
+                    b.HasIndex("FactorOrgId", "State")
+                        .HasDatabaseName("ix_offers_factor_org_id_state");
+
+                    b.HasIndex("ListingId", "FactorOrgId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_offer_active_per_factor")
+                        .HasFilter("[state] = 'Active'");
+
+                    b.ToTable("offers", "marketplace", t =>
+                        {
+                            t.HasTrigger("tr_offers_immutable");
+
+                            t.HasCheckConstraint("ck_offer_currency", "[currency] IN ('RSD','EUR')");
+
+                            t.HasCheckConstraint("ck_offer_fees", "[platform_fee] >= 0 AND [seller_fee] >= 0 AND [seller_fee] <= [platform_fee]");
+
+                            t.HasCheckConstraint("ck_offer_funding_deadline", "[funding_deadline_bdays] BETWEEN 1 AND 30");
+
+                            t.HasCheckConstraint("ck_offer_purchase_price", "[purchase_price] > 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
             modelBuilder.Entity("Modules.Marketplace.Persistence.ListingAudience", b =>
                 {
                     b.HasOne("Modules.Marketplace.Persistence.Listing", null)
@@ -176,6 +305,16 @@ namespace Modules.Marketplace.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_listing_audience_listings_listing_id");
+                });
+
+            modelBuilder.Entity("Modules.Marketplace.Persistence.Offer", b =>
+                {
+                    b.HasOne("Modules.Marketplace.Persistence.Listing", null)
+                        .WithMany()
+                        .HasForeignKey("ListingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_offers_listings_listing_id");
                 });
 #pragma warning restore 612, 618
         }

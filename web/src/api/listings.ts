@@ -1,4 +1,5 @@
 import { api } from './client'
+import type { FactorOffer } from './offers'
 import type { Money } from './receivables'
 
 export type AudienceType = 'AllVerifiedFactors' | 'Selected'
@@ -64,6 +65,7 @@ export interface ListingDetail {
     sizeBytes: number
   }[]
   platformFee: { basis: string; share: string; payer: string }
+  ownOffer: FactorOffer | null
 }
 
 function query(filters: FeedFilters, cursor: string | null): string {

@@ -29,3 +29,26 @@ public sealed record ListingWithdrawn(Guid ListingId, Guid ReceivableId, Guid Se
 {
     public static string EventType => "Marketplace.ListingWithdrawn";
 }
+
+/// <summary>Offer lifecycle (product-spec.md §7.3); offers are immutable except for their state (ADR-013).</summary>
+public enum OfferState
+{
+    Active,
+    Accepted,
+    Withdrawn,
+    Rejected,
+    Expired,
+    Superseded,
+}
+
+public enum RecourseType
+{
+    Recourse,
+    NonRecourse,
+}
+
+/// <summary>Published when a factor submits an offer; Notifications tells the seller (task 019).</summary>
+public sealed record OfferSubmitted(Guid OfferId, Guid ListingId, Guid FactorOrgId, Guid SellerOrgId) : IIntegrationEvent
+{
+    public static string EventType => "Marketplace.OfferSubmitted";
+}

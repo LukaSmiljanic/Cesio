@@ -155,7 +155,8 @@ CREATE TABLE marketplace.offers (
   purchase_price decimal(19,4) NOT NULL CHECK (purchase_price > 0), currency char(3) NOT NULL,
   recourse_type nvarchar(200) NOT NULL, funding_deadline_bdays int NOT NULL CHECK (funding_deadline_bdays BETWEEN 1 AND 30),
   valid_until datetimeoffset(3) NOT NULL, conditions_text nvarchar(1000),
-  fee_schedule_version int NOT NULL, platform_fee decimal(19,4) NOT NULL,
+  fee_schedule_version int NOT NULL, platform_fee decimal(19,4) NOT NULL, seller_fee decimal(19,4) NOT NULL /* the seller's part of platform_fee */, vat_pending bit NOT NULL,
+  rejection_reason nvarchar(400),
   state nvarchar(200) NOT NULL, created_by uniqueidentifier NOT NULL, created_at datetimeoffset(3) NOT NULL,
   version int NOT NULL DEFAULT 0
 );

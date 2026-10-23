@@ -31,6 +31,7 @@ public sealed record FeedQuery(string? Cursor, int? Limit, decimal? MinAmount, d
 internal sealed class ListingService(
     MarketplaceDbContext marketplace,
     ListingVisibility visibility,
+    OfferService offers,
     IReceivableMarket receivables,
     IOrganizationQuery organizations,
     IHoldQuery holds,
@@ -193,7 +194,10 @@ internal sealed class ListingService(
         return Results.Ok(SellerView(listing, audience));
     }
 
-    /// <summary>The seller withdraws an Open or Suspended listing (no accepted offer exists then: acceptance closes it).</summary>
+    /// <summary>
+    /// The seller withdraws an Open or Suspended listing (no accepted offer exists then: acceptance closes it); its
+    /// Active offers become Superseded in the same transaction.
+    /// </summary>
     public async Task<IResult> WithdrawAsync(Guid id, CancellationToken cancellationToken)
     {
         if (await marketplace.Listings.SingleOrDefaultAsync(l => l.Id == id && l.SellerOrgId == OrganizationId, cancellationToken) is not { } listing)
@@ -212,6 +216,7 @@ internal sealed class ListingService(
             async ct =>
             {
                 await receivables.ChangeStateAsync(listing.ReceivableId, ReceivableState.Listed, ReceivableState.Verified, "listing_withdrawn", ct);
+                await offers.SupersedeActiveAsync(id, ct);
                 await audit.WriteAsync(new AuditEntry("Listing.Withdrawn", "Listing", id, listing.SellerOrgId,
                     PreviousState: previous.ToString(), NewState: nameof(ListingState.Withdrawn)), ct);
                 await outbox.AddAsync(new ListingWithdrawn(id, listing.ReceivableId, listing.SellerOrgId), ct);
@@ -374,7 +379,7 @@ internal sealed class ListingService(
             sef = new { status = receivable.SefStatus, checkedAt = receivable.SefStatusCheckedAt },
             seller = new { legalName = seller?.LegalName, kybStatus = seller?.Status },
             documents = attachments,
-            ownOffer = (object?)null,
+            ownOffer = await offers.OwnActiveOfferAsync(id, visible.Viewer.OrganizationId, cancellationToken),
             platformFee = new
             {
                 basis = "Discount",

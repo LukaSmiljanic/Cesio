@@ -12,6 +12,7 @@ import {
   StartSellerPage,
 } from './pages/OrganizationPages'
 import { MarketplaceListingPage, MarketplacePage, SellerListingsPage } from './pages/ListingPages'
+import { ListingOffersPage, MyOffersPage } from './pages/OfferPages'
 import { ImportPage, ReceivablesPage } from './pages/ReceivablePages'
 import { ReceivableDetailPage, ReviewQueuePage } from './pages/VerificationPages'
 import {
@@ -76,6 +77,11 @@ export function AppRoutes() {
         path="/listings"
         element={<RequireSession>{() => <SellerListingsPage />}</RequireSession>}
       />
+      <Route
+        path="/listings/:id/offers"
+        element={<RequireSession>{() => <ListingOffersPage />}</RequireSession>}
+      />
+      <Route path="/offers" element={<RequireSession>{() => <MyOffersPage />}</RequireSession>} />
       <Route
         path="/marketplace"
         element={<RequireSession>{() => <MarketplacePage />}</RequireSession>}

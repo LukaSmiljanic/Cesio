@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Modules.Documents.Contracts;
 using Modules.Identity.Contracts;
+using Modules.Marketplace.Contracts;
 using Modules.Marketplace.Persistence;
 using Shared.Infrastructure.Idempotency;
 using Shared.Infrastructure.Persistence;
@@ -26,6 +27,7 @@ public static class MarketplaceModule
         services.AddModuleDbContext<MarketplaceDbContext>(MarketplaceDbContext.SchemaName, migrationOrder: 6);
         services.AddScoped<ListingVisibility>();
         services.AddScoped<ListingService>();
+        services.AddScoped<OfferService>();
         services.AddScoped<IDocumentAccessPolicy, ListingDocumentPolicy>();
         services.Configure<RateLimiterOptions>(options => options.AddPolicy(RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
             http.User.FindFirst(CesioClaims.UserId)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -33,7 +35,7 @@ public static class MarketplaceModule
         return services;
     }
 
-    /// <summary>Seller listings, the factor marketplace and the operations actions of task 012.</summary>
+    /// <summary>Seller listings, the factor marketplace and the operations actions (task 012); offers (task 013).</summary>
     public static IEndpointRouteBuilder MapMarketplaceEndpoints(this IEndpointRouteBuilder app)
     {
         var seller = app.MapGroup("/api/v1").RequireAuthorization().RequireOrganization();
@@ -47,6 +49,18 @@ public static class MarketplaceModule
         var factor = app.MapGroup("/api/v1/marketplace").RequireAuthorization().RequireOrganization().RequireRateLimiting(RateLimitPolicy);
         factor.MapGet("/listings", ([AsParameters] FeedQuery query, ListingService service, CancellationToken ct) => service.FeedAsync(query, ct));
         factor.MapGet("/listings/{id:guid}", (Guid id, ListingService service, CancellationToken ct) => service.DetailAsync(id, ct));
+        factor.MapGet("/listings/{id:guid}/fee-preview", (Guid id, string? purchasePrice, OfferService service, CancellationToken ct) =>
+            service.FeePreviewAsync(id, purchasePrice, ct));
+        factor.MapPost("/listings/{id:guid}/offers", (Guid id, SubmitOfferRequest body, OfferService service, CancellationToken ct) =>
+            service.SubmitAsync(id, body, ct)).RequireIdempotency();
+
+        seller.MapGet("/listings/{id:guid}/offers", (Guid id, OfferService service, CancellationToken ct) => service.ForListingAsync(id, ct));
+        seller.MapGet("/offers", (OfferState? state, OfferService service, CancellationToken ct) => service.MineAsync(state, ct));
+        seller.MapGet("/offers/{id:guid}", (Guid id, OfferService service, CancellationToken ct) => service.GetAsync(id, ct));
+        seller.MapPost("/offers/{id:guid}/withdraw", (Guid id, OfferService service, CancellationToken ct) => service.WithdrawAsync(id, ct))
+            .RequireIdempotency();
+        seller.MapPost("/offers/{id:guid}/reject", (Guid id, RejectOfferRequest body, OfferService service, CancellationToken ct) =>
+            service.RejectAsync(id, body, ct)).RequireIdempotency();
 
         var admin = app.MapGroup("/api/v1/admin/listings").RequireAuthorization().AddEndpointFilter(RequireOperations);
         admin.MapPost("/{id:guid}/suspend", (Guid id, ListingActionRequest body, ListingService service, CancellationToken ct) =>
