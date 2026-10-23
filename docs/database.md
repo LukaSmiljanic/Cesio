@@ -13,7 +13,7 @@ Target: Microsoft SQL Server 2022+ compatible, hosted as **Azure SQL Database** 
 - **Filtered unique indexes** replace PostgreSQL partial indexes. Their predicate allows only simple comparisons joined by `AND` (no `NOT IN`, no `OR`), and they need the standard ANSI `SET` options (EF Core's defaults). A unique index treats `NULL`s as equal, so nullable unique columns are filtered with `IS NOT NULL`.
 - **Deletion:** no hard deletes of business or financial rows. Soft delete (`deleted_at`) **only** for drafts, notification preferences and unsubmitted documents. Immutability (ADR-021):
   - **Fully append-only tables** (`audit.*`, `deals.deal_state_history`, `deals.signatures`, `deals.contract_documents`, `deals.funding_reports`, `deals.funding_confirmations`, `receivables.verification_checks`, `receivables.seller_declarations`, `receivables.sef_status_history`, `deals.cdd_decisions`, `deals.terms_confirmations`, `deals.debtor_notifications`, `deals.outcomes`): `DENY UPDATE, DELETE` to `app_rw` + an INSTEAD OF UPDATE, DELETE trigger that throws.
-  - **Tables whose state changes but some columns are fixed** (`marketplace.offers`: price, recourse, terms and the fee snapshot `fee_schedule_version`, `platform_fee`, `seller_fee`, `vat_pending`; only `state` and the once-written `rejection_reason` change; `deals.deals`: parties, amounts, recourse, terms, fee snapshot and acceptance; `fees.fee_charges`: amounts, payer): column-level `DENY UPDATE (col, …)` to `app_rw` + an AFTER UPDATE trigger with `IF UPDATE(col) THROW`.
+  - **Tables whose state changes but some columns are fixed** (`marketplace.offers`: price, recourse, terms and the fee snapshot `fee_schedule_version`, `platform_fee`, `seller_fee`, `vat_pending`; only `state` and the once-written `rejection_reason` change; `deals.deals`: parties, amounts, recourse, terms, fee snapshot and acceptance; `fees.fee_charges`: everything except status, external_invoice_ref, approved_by and version, task 018): column-level `DENY UPDATE (col, …)` to `app_rw` + an AFTER UPDATE trigger with `IF UPDATE(col) THROW`.
   - **Staff-maintained reference data** (`deals.trusted_certificates`): rows are never deleted; only `deactivated_at`, `deactivated_by` and `version` change (deactivation, audited).
   - **Versioned configuration** (`fees.fee_schedules`): an AFTER UPDATE trigger allows only the one-time approval (`approved_by`, `approved_at`) and an INSTEAD OF DELETE trigger throws. The seed version is created by the system user (all zeros) and approved by a distinct system approver ID, so the four-eyes CHECK holds for it too.
   - **EF Core:** every table with a trigger is declared with `ToTable(t => t.HasTrigger("…"))` in its mapping. Otherwise EF Core's `OUTPUT` clause fails on tables with triggers.
@@ -222,13 +222,25 @@ CREATE TABLE fees.fee_schedules (version int PRIMARY KEY, definition nvarchar(ma
   created_at datetimeoffset(3) NOT NULL, approved_by uniqueidentifier CHECK (approved_by <> created_by) /* four-eyes; set once */, approved_at datetimeoffset(3),
   created_by uniqueidentifier NOT NULL);
 CREATE TABLE fees.fee_charges (
-  id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL REFERENCES deals.deals(id),
+  id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL /* deals.deals(id); no FK: fees migrates before deals */,
   payer_org_id uniqueidentifier NOT NULL, kind nvarchar(200) NOT NULL CHECK (kind IN ('Charge','Reversal')),
   amount decimal(19,4) NOT NULL, vat_amount decimal(19,4) NOT NULL, currency char(3) NOT NULL,
   status nvarchar(200) NOT NULL, due_at date, external_invoice_ref nvarchar(200), reverses_id uniqueidentifier REFERENCES fees.fee_charges(id),
-  created_at datetimeoffset(3) NOT NULL
+  created_at datetimeoffset(3) NOT NULL,
+  -- task 018
+  payer_role varchar(10) NOT NULL, vat_pending bit NOT NULL, fee_schedule_version int NOT NULL, reason nvarchar(400), created_by uniqueidentifier,
+  approved_by uniqueidentifier, deal_reference varchar(20) NOT NULL, invoice_number nvarchar(200) NOT NULL, face_value decimal(19,4) NOT NULL,
+  funded_at datetimeoffset(3) NOT NULL, version int NOT NULL,
+  CHECK ((kind = 'Reversal' AND reverses_id IS NOT NULL) OR (kind = 'Charge' AND reverses_id IS NULL))
 );
+CREATE UNIQUE INDEX ux_fee_charge_reversal_once ON fees.fee_charges(reverses_id) WHERE reverses_id IS NOT NULL;
 CREATE UNIQUE INDEX ux_fee_charge_once ON fees.fee_charges(deal_id, payer_org_id) WHERE kind = 'Charge';
+-- task 018: the deal snapshot (deal_reference, invoice_number, face_value, funded_at) serves the statements; a reversal copies the charge's amounts
+-- and snapshot, has no due_at of its own, and is approved by a second Finance user (approved_by).
+-- Status: a charge Due → Invoiced → Paid; a reversal PendingApproval → Effective; one reversal per charge. Amounts are never negative: a reversal
+-- states the amount it takes back. Triggers allow only status, external_invoice_ref, approved_by and version to change, and no deletes.
+CREATE TABLE fees.fee_payments (id uniqueidentifier PRIMARY KEY, charge_id uniqueidentifier NOT NULL UNIQUE REFERENCES fees.fee_charges(id),
+  paid_on date NOT NULL, reference nvarchar(200) NOT NULL, recorded_by uniqueidentifier NOT NULL, recorded_at datetimeoffset(3) NOT NULL); -- append-only
 
 -- platform
 CREATE TABLE platform.idempotency_keys (

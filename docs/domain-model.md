@@ -73,7 +73,7 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 **Dispute** — id, dealId/receivableId, type, raisedBy (org/user), description, status (`Open | Resolved | Withdrawn`), resolution notes, linked Hold.
 
 **FeeSchedule** — version, payer, basis (`Discount` = faceValue − purchasePrice), share, min, max, vatTreatment, effectiveFrom, createdBy, approvedBy/approvedAt (four-eyes). Immutable from creation; only the one-time approval is set. The fee never exceeds the discount.
-**FeeCharge** — dealId, payerOrgId, amount (Money), vatAmount, status (`Pending | Due | Invoiced | Paid | Cancelled | CreditNoted`), dueAt, externalInvoiceRef. Corrections create new rows; rows are never edited.
+**FeeCharge** — dealId, payerOrgId, payerRole, kind (`Charge | Reversal`), amount (Money, never negative), vatAmount, vatPending, feeScheduleVersion, status, dueAt, externalInvoiceRef, reversesId, a deal snapshot for statements. A charge moves `Due → Invoiced → Paid`; a correction is a Reversal row (`PendingApproval → Effective`, four-eyes) that references the charge; amounts are never edited (task 018).
 
 **AuditEvent** — see [audit.md](audit.md).
 

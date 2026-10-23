@@ -41,7 +41,7 @@ Every member is **Owner**. **Signatory** is a flag on a member. Seller organizat
 Signatory requires a link to an APR legal representative or a verified power of attorney. A seller's single account becomes Signatory when its pristupnica is accepted. Admin, Operator and Viewer roles are post-MVP.
 
 ### Platform roles
-`PlatformAdmin` (configuration, no compliance decisions), `ComplianceOfficer` (KYB, authorizations, holds), `Operations` (deal follow-up, disputes log), `Finance` (fees), `Support` (read-only, masked PII), `Auditor` (read-only audit). **Four-eyes** applies to: organization approval for high-risk cases, factor authorization verification, lifting fraud holds, and fee schedule changes. No platform role can create offers, accept offers or sign on behalf of users.
+`PlatformAdmin` (configuration, no compliance decisions), `ComplianceOfficer` (KYB, authorizations, holds), `Operations` (deal follow-up, disputes log), `Finance` (fees), `Support` (read-only, masked PII), `Auditor` (read-only audit). **Four-eyes** applies to: organization approval for high-risk cases, factor authorization verification, lifting fraud holds, fee schedule changes, and fee charge reversals. No platform role can create offers, accept offers or sign on behalf of users.
 
 ### Tenant isolation
 - Every query in an org context is filtered by `org_id` in the application layer (EF global query filters as defence in depth). Every command also re-checks resource ownership.

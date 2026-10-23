@@ -256,8 +256,10 @@ internal sealed partial class DealStepService
                     await TransitionAsync(deal, DealState.Funded, "seller_confirmed_receipt", UserId, ct);
                     await receivables.MoveForDealAsync(deal.ReceivableId, id, ReceivableState.Assigned, ReceivableState.Funded, ct);
                     var currency = deal.FaceValue.Currency;
+                    var receivable = await receivableMarket.GetAsync(deal.ReceivableId, ct);
                     await outbox.AddAsync(new DealFunded(id, deal.SellerOrgId, deal.FactorOrgId, deal.FeeScheduleVersion,
-                        new Money(deal.PlatformFeeAmount, currency).Round(), new Money(deal.SellerFeeAmount, currency).Round()), ct);
+                        new Money(deal.PlatformFeeAmount, currency).Round(), new Money(deal.SellerFeeAmount, currency).Round(),
+                        deal.Reference, receivable!.InvoiceNumber, deal.FaceValue.Round(), timeProvider.GetUtcNow()), ct);
                 }
                 else
                 {

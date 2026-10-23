@@ -19,12 +19,13 @@ When a deal is funded, exactly one fee charge per payer is created from the deal
 - No charge for deals that never reached `Funded`.
 - Charges are never edited; status transitions only `Due → Invoiced → Paid`; corrections via Reversal rows.
 - Fee refund policy on recourse/default: none by default (BQ-05).
+- Implementation notes (2026-10-23, simplest options): the consumer `fees.charges` of `DealFunded` runs in the worker's outbox dispatcher; `DealFunded` carries the fee snapshot and the statement data (deal reference, invoice number, face value, funded time), so Fees reads no other schema; the factor's charge is the platform fee minus the seller's part, and a seller charge exists only when the schedule makes the seller pay; VAT is 20% for `Standard20`, 0 for `Exempt`, and 0 with `vatPending` for `TBD` (LQ-43); `due_at` = the end of the funded month + `fees.paymentTermsDays` (working default 15, the docs give no value); a reversal is proposed by one Finance user and becomes Effective when a second one approves, and only effective reversals count in statements and the export; amounts are never negative (the export shows reversals with a minus sign); a statement holds the charges of deals funded in the month and the reversals created in it; the export is audited (`FeeExport.Downloaded`).
 
 # Technical Requirements
 Money sums per currency; CSV with invariant-culture decimals and a UTF-8 BOM for Excel.
 
 # API Changes
-`GET /fees/charges`, `GET /fees/statements/{period}`; admin `GET /admin/fees/charges`, `POST /admin/fees/charges/{id}/invoiced|paid|reverse` 🔐, `GET /admin/fees/export?period=`.
+`GET /fees/charges`, `GET /fees/statements/{period}`; admin `GET /admin/fees/charges`, `POST /admin/fees/charges/{id}/invoiced|paid|reverse|approve-reversal` 🔐, `GET /admin/fees/export?period=`.
 
 # Database Changes
 `fees.fee_charges` (DDL in database.md) + `fees.fee_payments`.
@@ -36,8 +37,8 @@ Finance role only for admin actions; exports audited.
 Duplicate `DealFunded` delivery → one charge; reversal four-eyes; statement totals; payer sees only its charges.
 
 # Acceptance Criteria
-- [ ] Funded deal → exactly one charge per payer with the snapshot amount.
-- [ ] Monthly export matches the ledger of charges minus reversals.
+- [x] Funded deal → exactly one charge per payer with the snapshot amount.
+- [x] Monthly export matches the ledger of charges minus reversals.
 
 # Out of Scope
 Issuing SEF invoices from the platform (future integration), payment collection, dunning.

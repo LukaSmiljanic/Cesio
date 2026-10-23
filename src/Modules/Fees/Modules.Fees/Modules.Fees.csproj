@@ -18,6 +18,7 @@
     <ProjectReference Include="../../../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
     <ProjectReference Include="../../Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
     <ProjectReference Include="../../Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../../Deals/Modules.Deals.Contracts/Modules.Deals.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

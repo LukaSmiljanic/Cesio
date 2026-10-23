@@ -50,7 +50,18 @@ public sealed record DealFundingReported(Guid DealId, Guid SellerOrgId, Guid Fac
 }
 
 /// <summary>Published when the seller confirms receipt; task 018 creates the fee charge from it (INV-F3).</summary>
-public sealed record DealFunded(Guid DealId, Guid SellerOrgId, Guid FactorOrgId, int FeeScheduleVersion, Money PlatformFee, Money SellerFee) : IIntegrationEvent
+/// <param name="Reference">The deal reference, with the invoice number and face value, snapshotted for the fee statement (task 018).</param>
+public sealed record DealFunded(
+    Guid DealId,
+    Guid SellerOrgId,
+    Guid FactorOrgId,
+    int FeeScheduleVersion,
+    Money PlatformFee,
+    Money SellerFee,
+    string Reference,
+    string InvoiceNumber,
+    Money FaceValue,
+    DateTimeOffset FundedAt) : IIntegrationEvent
 {
     public static string EventType => "Deals.DealFunded";
 }

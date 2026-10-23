@@ -23,7 +23,7 @@ Share: **15%** of the discount, no minimum, no cap (BQ-01, decided by the produc
 
 ## 2. Who pays whom, when (MVP)
 
-The platform **never** receives or forwards deal money (ADR-004). It invoices its own fee separately.
+The platform **never** receives or forwards deal money (ADR-004). It invoices its own fee separately. A fee charge is due `fees.paymentTermsDays` after the end of the month the deal was funded in (working default 15, not legally settled: the invoicing and tax point depend on LQ-44).
 
 ```
 Seller ──(assigns receivable, signed agreement)──────────────▶ Factor

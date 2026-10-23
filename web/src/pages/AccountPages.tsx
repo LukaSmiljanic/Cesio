@@ -40,6 +40,9 @@ function MyOrganizations() {
       <Link to="/deals" className={`${linkButton} mr-2`}>
         Poslovi
       </Link>
+      <Link to="/fees" className={`${linkButton} mr-2`}>
+        Naknade
+      </Link>
       <Link to="/offers" className={`${linkButton} mr-2`}>
         Moje ponude
       </Link>
