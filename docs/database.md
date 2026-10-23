@@ -186,6 +186,7 @@ CREATE TABLE deals.disputes (...);
 
 -- fees
 CREATE TABLE fees.fee_schedules (version int PRIMARY KEY, definition nvarchar(max) /* JSON, CHECK (ISJSON(...) = 1) */ NOT NULL, effective_from datetimeoffset(3) NOT NULL,
+  created_at datetimeoffset(3) NOT NULL, approved_by uniqueidentifier CHECK (approved_by <> created_by) /* four-eyes; set once */, approved_at datetimeoffset(3),
   created_by uniqueidentifier NOT NULL);
 CREATE TABLE fees.fee_charges (
   id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL REFERENCES deals.deals(id),

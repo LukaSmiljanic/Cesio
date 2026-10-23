@@ -62,6 +62,7 @@ app.MapOrganizationEndpoints(includeDevelopmentEndpoints: app.Environment.IsDeve
 app.MapDocumentEndpoints();
 app.MapReceivableEndpoints();
 app.MapMarketplaceEndpoints();
+app.MapFeeEndpoints();
 
 app.Run();
 

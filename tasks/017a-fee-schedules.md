@@ -22,6 +22,7 @@ A versioned, immutable fee schedule and a pure calculation service that produces
 - Fee = discount × share; ≥ min if set; ≤ max if set; **never more than the discount**; face value and purchase price must have the same currency, and `0 < purchasePrice < faceValue` (INV-F1).
 - The fee is fixed by the offer's purchase price; later events (recourse, default, late collection) never change it.
 - A schedule referenced by any offer can never be modified.
+- Implementation notes (2026-10-23): every version is immutable once created (triggers block updates except the one-time approval, and deletes), which covers "referenced by an offer"; the seed is created and approved by the system; Finance staff are a user claim granted with `POST /dev/me/platform-roles` until the staff realm (task 007); the MVP accepts only the Discount basis in RSD; `IFeeCalculator.Calculate` takes the schedule itself (callers load it through `IFeeScheduleQuery`), so it stays pure; the total fee is rounded once and a split gives the seller its rounded part and the factor the rest.
 
 # Technical Requirements
 No DB access in the calculator (unit-testable). Golden tests reproduce financial-model.md §2.
@@ -39,8 +40,8 @@ Four-eyes; audit with the full definition.
 Golden examples (RSD equivalents of the 10k/100k/1M EUR examples in financial-model.md §2), min-fee path, min fee larger than the discount (capped at the discount), max cap, split payer rounding (sum of parts = total), currency mismatch throws, purchase price ≥ face value throws.
 
 # Acceptance Criteria
-- [ ] Calculator reproduces documented examples exactly.
-- [ ] Schedules immutable and four-eyes approved.
+- [x] Calculator reproduces documented examples exactly.
+- [x] Schedules immutable and four-eyes approved.
 
 # Out of Scope
 Charges/statements (018), VAT determination (LQ-43).

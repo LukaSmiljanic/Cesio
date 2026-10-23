@@ -14,6 +14,9 @@ public static class PlatformRoles
 
     /// <summary>Platform operations staff, e.g. suspending a listing (task 012).</summary>
     public const string Operations = "Operations";
+
+    /// <summary>Fee schedules (task 017a); four-eyes between two Finance users.</summary>
+    public const string Finance = "Finance";
 }
 
 public interface IPlatformRoles
