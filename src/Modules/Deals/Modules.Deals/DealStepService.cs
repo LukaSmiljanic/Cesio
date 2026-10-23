@@ -9,6 +9,7 @@ using Modules.Organizations.Contracts;
 using Modules.Receivables.Contracts;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
+using Shared.Infrastructure.Persistence.Platform;
 using Shared.Infrastructure.Requests;
 using Shared.Kernel;
 
@@ -27,11 +28,15 @@ public sealed record CancelDealRequest(string? ReasonCode, string? Comment);
 /// both parties' terms confirmation on the same document hash, and cancellation. Every step is audited with its actor
 /// and blocked while a hold is active on the deal, the receivable or either organization.
 /// </summary>
-internal sealed class DealStepService(
+internal sealed partial class DealStepService(
     DealsDbContext deals,
     IReceivableWriter receivables,
     IReceivableMarket receivableMarket,
     ISignatureValidator signatureValidator,
+    ICefGateway cef,
+    IBankAccountQuery bankAccounts,
+    IBusinessParameters parameters,
+    IAccessLog accessLog,
     IOrganizationQuery organizations,
     IHoldQuery holds,
     IDocumentQuery documents,
@@ -340,6 +345,7 @@ internal sealed class DealStepService(
                 if (signed)
                 {
                     await TransitionAsync(deal, DealState.Signed, "signatures_valid", UserId, ct);
+                    await CreateCefRegistrationAsync(deal, ct);
                     await receivables.AssignAsync(deal.ReceivableId, id, ct);
                     await outbox.AddAsync(new DealSigned(id, deal.ReceivableId, deal.SellerOrgId, deal.FactorOrgId), ct);
                 }
@@ -415,14 +421,25 @@ internal sealed class DealStepService(
             DealState.AwaitingContract when contract is null => "Factor",
             DealState.AwaitingContract => confirmedBy.Contains(sellerOrgId) ? "Factor" : confirmedBy.Contains(factorOrgId) ? "Seller" : "Both",
             DealState.AwaitingSignatures => "Both",
+            DealState.Signed => "Factor",
+            DealState.FundingReported => "Seller",
+            DealState.Funded => "Factor",
             _ => null,
         };
         var signatures = await deals.Signatures.AsNoTracking().Where(s => s.DealId == id).OrderBy(s => s.ValidatedAt)
             .Select(s => new { signer = s.SignerName, party = s.Party, result = s.Result, signingTime = s.SigningTime, validatedAt = s.ValidatedAt })
             .ToListAsync(cancellationToken);
+        var cefRegistration = await deals.CefRegistrations.AsNoTracking().SingleOrDefaultAsync(c => c.DealId == id, cancellationToken);
+        var funding = await deals.FundingReports.AsNoTracking().SingleOrDefaultAsync(f => f.DealId == id, cancellationToken);
+        var openDisputes = await deals.Disputes.AsNoTracking().Where(d => d.DealId == id && d.Status == Dispute.Open).Select(d => d.Kind).ToListAsync(cancellationToken);
+        var notified = await deals.DebtorNotifications.AsNoTracking().AnyAsync(n => n.DealId == id, cancellationToken);
         return new
         {
             signatures,
+            cef = cefRegistration is null ? null : new { status = cefRegistration.Status.ToString(), note = cefRegistration.Note, reference = cefRegistration.Reference },
+            debtorNotified = notified,
+            fundingReport = funding is null ? null : new { amount = funding.Amount.Round(), valueDate = funding.ValueDate, paymentReference = funding.PaymentReference },
+            openDisputes,
             cdd = cdd is null ? null : new { approved = cdd.Approved, reason = cdd.Reason, decidedAt = cdd.DecidedAt },
             contract = contract is null ? null : new { contractDocumentId = contract.Id, documentId = contract.DocumentId, sha256 = contract.Sha256, uploadedAt = contract.UploadedAt },
             sellerConfirmed = confirmedBy.Contains(sellerOrgId),
@@ -447,7 +464,9 @@ internal sealed class DealStepService(
             return Problems.Error(StatusCodes.Status403Forbidden, "signatory_required", "Only a Signatory of your organization can take this step.");
         }
 
-        if (await holds.HasActiveHoldAsync(HoldSubject.Deal, deal.Id, cancellationToken)
+        // An open dispute holds the deal (task 017) until holds exist (task 007).
+        if (await deals.Disputes.AnyAsync(d => d.DealId == deal.Id && d.Status == Dispute.Open, cancellationToken)
+            || await holds.HasActiveHoldAsync(HoldSubject.Deal, deal.Id, cancellationToken)
             || await holds.HasActiveHoldAsync(HoldSubject.Receivable, deal.ReceivableId, cancellationToken)
             || await holds.HasActiveHoldAsync(HoldSubject.Organization, deal.SellerOrgId, cancellationToken)
             || await holds.HasActiveHoldAsync(HoldSubject.Organization, deal.FactorOrgId, cancellationToken))
@@ -465,7 +484,7 @@ internal sealed class DealStepService(
         await outbox.AddAsync(new DealCancelled(deal.Id, reason, deal.SellerOrgId, deal.FactorOrgId), cancellationToken);
     }
 
-    private async Task TransitionAsync(Deal deal, DealState to, string reason, Guid? actorUserId, CancellationToken cancellationToken)
+    private async Task TransitionAsync(Deal deal, DealState to, string reason, Guid? actorUserId, CancellationToken cancellationToken, Dictionary<string, string?>? changes = null)
     {
         var from = deal.State;
         deal.State = to;
@@ -480,7 +499,7 @@ internal sealed class DealStepService(
             Reason = reason,
         });
         await audit.WriteAsync(new AuditEntry($"Deal.{to}", "Deal", deal.Id, deal.SellerOrgId,
-            PreviousState: from.ToString(), NewState: to.ToString(), Reason: reason), cancellationToken);
+            PreviousState: from.ToString(), NewState: to.ToString(), Reason: reason, Changes: changes), cancellationToken);
     }
 
     private async Task<IResult> CommitAsync(Func<CancellationToken, Task> work, Deal deal, CancellationToken cancellationToken, Func<IResult>? result = null)

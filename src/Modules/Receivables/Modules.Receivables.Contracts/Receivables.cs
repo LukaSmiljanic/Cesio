@@ -85,4 +85,11 @@ public interface IReceivableWriter
 
     /// <summary>The factoring agreement is signed (task 016): Reserved → Assigned, with an audit event (subject to LQ-25).</summary>
     Task AssignAsync(Guid receivableId, Guid dealId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// A later step of the deal (task 017): Assigned → Funded, Funded → Settled/RecourseReturned/Defaulted, or
+    /// Assigned → Verified after a termination; locked, checked against <paramref name="from"/> and audited.
+    /// </summary>
+    /// <exception cref="Shared.Kernel.DomainConflictException"><c>conflict_state</c> when the receivable is not in <paramref name="from"/>.</exception>
+    Task MoveForDealAsync(Guid receivableId, Guid dealId, ReceivableState from, ReceivableState to, CancellationToken cancellationToken);
 }

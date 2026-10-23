@@ -6,6 +6,7 @@ import { dealsApi, type DealDetail } from '../api/deals'
 import { formatMoney } from '../api/receivables'
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
+import { DealExecution } from './DealExecution'
 
 const dealStates: Record<string, string> = {
   AwaitingFactorCdd: 'Čeka proveru faktora (CDD)',
@@ -280,6 +281,7 @@ export function DealPage() {
         <dd>{dateTime(d.signatureDeadline)}</dd>
       </dl>
       <DealSteps detail={detail.data} />
+      <DealExecution detail={detail.data} />
       <h2 className="mt-4 font-medium">Tok posla</h2>
       <ol className="text-sm">
         {timeline.data?.map((t) => (

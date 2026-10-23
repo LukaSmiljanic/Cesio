@@ -74,6 +74,58 @@ namespace Modules.Deals.Persistence.Migrations
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
+            modelBuilder.Entity("Modules.Deals.Persistence.CefRegistration", b =>
+                {
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("EvidenceDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("evidence_document_id");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid?>("RecordedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("recorded_by");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("reference");
+
+                    b.Property<DateTimeOffset?>("RegisteredAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("registered_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("DealId")
+                        .HasName("pk_cef_registrations");
+
+                    b.ToTable("cef_registrations", "deals");
+                });
+
             modelBuilder.Entity("Modules.Deals.Persistence.ContractDocument", b =>
                 {
                     b.Property<Guid>("Id")
@@ -337,6 +389,289 @@ namespace Modules.Deals.Persistence.Migrations
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
+            modelBuilder.Entity("Modules.Deals.Persistence.DebtorNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("channel");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<Guid>("EvidenceDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("evidence_document_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid>("RecordedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("recorded_by");
+
+                    b.Property<Guid>("RecordedByOrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("recorded_by_org_id");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("sent_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_debtor_notifications");
+
+                    b.HasIndex("DealId")
+                        .HasDatabaseName("ix_debtor_notifications_deal_id");
+
+                    b.ToTable("debtor_notifications", "deals", t =>
+                        {
+                            t.HasTrigger("tr_debtor_notifications_append_only");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.Dispute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("opened_at");
+
+                    b.Property<Guid?>("OpenedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("opened_by");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_disputes");
+
+                    b.HasIndex("DealId", "Status")
+                        .HasDatabaseName("ix_disputes_deal_id_status");
+
+                    b.ToTable("disputes", "deals");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.FundingConfirmation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ConfirmedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<Guid>("ConfirmedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("confirmed_by");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)")
+                        .HasColumnName("reason");
+
+                    b.Property<bool>("Received")
+                        .HasColumnType("bit")
+                        .HasColumnName("received");
+
+                    b.Property<DateTimeOffset>("StepUpAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("step_up_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_funding_confirmations");
+
+                    b.HasIndex("DealId")
+                        .HasDatabaseName("ix_funding_confirmations_deal_id");
+
+                    b.ToTable("funding_confirmations", "deals", t =>
+                        {
+                            t.HasTrigger("tr_funding_confirmations_append_only");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.FundingReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<string>("PayeeAccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(18)
+                        .IsUnicode(false)
+                        .HasColumnType("char(18)")
+                        .HasColumnName("payee_account_number")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("PayeeBankAccountId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("payee_bank_account_id");
+
+                    b.Property<string>("PaymentReference")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("payment_reference");
+
+                    b.Property<DateTimeOffset>("ReportedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("reported_at");
+
+                    b.Property<Guid>("ReportedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("reported_by");
+
+                    b.Property<DateTimeOffset>("StepUpAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("step_up_at");
+
+                    b.Property<DateOnly>("ValueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("value_date");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Amount", "Modules.Deals.Persistence.FundingReport.Amount#Money", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(19, 4)
+                                .HasColumnType("decimal(19,4)")
+                                .HasColumnName("amount");
+
+                            b1.Property<string>("Currency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .IsUnicode(false)
+                                .HasColumnType("char(3)")
+                                .HasColumnName("currency")
+                                .IsFixedLength();
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_funding_reports");
+
+                    b.HasIndex("DealId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_funding_reports_deal_id");
+
+                    b.ToTable("funding_reports", "deals", t =>
+                        {
+                            t.HasTrigger("tr_funding_reports_append_only");
+
+                            t.HasCheckConstraint("ck_funding_report_currency", "[currency] IN ('RSD','EUR')");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.Outcome", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("AmountCollectedAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)")
+                        .HasColumnName("amount_collected");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date")
+                        .HasColumnName("date");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<DateTimeOffset>("ReportedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("reported_at");
+
+                    b.Property<Guid>("ReportedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("reported_by");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_outcomes");
+
+                    b.HasIndex("DealId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_outcomes_deal_id");
+
+                    b.ToTable("outcomes", "deals", t =>
+                        {
+                            t.HasTrigger("tr_outcomes_append_only");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
             modelBuilder.Entity("Modules.Deals.Persistence.Signature", b =>
                 {
                     b.Property<Guid>("Id")
@@ -550,6 +885,16 @@ namespace Modules.Deals.Persistence.Migrations
                         .HasConstraintName("fk_cdd_decisions_deals_deal_id");
                 });
 
+            modelBuilder.Entity("Modules.Deals.Persistence.CefRegistration", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithOne()
+                        .HasForeignKey("Modules.Deals.Persistence.CefRegistration", "DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_cef_registrations_deals_deal_id");
+                });
+
             modelBuilder.Entity("Modules.Deals.Persistence.ContractDocument", b =>
                 {
                     b.HasOne("Modules.Deals.Persistence.Deal", null)
@@ -568,6 +913,56 @@ namespace Modules.Deals.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_deal_state_history_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.DebtorNotification", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_debtor_notifications_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.Dispute", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_disputes_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.FundingConfirmation", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_funding_confirmations_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.FundingReport", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_funding_reports_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.Outcome", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_outcomes_deals_deal_id");
                 });
 
             modelBuilder.Entity("Modules.Deals.Persistence.Signature", b =>

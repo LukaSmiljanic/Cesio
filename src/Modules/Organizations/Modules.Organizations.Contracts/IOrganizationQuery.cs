@@ -27,6 +27,15 @@ public sealed record OrganizationSummary(Guid Id, OrganizationType Type, Onboard
 
 public sealed record MembershipSummary(Guid OrganizationId, Guid UserId, bool IsSignatory);
 
+/// <summary>A payout account a factor may pay the purchase price to: Verified and out of cool-down (INV-F2).</summary>
+public sealed record FundingAccount(Guid Id, Guid OrganizationId, Shared.Kernel.SerbianBankAccountNumber AccountNumber, string BankName, Shared.Kernel.Currency Currency);
+
+/// <summary>The seller's payout accounts usable for funding (task 017; the accounts themselves come with task 009).</summary>
+public interface IBankAccountQuery
+{
+    Task<IReadOnlyList<FundingAccount>> UsableForFundingAsync(Guid organizationId, CancellationToken cancellationToken);
+}
+
 /// <summary>Read access to organizations for other modules (task 005 technical requirements).</summary>
 public interface IOrganizationQuery
 {

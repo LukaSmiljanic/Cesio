@@ -10,6 +10,7 @@ Sellers (and factors, for reference) register bank accounts that compliance veri
 - `POST /organizations/{id}/bank-accounts` 🔐 (Owner): account number (validated with `SerbianBankAccountNumber`), currency (RSD) → `Pending`. Compliance attaches the **NBS account register snapshot (mandatory)**; a bank letter may be attached as a supplement. For an organization that already has a Verified account, adding or changing one first needs confirmation through the official email in APR (task 007a).
 - Compliance verifies (owner = org PIB per evidence) → `Verified`, with `usableFrom = verifiedAt + 72h` (parameter). Reject with a reason.
 - Deactivate an account (Owner, step-up). Reactivation = new verification.
+- When this task lands, the phase-2 stub of `IBankAccountQuery` (task 017) is replaced: `GET /deals/{id}/funding-accounts` and the funding report then use the real Verified, out-of-cool-down accounts (the factor sees the full number only at that step, access logged).
 - `IBankAccountQuery.IsUsableForFunding(orgId, accountId, at)`.
 - Notifications (event only; delivered by 019): account added/verified/deactivated → security recipients ([security.md](../docs/security.md) §2) + factors with in-flight deals with the org.
 - Monitoring signal: the same account number registered by a different org → automatic compliance alert (stored as a flag on both records) and blocked verification until resolved.

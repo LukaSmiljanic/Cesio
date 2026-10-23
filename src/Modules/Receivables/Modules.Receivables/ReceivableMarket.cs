@@ -124,6 +124,21 @@ internal sealed class ReceivableMarket(
             PreviousState: nameof(ReceivableState.Reserved), NewState: nameof(ReceivableState.Verified), Reason: reason, Related: [new AuditReference("Deal", dealId)]), cancellationToken);
     }
 
+    public async Task MoveForDealAsync(Guid receivableId, Guid dealId, ReceivableState from, ReceivableState to, CancellationToken cancellationToken)
+    {
+        await receivables.Database.ExecuteSqlAsync($"SELECT id FROM receivables.receivables WITH (UPDLOCK, ROWLOCK) WHERE id = {receivableId}", cancellationToken);
+        var receivable = await receivables.Receivables.IgnoreQueryFilters().SingleAsync(r => r.Id == receivableId, cancellationToken);
+        if (receivable.State != from)
+        {
+            throw new DomainConflictException("conflict_state", $"The receivable is {receivable.State}, not {from}.");
+        }
+
+        receivable.State = to;
+        await receivables.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync(new AuditEntry($"Receivable.{to}", "Receivable", receivableId, receivable.SellerOrgId,
+            PreviousState: from.ToString(), NewState: to.ToString(), Related: [new AuditReference("Deal", dealId)]), cancellationToken);
+    }
+
     public async Task AssignAsync(Guid receivableId, Guid dealId, CancellationToken cancellationToken)
     {
         await receivables.Database.ExecuteSqlAsync($"SELECT id FROM receivables.receivables WITH (UPDLOCK, ROWLOCK) WHERE id = {receivableId}", cancellationToken);

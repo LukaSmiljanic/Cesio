@@ -67,7 +67,7 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 - **Signature** — party, signerName, certificate subject/issuer/serial, signingTime, result (`Valid` or the first failed rule), the validator report, and the party whose legal representative signed (null when the signer matches none); MVP matching is by name (LQ-75).
 - **CefRegistration** — status (`NotApplicable | Pending | Registered | Failed`), cefReference, evidenceDocumentId, recordedBy.
 - **DebtorNotification** — responsibleParty, channel, sentAt, evidenceDocumentId.
-- **FundingReport** — amount, valueDate, paymentReference, payerAccount, payeeBankAccountId, reportedBy. **FundingConfirmation** — confirmed / discrepancy, by, at.
+- **FundingReport** — amount, valueDate, paymentReference, payeeBankAccountId, payeeAccountNumber (the full 18 digits at reporting time: evidence of where the money went, stored in the database only, never logged or audited unmasked), reportedBy, step-up time; one per deal. **FundingConfirmation** — received (true) or a discrepancy (false with a reason), by, at, step-up time.
 - **Outcome** — type (`Settled | RecourseExercised | Defaulted`), amountCollected, date, reportedBy.
 
 **Dispute** — id, dealId/receivableId, type, raisedBy (org/user), description, status (`Open | Resolved | Withdrawn`), resolution notes, linked Hold.
@@ -125,5 +125,5 @@ Any forward transition                 blocked while an applicable Hold is activ
 ```
 
 ## 7. Domain events (in-process, published through the outbox)
-`OrganizationClaimed`, `OrganizationApproved`, `SefConnectionValidated`, `PristupnicaAccepted`, `MfaResetExecuted`, `FactorAuthorizationVerified/Expired/Revoked`, `ReceivableVerified/Rejected/BecameIneligible`, `ListingOpened/Closed/Expired`, `OfferSubmitted/Withdrawn/Accepted/Superseded`, `DealCreated/Signed/FundingReported/Funded/Closed/Cancelled`, `HoldPlaced/Lifted`, `SefStatusChanged`, `FeeChargeCreated`.
+`OrganizationClaimed`, `OrganizationApproved`, `SefConnectionValidated`, `PristupnicaAccepted`, `MfaResetExecuted`, `FactorAuthorizationVerified/Expired/Revoked`, `ReceivableVerified/Rejected/BecameIneligible`, `ListingOpened/Closed/Expired`, `OfferSubmitted/Withdrawn/Accepted/Superseded`, `DealCreated/Signed/FundingReported/Funded/Closed/Cancelled/Terminated`, `HoldPlaced/Lifted`, `SefStatusChanged`, `FeeChargeCreated`.
 Consumers: Notifications, Fees, Audit enrichment, read models. Handlers must be idempotent.

@@ -106,6 +106,9 @@ const messages: Record<string, string> = {
   certificate_revoked: 'Sertifikat je opozvan.',
   document_mismatch: 'Potpisan je drugi dokument od usaglašenog ugovora.',
   signer_not_authorized: 'Potpisnik nije zastupnik nijedne strane.',
+  account_not_usable: 'Uplata mora ići na verifikovan račun prodavca.',
+  cef_not_registered: 'Isplata čeka upis ugovora u CEF.',
+  evidence_missing: 'Priložite ispravan dokaz (dokument vaše firme).',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

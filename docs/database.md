@@ -12,7 +12,7 @@ Target: Microsoft SQL Server 2022+ compatible, hosted as **Azure SQL Database** 
 - **Naming:** snake_case table and column names (kept for consistency with the docs); avoid T-SQL reserved words as names (`key` → `idem_key`/`param_key`).
 - **Filtered unique indexes** replace PostgreSQL partial indexes. Their predicate allows only simple comparisons joined by `AND` (no `NOT IN`, no `OR`), and they need the standard ANSI `SET` options (EF Core's defaults). A unique index treats `NULL`s as equal, so nullable unique columns are filtered with `IS NOT NULL`.
 - **Deletion:** no hard deletes of business or financial rows. Soft delete (`deleted_at`) **only** for drafts, notification preferences and unsubmitted documents. Immutability (ADR-021):
-  - **Fully append-only tables** (`audit.*`, `deals.deal_state_history`, `deals.signatures`, `deals.contract_documents`, `deals.funding_reports`, `deals.funding_confirmations`, `receivables.verification_checks`, `receivables.seller_declarations`, `receivables.sef_status_history`, `deals.cdd_decisions`, `deals.terms_confirmations`): `DENY UPDATE, DELETE` to `app_rw` + an INSTEAD OF UPDATE, DELETE trigger that throws.
+  - **Fully append-only tables** (`audit.*`, `deals.deal_state_history`, `deals.signatures`, `deals.contract_documents`, `deals.funding_reports`, `deals.funding_confirmations`, `receivables.verification_checks`, `receivables.seller_declarations`, `receivables.sef_status_history`, `deals.cdd_decisions`, `deals.terms_confirmations`, `deals.debtor_notifications`, `deals.outcomes`): `DENY UPDATE, DELETE` to `app_rw` + an INSTEAD OF UPDATE, DELETE trigger that throws.
   - **Tables whose state changes but some columns are fixed** (`marketplace.offers`: price, recourse, terms and the fee snapshot `fee_schedule_version`, `platform_fee`, `seller_fee`, `vat_pending`; only `state` and the once-written `rejection_reason` change; `deals.deals`: parties, amounts, recourse, terms, fee snapshot and acceptance; `fees.fee_charges`: amounts, payer): column-level `DENY UPDATE (col, …)` to `app_rw` + an AFTER UPDATE trigger with `IF UPDATE(col) THROW`.
   - **Staff-maintained reference data** (`deals.trusted_certificates`): rows are never deleted; only `deactivated_at`, `deactivated_by` and `version` change (deactivation, audited).
   - **Versioned configuration** (`fees.fee_schedules`): an AFTER UPDATE trigger allows only the one-time approval (`approved_by`, `approved_at`) and an INSTEAD OF DELETE trigger throws. The seed version is created by the system user (all zeros) and approved by a distinct system approver ID, so the four-eyes CHECK holds for it too.
@@ -201,10 +201,21 @@ CREATE TABLE deals.signatures (id uniqueidentifier PRIMARY KEY, deal_id uniqueid
   uploaded_by uniqueidentifier NOT NULL, validated_at datetimeoffset(3) NOT NULL);
 CREATE TABLE deals.trusted_certificates (id uniqueidentifier PRIMARY KEY, name nvarchar(200) NOT NULL, sha256_thumbprint char(64) NOT NULL UNIQUE,
   certificate nvarchar(max) NOT NULL, added_by uniqueidentifier NOT NULL, added_at datetimeoffset(3) NOT NULL, deactivated_at datetimeoffset(3), deactivated_by uniqueidentifier, version int NOT NULL);
-CREATE TABLE deals.cef_registrations (...),
-             deals.debtor_notifications (...), deals.funding_reports (...), deals.funding_confirmations (...),
-             deals.outcomes (... UNIQUE (deal_id) ...);
-CREATE TABLE deals.disputes (...);
+-- task 017: evidence after signing; all append-only except the CEF record (status set once, Pending → Registered) and the dispute status
+CREATE TABLE deals.cef_registrations (deal_id uniqueidentifier PRIMARY KEY, status varchar(20) NOT NULL /* NotApplicable, Pending, Registered */, note nvarchar(400),
+  reference nvarchar(100), evidence_document_id uniqueidentifier, recorded_by uniqueidentifier, created_at datetimeoffset(3) NOT NULL, registered_at datetimeoffset(3), version int NOT NULL);
+CREATE TABLE deals.debtor_notifications (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, channel varchar(20) NOT NULL, sent_at datetimeoffset(3) NOT NULL,
+  evidence_document_id uniqueidentifier NOT NULL, recorded_by_org_id uniqueidentifier NOT NULL, recorded_by uniqueidentifier NOT NULL, recorded_at datetimeoffset(3) NOT NULL);
+CREATE TABLE deals.funding_reports (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL UNIQUE, amount decimal(19,4) NOT NULL, currency char(3) NOT NULL,
+  value_date date NOT NULL, payment_reference nvarchar(100) NOT NULL, payee_bank_account_id uniqueidentifier NOT NULL, payee_account_number char(18) NOT NULL,
+  reported_by uniqueidentifier NOT NULL, reported_at datetimeoffset(3) NOT NULL, step_up_at datetimeoffset(3) NOT NULL);
+CREATE TABLE deals.funding_confirmations (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, received bit NOT NULL, reason nvarchar(400),
+  confirmed_by uniqueidentifier NOT NULL, confirmed_at datetimeoffset(3) NOT NULL, step_up_at datetimeoffset(3) NOT NULL);
+CREATE TABLE deals.outcomes (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL UNIQUE, type varchar(20) NOT NULL, date date NOT NULL,
+  amount_collected decimal(19,4), reported_by uniqueidentifier NOT NULL, reported_at datetimeoffset(3) NOT NULL);
+-- minimal in task 017 (an Open dispute holds the deal); the workflow comes with task 021
+CREATE TABLE deals.disputes (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, kind varchar(40) NOT NULL, status varchar(20) NOT NULL, reason nvarchar(1000),
+  opened_by uniqueidentifier, opened_at datetimeoffset(3) NOT NULL, version int NOT NULL);
 
 -- fees
 CREATE TABLE fees.fee_schedules (version int PRIMARY KEY, definition nvarchar(max) /* JSON, CHECK (ISJSON(...) = 1) */ NOT NULL, effective_from datetimeoffset(3) NOT NULL,
@@ -232,7 +243,7 @@ CREATE TABLE platform.outbox (id uniqueidentifier PRIMARY KEY, type nvarchar(200
 CREATE INDEX ix_outbox_pending ON platform.outbox(next_attempt_at) WHERE processed_at IS NULL AND dead_lettered_at IS NULL;
 CREATE TABLE platform.processed_events (event_id uniqueidentifier, consumer nvarchar(200), processed_at datetimeoffset(3) NOT NULL,
   PRIMARY KEY (event_id, consumer)); -- written in the consumer's transaction, so redelivery does not repeat side effects
-CREATE TABLE platform.business_parameters (param_key nvarchar(200), version int, value nvarchar(max) /* JSON, CHECK (ISJSON(...) = 1) */ NOT NULL, effective_from datetimeoffset(3) NOT NULL,
+CREATE TABLE platform.business_parameters (param_key nvarchar(200), version int, value nvarchar(max) /* JSON value, scalars allowed: CHECK (ISJSON(value, VALUE) = 1) */ NOT NULL, effective_from datetimeoffset(3) NOT NULL,
   created_by uniqueidentifier NOT NULL, PRIMARY KEY (param_key, version));
 ```
 

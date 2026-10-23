@@ -33,8 +33,23 @@ export interface SignatureResult {
   validatedAt: string
 }
 
+export interface FundingAccount {
+  id: string
+  accountNumber: string
+  bankName: string
+  currency: string
+}
+
 export interface DealSteps {
   signatures: SignatureResult[]
+  cef: {
+    status: 'NotApplicable' | 'Pending' | 'Registered'
+    note: string | null
+    reference: string | null
+  } | null
+  debtorNotified: boolean
+  fundingReport: { amount: Money; valueDate: string; paymentReference: string } | null
+  openDisputes: string[]
   cdd: { approved: boolean; reason: string | null; decidedAt: string } | null
   contract: {
     contractDocumentId: string
@@ -87,6 +102,31 @@ export const dealsApi = {
     api<{ state: string; signatures: SignatureResult[] }>('POST', `/deals/${id}/signed-contract`, {
       documentId,
     }),
+  uploadEvidence: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('purpose', 'Contract')
+    return api<{ id: string }>('POST', '/documents', form)
+  },
+  fundingAccounts: (id: string) => api<FundingAccount[]>('GET', `/deals/${id}/funding-accounts`),
+  reportFunding: (
+    id: string,
+    request: {
+      amount: Money
+      valueDate: string
+      paymentReference: string
+      payeeBankAccountId: string
+    },
+  ) =>
+    api<{ state: string; amountMatches: boolean }>('POST', `/deals/${id}/funding-report`, request),
+  confirmFunding: (id: string, received: boolean, reason: string | null) =>
+    api<{ state: string }>('POST', `/deals/${id}/funding-confirmation`, { received, reason }),
+  outcome: (id: string, type: string, date: string, amountCollected: Money | null) =>
+    api<{ state: string }>('POST', `/deals/${id}/outcome`, { type, date, amountCollected }),
+  cefRegistration: (id: string, reference: string, evidenceDocumentId: string) =>
+    api('POST', `/deals/${id}/cef-registration`, { reference, evidenceDocumentId }),
+  debtorNotification: (id: string, channel: string, sentAt: string, evidenceDocumentId: string) =>
+    api('POST', `/deals/${id}/debtor-notification`, { channel, sentAt, evidenceDocumentId }),
   cancel: (id: string, reasonCode: string, comment: string | null) =>
     api<{ state: string }>('POST', `/deals/${id}/cancel`, { reasonCode, comment }),
 }

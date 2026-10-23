@@ -56,7 +56,7 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             parameter.ToTable("business_parameters");
             parameter.HasKey(p => new { p.ParamKey, p.Version });
             parameter.Property(p => p.ParamKey).HasMaxLength(200);
-            parameter.HasJsonCheck("value");
+            parameter.HasJsonCheck("value", scalar: true);
         });
     }
 }

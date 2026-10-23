@@ -53,7 +53,7 @@ namespace Shared.Infrastructure.Persistence.Platform.Migrations
 
                     b.ToTable("business_parameters", "platform", t =>
                         {
-                            t.HasCheckConstraint("ck_business_parameter_value_json", "ISJSON([value]) = 1");
+                            t.HasCheckConstraint("ck_business_parameter_value_json", "ISJSON([value], VALUE) = 1");
                         });
                 });
 

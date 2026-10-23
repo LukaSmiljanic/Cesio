@@ -26,6 +26,7 @@ public static class DealsModule
         services.AddScoped<DealService>();
         services.AddScoped<DealStepService>();
         services.AddScoped<TrustStoreService>();
+        services.AddScoped<ICefGateway, CefNotOperationalGateway>();
         services.AddScoped<IDocumentAccessPolicy, DealDocumentPolicy>();
         services.AddSingleton<ISignatureValidator>(provider =>
         {
@@ -64,6 +65,21 @@ public static class DealsModule
             service.CancelAsync(id, body, StepUpAt(http), ct)).RequireIdempotency().RequireStepUp();
         api.MapPost("/deals/{id:guid}/signed-contract", (Guid id, ContractRequest body, DealStepService service, CancellationToken ct) =>
             service.UploadSignedContractAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
+        api.MapGet("/deals/{id:guid}/funding-accounts", (Guid id, DealStepService service, CancellationToken ct) => service.FundingAccountsAsync(id, ct));
+        api.MapPost("/deals/{id:guid}/cef-registration", (Guid id, CefRegistrationRequest body, DealStepService service, CancellationToken ct) =>
+            service.RecordCefRegistrationAsync(id, body, ct)).RequireIdempotency();
+        api.MapPost("/deals/{id:guid}/debtor-notification", (Guid id, DebtorNotificationRequest body, DealStepService service, CancellationToken ct) =>
+            service.RecordDebtorNotificationAsync(id, body, ct)).RequireIdempotency();
+        api.MapPost("/deals/{id:guid}/funding-report", (Guid id, FundingReportRequest body, HttpContext http, DealStepService service, CancellationToken ct) =>
+            service.ReportFundingAsync(id, body, StepUpAt(http), ct)).RequireIdempotency().RequireStepUp();
+        api.MapPost("/deals/{id:guid}/funding-confirmation", (Guid id, FundingConfirmationRequest body, HttpContext http, DealStepService service, CancellationToken ct) =>
+            service.ConfirmFundingAsync(id, body, StepUpAt(http), ct)).RequireIdempotency().RequireStepUp();
+        api.MapPost("/deals/{id:guid}/outcome", (Guid id, OutcomeRequest body, HttpContext http, DealStepService service, CancellationToken ct) =>
+            service.RecordOutcomeAsync(id, body, StepUpAt(http), ct)).RequireIdempotency().RequireStepUp();
+
+        var staff = app.MapGroup("/api/v1/admin/deals").RequireAuthorization().AddEndpointFilter(RequireOperationsOrCompliance);
+        staff.MapPost("/{id:guid}/terminate", (Guid id, TerminateDealRequest body, DealStepService service, CancellationToken ct) =>
+            service.TerminateAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
 
         var admin = app.MapGroup("/api/v1/admin/trusted-certificates").RequireAuthorization().AddEndpointFilter(RequirePlatformAdmin);
         admin.MapGet("", (TrustStoreService service, CancellationToken ct) => service.ListAsync(ct));
@@ -80,6 +96,17 @@ public static class DealsModule
     /// <summary>The listing version from <c>If-Match: "3"</c>, if sent (api.md §1).</summary>
     private static int? IfMatch(HttpContext http) =>
         int.TryParse(http.Request.Headers.IfMatch.ToString().Trim('"', ' '), NumberStyles.None, CultureInfo.InvariantCulture, out var version) ? version : null;
+
+    /// <summary>Terminating a signed deal is for Operations or compliance staff; anyone else gets 404 (security.md §3).</summary>
+    private static async ValueTask<object?> RequireOperationsOrCompliance(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var http = context.HttpContext;
+        var roles = http.RequestServices.GetRequiredService<IPlatformRoles>();
+        return Guid.TryParse(http.User.FindFirst(CesioClaims.UserId)?.Value, out var userId)
+            && (await roles.HasRoleAsync(userId, PlatformRoles.Operations, http.RequestAborted) || await roles.HasRoleAsync(userId, PlatformRoles.ComplianceOfficer, http.RequestAborted))
+                ? await next(context)
+                : Results.Problem(statusCode: StatusCodes.Status404NotFound, extensions: new Dictionary<string, object?> { ["errorCode"] = "not_found" });
+    }
 
     /// <summary>The trust store is for platform administrators only; anyone else gets 404 (security.md §3).</summary>
     private static async ValueTask<object?> RequirePlatformAdmin(EndpointFilterInvocationContext context, EndpointFilterDelegate next)

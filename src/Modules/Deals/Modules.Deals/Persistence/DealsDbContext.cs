@@ -33,6 +33,18 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
 
     internal DbSet<TrustedCertificate> TrustedCertificates => Set<TrustedCertificate>();
 
+    internal DbSet<CefRegistration> CefRegistrations => Set<CefRegistration>();
+
+    internal DbSet<DebtorNotification> DebtorNotifications => Set<DebtorNotification>();
+
+    internal DbSet<FundingReport> FundingReports => Set<FundingReport>();
+
+    internal DbSet<FundingConfirmation> FundingConfirmations => Set<FundingConfirmation>();
+
+    internal DbSet<Outcome> Outcomes => Set<Outcome>();
+
+    internal DbSet<Dispute> Disputes => Set<Dispute>();
+
     protected override string Schema => SchemaName;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
@@ -135,6 +147,71 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
             certificate.Property(c => c.Name).HasMaxLength(200);
             certificate.Property(c => c.Sha256Thumbprint).HasMaxLength(64).IsFixedLength().IsUnicode(false);
             certificate.HasIndex(c => c.Sha256Thumbprint).IsUnique();
+        });
+
+        modelBuilder.Entity<CefRegistration>(cef =>
+        {
+            cef.ToTable("cef_registrations");
+            cef.HasKey(c => c.DealId);
+            cef.Property(c => c.Status).HasConversion<string>().HasMaxLength(20).IsUnicode(false);
+            cef.Property(c => c.Note).HasMaxLength(400);
+            cef.Property(c => c.Reference).HasMaxLength(100);
+            cef.HasOne<Deal>().WithOne().HasForeignKey<CefRegistration>(c => c.DealId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<DebtorNotification>(notification =>
+        {
+            notification.ToTable("debtor_notifications", table => table.HasTrigger("tr_debtor_notifications_append_only"));
+            notification.HasKey(n => n.Id);
+            notification.Property(n => n.Id).ValueGeneratedNever();
+            notification.Property(n => n.Channel).HasMaxLength(20).IsUnicode(false);
+            notification.HasOne<Deal>().WithMany().HasForeignKey(n => n.DealId).OnDelete(DeleteBehavior.Restrict);
+            notification.HasIndex(n => n.DealId);
+        });
+
+        modelBuilder.Entity<FundingReport>(report =>
+        {
+            report.ToTable("funding_reports", table => table.HasTrigger("tr_funding_reports_append_only"));
+            report.HasKey(r => r.Id);
+            report.Property(r => r.Id).ValueGeneratedNever();
+            report.HasMoney(r => r.Amount, "amount", "currency");
+            report.Property(r => r.PaymentReference).HasMaxLength(100);
+            report.Property(r => r.PayeeAccountNumber).HasMaxLength(18).IsFixedLength().IsUnicode(false);
+            report.HasOne<Deal>().WithMany().HasForeignKey(r => r.DealId).OnDelete(DeleteBehavior.Restrict);
+            report.HasIndex(r => r.DealId).IsUnique();
+        });
+
+        modelBuilder.Entity<FundingConfirmation>(confirmation =>
+        {
+            confirmation.ToTable("funding_confirmations", table => table.HasTrigger("tr_funding_confirmations_append_only"));
+            confirmation.HasKey(c => c.Id);
+            confirmation.Property(c => c.Id).ValueGeneratedNever();
+            confirmation.Property(c => c.Reason).HasMaxLength(400);
+            confirmation.HasOne<Deal>().WithMany().HasForeignKey(c => c.DealId).OnDelete(DeleteBehavior.Restrict);
+            confirmation.HasIndex(c => c.DealId);
+        });
+
+        modelBuilder.Entity<Outcome>(outcome =>
+        {
+            outcome.ToTable("outcomes", table => table.HasTrigger("tr_outcomes_append_only"));
+            outcome.HasKey(o => o.Id);
+            outcome.Property(o => o.Id).ValueGeneratedNever();
+            outcome.Property(o => o.Type).HasConversion<string>().HasMaxLength(20).IsUnicode(false);
+            outcome.Property(o => o.AmountCollectedAmount).HasColumnName("amount_collected");
+            outcome.HasOne<Deal>().WithMany().HasForeignKey(o => o.DealId).OnDelete(DeleteBehavior.Restrict);
+            outcome.HasIndex(o => o.DealId).IsUnique();
+        });
+
+        modelBuilder.Entity<Dispute>(dispute =>
+        {
+            dispute.ToTable("disputes");
+            dispute.HasKey(d => d.Id);
+            dispute.Property(d => d.Id).ValueGeneratedNever();
+            dispute.Property(d => d.Kind).HasMaxLength(40).IsUnicode(false);
+            dispute.Property(d => d.Status).HasMaxLength(20).IsUnicode(false);
+            dispute.Property(d => d.Reason).HasMaxLength(1000);
+            dispute.HasOne<Deal>().WithMany().HasForeignKey(d => d.DealId).OnDelete(DeleteBehavior.Restrict);
+            dispute.HasIndex(d => new { d.DealId, d.Status });
         });
     }
 }
@@ -320,6 +397,145 @@ internal sealed class TrustedCertificate
     public DateTimeOffset? DeactivatedAt { get; set; }
 
     public Guid? DeactivatedBy { get; set; }
+
+    public int Version { get; set; }
+}
+
+internal enum CefStatus
+{
+    NotApplicable,
+    Pending,
+    Registered,
+}
+
+/// <summary>The deal's CEF registration evidence (REG-05; manual until the CEF is live, ADR-019).</summary>
+internal sealed class CefRegistration
+{
+    public Guid DealId { get; init; }
+
+    public CefStatus Status { get; set; }
+
+    public string? Note { get; init; }
+
+    public string? Reference { get; set; }
+
+    public Guid? EvidenceDocumentId { get; set; }
+
+    public Guid? RecordedBy { get; set; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public DateTimeOffset? RegisteredAt { get; set; }
+
+    public int Version { get; set; }
+}
+
+/// <summary>Evidence that the debtor was notified of the assignment (LQ-14); append-only.</summary>
+internal sealed class DebtorNotification
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public required string Channel { get; init; }
+
+    public DateTimeOffset SentAt { get; init; }
+
+    public Guid EvidenceDocumentId { get; init; }
+
+    public Guid RecordedByOrgId { get; init; }
+
+    public Guid RecordedBy { get; init; }
+
+    public DateTimeOffset RecordedAt { get; init; }
+}
+
+/// <summary>The factor's report that it paid the purchase price (api.md §3.8, INV-F2); one per deal, append-only.</summary>
+internal sealed class FundingReport
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public required Money Amount { get; init; }
+
+    public DateOnly ValueDate { get; init; }
+
+    public required string PaymentReference { get; init; }
+
+    public Guid PayeeBankAccountId { get; init; }
+
+    /// <summary>The 18 digits of the payee account at reporting time (evidence; never logged).</summary>
+    public required string PayeeAccountNumber { get; init; }
+
+    public Guid ReportedBy { get; init; }
+
+    public DateTimeOffset ReportedAt { get; init; }
+
+    public DateTimeOffset StepUpAt { get; init; }
+}
+
+/// <summary>The seller's answer to a funding report (api.md §3.9); never automatic (BQ-12); append-only.</summary>
+internal sealed class FundingConfirmation
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public bool Received { get; init; }
+
+    public string? Reason { get; init; }
+
+    public Guid ConfirmedBy { get; init; }
+
+    public DateTimeOffset ConfirmedAt { get; init; }
+
+    public DateTimeOffset StepUpAt { get; init; }
+}
+
+/// <summary>The factor's outcome report (api.md §3.10); one per deal, append-only.</summary>
+internal sealed class Outcome
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public OutcomeType Type { get; init; }
+
+    public DateOnly Date { get; init; }
+
+    /// <summary>In the deal's currency; optional.</summary>
+    public decimal? AmountCollectedAmount { get; init; }
+
+    public Guid ReportedBy { get; init; }
+
+    public DateTimeOffset ReportedAt { get; init; }
+}
+
+/// <summary>
+/// A minimal dispute record (task 017; the workflow and UI come with task 021). While a dispute is Open, it holds the
+/// deal: every step is refused with 423 (holds themselves come with task 007).
+/// </summary>
+internal sealed class Dispute
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public const string Open = "Open";
+
+    public const string FundingDiscrepancy = "FundingDiscrepancy";
+
+    /// <summary>E.g. <c>FundingDiscrepancy</c>.</summary>
+    public required string Kind { get; init; }
+
+    public required string Status { get; set; }
+
+    public string? Reason { get; init; }
+
+    public Guid? OpenedBy { get; init; }
+
+    public DateTimeOffset OpenedAt { get; init; }
 
     public int Version { get; set; }
 }

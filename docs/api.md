@@ -26,11 +26,11 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 | Listings (seller) | `POST /receivables/{id}/listings` ♻, `GET /listings` (the seller's own), `GET /listings/{id}`, `POST /listings/{id}/withdraw` ♻, `GET /listings/{id}/offers` |
 | Marketplace (factor) | `GET /marketplace/listings` (filters: amount, tenor, debtor PIB, recourse preference), `GET /marketplace/listings/{id}`, `GET /marketplace/listings/{id}/documents/{docId}/content` (later scope; in the MVP a factor reads a listing's documents through `GET /documents/{id}/content`, granted by the listing visibility rule) |
 | Offers | `GET /marketplace/listings/{id}/fee-preview?purchasePrice=` (factor; the fee before submitting), `POST /marketplace/listings/{id}/offers` ♻ (factor), `GET /offers` (factor's own), `GET /offers/{id}`, `POST /offers/{id}/withdraw` ♻ (factor), `POST /offers/{id}/reject` ♻ (seller), `POST /offers/{id}/accept` ♻🔐 (seller Signatory) |
-| Deals | `GET /deals`, `GET /deals/{id}` (the deal, the state of its steps and whose turn it is), `GET /deals/{id}/timeline` (the seller and the factor of the deal only), `POST /deals/{id}/cdd-decision` ♻🔐 (factor Signatory), `POST /deals/{id}/contract` ♻, `POST /deals/{id}/terms-confirmation` ♻🔐, `POST /deals/{id}/signed-contract` ♻🔐, `POST /deals/{id}/cef-registration` ♻, `POST /deals/{id}/debtor-notification` ♻, `POST /deals/{id}/funding-report` ♻🔐, `POST /deals/{id}/funding-confirmation` ♻🔐, `POST /deals/{id}/outcome` ♻🔐, `POST /deals/{id}/cancel` ♻🔐, `GET /deals/{id}/kyb-package` (factor) |
+| Deals | `GET /deals`, `GET /deals/{id}` (the deal, the state of its steps and whose turn it is), `GET /deals/{id}/timeline` (the seller and the factor of the deal only), `POST /deals/{id}/cdd-decision` ♻🔐 (factor Signatory), `POST /deals/{id}/contract` ♻, `POST /deals/{id}/terms-confirmation` ♻🔐, `POST /deals/{id}/signed-contract` ♻🔐, `POST /deals/{id}/cef-registration` ♻, `POST /deals/{id}/debtor-notification` ♻, `GET /deals/{id}/funding-accounts` (factor, deal Signed: the seller's usable payout accounts unmasked, access logged), `POST /deals/{id}/funding-report` ♻🔐, `POST /deals/{id}/funding-confirmation` ♻🔐, `POST /deals/{id}/outcome` ♻🔐, `POST /deals/{id}/cancel` ♻🔐, `GET /deals/{id}/kyb-package` (factor) |
 | Disputes | `POST /deals/{id}/disputes` ♻, `GET /disputes/{id}`, `POST /disputes/{id}/comments` |
 | Fees | `GET /fees/charges`, `GET /fees/statements/{period}` |
 | Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `GET/PUT /notification-preferences` |
-| Admin (`/api/v1/admin`, staff realm) | KYB queue and decisions 🔐, factor authorization verification 🔐 (two approvals), receivable review queue, listings suspend/resume (Operations, with reason), holds, organizations suspend/reinstate 🔐, factor organization create + invite 🔐, official email record 🔐, pristupnica decision 🔐, MFA reset execute 🔐, disputes log, business parameters 🔐, fee schedules 🔐, audit search/export, integration health, signature trust store `GET/POST /admin/trusted-certificates`, `POST /admin/trusted-certificates/{id}/deactivate` 🔐 (PlatformAdmin) |
+| Admin (`/api/v1/admin`, staff realm) | KYB queue and decisions 🔐, factor authorization verification 🔐 (two approvals), receivable review queue, listings suspend/resume (Operations, with reason), holds, organizations suspend/reinstate 🔐, factor organization create + invite 🔐, official email record 🔐, pristupnica decision 🔐, MFA reset execute 🔐, disputes log, business parameters 🔐, fee schedules 🔐, audit search/export, integration health, deal termination before funding `POST /admin/deals/{id}/terminate` ♻🔐 (Operations or ComplianceOfficer, with evidence and both parties' written confirmations), signature trust store `GET/POST /admin/trusted-certificates`, `POST /admin/trusted-certificates/{id}/deactivate` 🔐 (PlatformAdmin) |
 
 ## 3. Key endpoint specifications
 
@@ -104,7 +104,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 - **Auth:** factor Signatory.
 - **Request:** `{ "amount": Money, "valueDate": "2026-10-14", "paymentReference": "…", "payeeBankAccountId": "…" }`
 - **Validation:** deal `Signed`; the payee account belongs to the seller, is Verified and out of cool-down (INV-F2); amount = purchasePrice (otherwise accepted, but an automatic `FundingDiscrepancy` dispute is opened); valueDate not in the future beyond 1 business day.
-- **Response 200**, deal → `FundingReported`. **Audit:** `Deal.FundingReported`.
+- **Response 200** `{ "state": "FundingReported", "amountMatches": true }`. **Errors:** 409 `conflict_state`, 422 `account_not_usable`, 409 `cef_not_registered` (only with `cef.blockFundingUntilRegistered`, LQ-17), 423 `hold_active` (an open dispute holds the deal). **Audit:** `Deal.FundingReported` (amount, value date, masked payee account).
 
 ### 3.9 `POST /deals/{id}/funding-confirmation` ♻🔐
 - **Auth:** seller Signatory.
@@ -114,6 +114,12 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 
 ### 3.10 `POST /deals/{id}/outcome` ♻🔐
 - **Auth:** factor Signatory. **Request:** `{ "type": "Settled|RecourseExercised|Defaulted", "date": "...", "amountCollected": Money? }`. Deal must be `Funded`. → `Closed`; the receivable gets the matching terminal state. **Audit:** `Deal.Closed`.
+
+### 3.10a `POST /admin/deals/{id}/terminate` ♻🔐
+- **Auth:** staff with the `Operations` or `ComplianceOfficer` role (anyone else gets 404), step-up.
+- **Request:** `{ "reason": "…", "evidenceDocumentIds": ["…"], "sellerConfirmationDocumentId": "…", "factorConfirmationDocumentId": "…" }`; every document is clean and belongs to a party, and each party's confirmation is its own document. The MVP asks for both parties' confirmations and the evidence (task 017), the stricter reading of product-spec §7.4.
+- **Behaviour:** deal `Signed` or `FundingReported` → `Terminated`; receivable `Assigned` → `Verified` (INV-R6). A `Funded` deal can never be terminated.
+- **Errors:** 409 `conflict_state`, 400 `validation_failed`, 422 `evidence_missing`. **Audit:** `Deal.Terminated`, `Deal.TerminatedByStaff` (with the evidence), `Receivable.Verified`.
 
 ## 4. Webhooks / events (future)
 Factor API subscribers: `listing.opened` (matching appetite), `offer.accepted`, `deal.state_changed`. Signed (HMAC), retried, idempotent by event ID.

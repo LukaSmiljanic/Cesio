@@ -49,11 +49,13 @@ public static class MappingExtensions
     }
 
     /// <summary>Adds <c>CHECK (ISJSON(column) = 1)</c> (database.md §1); a nullable column may also be NULL.</summary>
-    public static EntityTypeBuilder<TEntity> HasJsonCheck<TEntity>(this EntityTypeBuilder<TEntity> builder, string column, bool nullable = false)
+    /// <param name="scalar">Also accept a JSON scalar (a number, string, true/false), e.g. a business parameter value (SQL Server 2022 ISJSON VALUE).</param>
+    public static EntityTypeBuilder<TEntity> HasJsonCheck<TEntity>(this EntityTypeBuilder<TEntity> builder, string column, bool nullable = false, bool scalar = false)
         where TEntity : class
     {
         ArgumentNullException.ThrowIfNull(builder);
-        var predicate = nullable ? $"[{column}] IS NULL OR ISJSON([{column}]) = 1" : $"ISJSON([{column}]) = 1";
+        var isJson = scalar ? $"ISJSON([{column}], VALUE) = 1" : $"ISJSON([{column}]) = 1";
+        var predicate = nullable ? $"[{column}] IS NULL OR {isJson}" : isJson;
         builder.ToTable(table => table.HasCheckConstraint($"ck_{SnakeCaseNames.Convert(typeof(TEntity).Name)}_{column}_json", predicate));
         return builder;
     }

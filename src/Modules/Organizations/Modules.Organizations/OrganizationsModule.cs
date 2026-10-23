@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using Integrations.Sef;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
@@ -10,6 +11,9 @@ namespace Modules.Organizations;
 /// <summary>Composition entry point of the Organizations module; the hosts call it to register the module's services.</summary>
 public static class OrganizationsModule
 {
+    /// <summary>Environments where the phase-2 stubs may run (tasks/README, "Phase 2 stubs").</summary>
+    private static readonly string[] StubEnvironments = ["Development", "local", "dev", "staging"];
+
     public static IServiceCollection AddOrganizationsModule(this IServiceCollection services)
     {
         services.AddModuleDbContext<OrgsDbContext>(OrgsDbContext.SchemaName, migrationOrder: 3);
@@ -19,6 +23,13 @@ public static class OrganizationsModule
         services.AddSef();
         services.AddScoped<SefConnectionService>();
         services.AddScoped<ISefConnections>(provider => provider.GetRequiredService<SefConnectionService>());
+        services.AddScoped<IBankAccountQuery>(provider =>
+        {
+            var environment = provider.GetRequiredService<IHostEnvironment>().EnvironmentName;
+            return StubEnvironments.Contains(environment, StringComparer.OrdinalIgnoreCase)
+                ? new DevelopmentBankAccounts()
+                : throw new InvalidOperationException($"Payout accounts (task 009) are not implemented; the stub must not run in '{environment}'.");
+        });
         return services;
     }
 
