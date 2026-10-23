@@ -64,6 +64,10 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 - **Errors:** 404 if not visible to this factor.
 - **Audit:** access log entry on detail and document download.
 
+### 3.4a `GET /marketplace/listings/{id}/fee-preview?purchasePrice=97000.00`
+- **Auth:** a factor organization that sees the listing (§3.4); otherwise 404.
+- **Response:** `{ "discount": Money, "factorFee": Money, "platformFee": Money, "vatPending": true, "feeScheduleVersion": 1 }` from the current fee schedule (task 017a); the same amounts are snapshotted when the offer is submitted.
+- **Errors:** 400 `validation_failed` (the price is not above zero and below the face value), 404.
 
 ### 3.5 `POST /marketplace/listings/{id}/offers` ♻
 - **Auth:** factor, any member.
