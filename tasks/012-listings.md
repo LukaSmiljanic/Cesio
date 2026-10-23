@@ -14,20 +14,20 @@ Sellers publish verified receivables as time-boxed listings to all or selected v
 - Admin suspend/resume listing (Operations, with reason).
 - `GET /marketplace/listings` (cursor pagination; filters: amount range, days to maturity, debtor PIB, sort by closesAt/amount) and `GET /marketplace/listings/{id}` with visibility rules: factor authorized; audience includes it; not excluded; not related (shared PIB/MB/BO flag → hidden pending review).
 - Listing detail exposes the data in api.md §3.4; never the reserve price or other offers.
-- Document downloads for listing attachments via 006 with watermarking + access log.
+- Document downloads for listing attachments via 006 with watermarking + access log (MVP 2026-10-23: access log only; the watermark is deferred until task 006 provides one).
 - UI: seller "publish listing" dialog; seller listing page; factor marketplace feed + detail.
 
 # Business Rules
 - `closesAt` ≤ maturity − `minDaysAtListing` and ≤ now + `maxListingDays`.
 - Opening requires SEF status checked ≤ 24 h ago (re-poll if older; fail closed).
 - One Open listing per receivable (filtered unique index).
-- Implementation notes (2026-10-23, simplest options; phase-2 stubs per tasks/README): `IAuthorizationQuery` is a stub that treats every factor organization as authorized (local/dev/staging only) until task 008, so the feed still requires an Approved factor organization without a hold; the related-party rule compares the factor's PIB with the seller's and the debtor's (MB and beneficial-owner links come with task 007); `maxListingDays` defaults to 30 (working default, the docs give no value); the seller must be Approved without a hold (product-spec §5); the feed uses an opaque offset cursor; listing documents (the invoice UBL and the supporting documents) are read through `GET /documents/{id}/content` with an access-log entry, without a watermark yet (task 006 has no watermarking); the detail shows the fee rule (`fees.discountShare`, default 0.15, ADR-007); the seller sees its listings at `GET /listings`; Operations staff are a user claim granted with `POST /dev/me/platform-roles` until the staff realm (task 007).
+- Implementation notes (2026-10-23, simplest options; phase-2 stubs per tasks/README): `IAuthorizationQuery` is a stub that treats every factor organization as authorized (local/dev/staging only) until task 008, so the feed still requires an Approved factor organization without a hold; the related-party rule compares the factor's PIB with the seller's and the debtor's (MB and beneficial-owner links come with task 007); `maxListingDays` defaults to 30 (working default, the docs give no value); the seller must be Approved without a hold (product-spec §5); the feed uses an opaque offset cursor; listing documents (the invoice UBL and the supporting documents) are read through `GET /documents/{id}/content` with an access-log entry, without a watermark yet (task 006 has no watermarking); `minDaysAtListing` (default 15) and `maxListingDays` are the product-spec §parameters "minimum days to maturity at listing" and "listing maximum duration"; the detail shows the fee rule (`fees.discountShare`, default 0.15, ADR-007); the seller sees its listings at `GET /listings`; Operations staff are a user claim granted with `POST /dev/me/platform-roles` until the staff realm (task 007).
 
 # Technical Requirements
 The visibility predicate is implemented once (a query object) and reused by feed, detail, documents and offer creation.
 
 # API Changes
-As above + admin `POST /admin/listings/{id}/suspend|resume`.
+As above + seller `GET /listings`, `GET /listings/{id}` + admin `POST /admin/listings/{id}/suspend|resume`.
 
 # Database Changes
 `marketplace.listings`, `marketplace.listing_audience` (DDL in database.md).
