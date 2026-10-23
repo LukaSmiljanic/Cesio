@@ -19,7 +19,8 @@ public static class AuthEndpoints
 
     public const string PendingPolicy = "pending-mfa";
 
-    public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder app)
+    /// <param name="includeDevelopmentEndpoints">Maps <c>POST /dev/me/platform-roles</c>; Development only.</param>
+    public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder app, bool includeDevelopmentEndpoints = false)
     {
         var api = app.MapGroup("/api/v1");
         var auth = api.MapGroup("/auth").RequireRateLimiting(RateLimitPolicy);
@@ -65,6 +66,15 @@ public static class AuthEndpoints
         // A sample step-up-protected action (task 004 acceptance); real ones arrive with their tasks.
         me.MapPost("/step-up-check", () => Results.NoContent()).RequireStepUp();
 
+        if (includeDevelopmentEndpoints)
+        {
+            api.MapPost("/dev/me/platform-roles", async (HttpContext http, PlatformRoleRequest body, PlatformRoleStore roles) =>
+            {
+                await roles.GrantAsync(Ids(http).UserId, body.Role);
+                return Results.NoContent();
+            }).RequireAuthorization();
+        }
+
         return app;
     }
 
@@ -98,3 +108,5 @@ public static class AuthEndpoints
         return user.TwoFactorEnabled == (stage == AuthSchemes.VerifyStage) ? user : null;
     }
 }
+
+public sealed record PlatformRoleRequest(string Role);

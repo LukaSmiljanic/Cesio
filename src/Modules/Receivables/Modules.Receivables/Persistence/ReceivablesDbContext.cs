@@ -35,6 +35,14 @@ public sealed class ReceivablesDbContext : ModuleDbContext
 
     internal DbSet<SefStatusObservation> SefStatusHistory => Set<SefStatusObservation>();
 
+    internal DbSet<DeclarationVersion> DeclarationVersions => Set<DeclarationVersion>();
+
+    internal DbSet<SellerDeclaration> SellerDeclarations => Set<SellerDeclaration>();
+
+    internal DbSet<ReceivableDocument> ReceivableDocuments => Set<ReceivableDocument>();
+
+    internal DbSet<VerificationCheck> VerificationChecks => Set<VerificationCheck>();
+
     protected override string Schema => SchemaName;
 
     private Guid? CurrentOrganizationId => _request?.OrganizationId;
@@ -100,6 +108,48 @@ public sealed class ReceivablesDbContext : ModuleDbContext
             observation.HasJsonCheck("raw");
             observation.HasOne<Invoice>().WithMany().HasForeignKey(o => o.InvoiceId).OnDelete(DeleteBehavior.Restrict);
             observation.HasIndex(o => new { o.InvoiceId, o.ObservedAt });
+        });
+
+        modelBuilder.Entity<DeclarationVersion>(version =>
+        {
+            version.ToTable("declaration_versions");
+            version.HasKey(v => v.Version);
+            version.Property(v => v.Version).HasMaxLength(40).IsUnicode(false);
+            version.Property(v => v.Sha256).HasMaxLength(64).IsFixedLength().IsUnicode(false);
+            version.HasJsonCheck("item_codes");
+            version.HasData(DeclarationVersion.Draft0);
+        });
+
+        modelBuilder.Entity<SellerDeclaration>(declaration =>
+        {
+            declaration.ToTable("seller_declarations");
+            declaration.HasKey(d => d.Id);
+            declaration.Property(d => d.Id).ValueGeneratedNever();
+            declaration.Property(d => d.Version).HasMaxLength(40).IsUnicode(false);
+            declaration.Property(d => d.IpAddress).HasMaxLength(45).IsUnicode(false);
+            declaration.HasJsonCheck("answers");
+            declaration.HasOne<Receivable>().WithMany().HasForeignKey(d => d.ReceivableId).OnDelete(DeleteBehavior.Restrict);
+            declaration.HasOne<DeclarationVersion>().WithMany().HasForeignKey(d => d.Version).OnDelete(DeleteBehavior.Restrict);
+            declaration.HasIndex(d => new { d.ReceivableId, d.AcceptedAt });
+        });
+
+        modelBuilder.Entity<ReceivableDocument>(document =>
+        {
+            document.ToTable("receivable_documents");
+            document.HasKey(d => new { d.ReceivableId, d.DocumentId });
+            document.HasOne<Receivable>().WithMany().HasForeignKey(d => d.ReceivableId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VerificationCheck>(check =>
+        {
+            check.ToTable("verification_checks");
+            check.HasKey(c => c.Id);
+            check.Property(c => c.Id).ValueGeneratedNever();
+            check.Property(c => c.Code).HasMaxLength(40).IsUnicode(false);
+            check.Property(c => c.Result).HasConversion<string>().HasMaxLength(10).IsUnicode(false);
+            check.Property(c => c.Details).HasMaxLength(400);
+            check.HasOne<Receivable>().WithMany().HasForeignKey(c => c.ReceivableId).OnDelete(DeleteBehavior.Restrict);
+            check.HasIndex(c => new { c.ReceivableId, c.Run });
         });
     }
 }
@@ -173,6 +223,12 @@ internal sealed class Receivable
     public required string Fingerprint { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>Checks warned (or the amount is above the auto-approval limit): a compliance officer decides (task 011).</summary>
+    public bool ReviewRequired { get; set; }
+
+    /// <summary>Why it was rejected: failed check codes, or the reviewer's reason code (e.g. <c>Fraud</c>).</summary>
+    public string? RejectionReason { get; set; }
 
     public int Version { get; set; }
 }

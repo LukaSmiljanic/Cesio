@@ -84,7 +84,8 @@ export async function api<T = void>(
   retried = false,
 ): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (body !== undefined) {
+  const isForm = body instanceof FormData
+  if (body !== undefined && !isForm) {
     headers['Content-Type'] = 'application/json'
   }
   if (activeOrganizationId) {
@@ -102,7 +103,8 @@ export async function api<T = void>(
   const response = await fetch(basePath + path, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    // A FormData body (file upload) sets its own multipart Content-Type.
+    body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     credentials: 'same-origin',
   })
 

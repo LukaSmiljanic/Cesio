@@ -56,3 +56,63 @@ export function formatMoney(money: Money): string {
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
   return `${grouped},${fraction} ${money.currency}`
 }
+
+export interface Declaration {
+  version: string
+  text: string
+  items: string[]
+  sha256: string
+}
+
+export interface CheckRow {
+  run: number
+  code: string
+  result: 'Pass' | 'Warn' | 'Fail'
+  details: string | null
+  ranAt: string
+}
+
+export interface SubmitResult {
+  state: string
+  reviewRequired: boolean
+  reason: string | null
+}
+
+export interface QueueItem {
+  id: string
+  sellerOrgId: string
+  maturityDate: string
+  createdAt: string
+}
+
+export const verificationApi = {
+  get: (id: string) => api<ReceivableView>('GET', `/receivables/${id}`),
+  declaration: () => api<Declaration>('GET', '/receivables/declaration'),
+  saveDeclaration: (id: string, answers: Record<string, boolean>) =>
+    api<{ complete: boolean; blocking: string | null }>('PUT', `/receivables/${id}/declaration`, {
+      answers,
+    }),
+  uploadEvidence: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('purpose', 'ReceivableEvidence')
+    return api<{ id: string; scanStatus: string }>('POST', '/documents', form)
+  },
+  attach: (id: string, documentId: string) =>
+    api('POST', `/receivables/${id}/documents`, { documentId }),
+  submit: (id: string) => api<SubmitResult>('POST', `/receivables/${id}/submit`),
+  cancel: (id: string) => api('POST', `/receivables/${id}/cancel`),
+  checks: (id: string) => api<CheckRow[]>('GET', `/receivables/${id}/checks`),
+  queue: () => api<QueueItem[]>('GET', '/admin/receivables/review-queue'),
+  decide: (
+    id: string,
+    decision: 'Verified' | 'Rejected',
+    reasonCode: string | null,
+    comment: string,
+  ) =>
+    api<{ state: string }>('POST', `/admin/receivables/${id}/decision`, {
+      decision,
+      reasonCode,
+      comment,
+    }),
+}

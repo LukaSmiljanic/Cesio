@@ -27,6 +27,9 @@ public static class OrganizationEndpoints
         {
             api.MapPost("/dev/factor-organizations", (CreateFactorOrganizationRequest body, OrganizationService service, CancellationToken ct) => service.CreateFactorAsync(body, ct))
                 .RequireIdempotency();
+            api.MapPost("/dev/organizations/{id:guid}/approve", (Guid id, OrganizationService service, CancellationToken ct) => service.ApproveForDevelopmentAsync(id, ct))
+                .RequireOrganization(OrganizationRouteValue)
+                .RequireIdempotency();
         }
 
         var organization = api.MapGroup($"/organizations/{{{OrganizationRouteValue}:guid}}").RequireOrganization(OrganizationRouteValue);

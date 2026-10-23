@@ -113,6 +113,22 @@ internal sealed class OrganizationService(
         return Results.Created($"/api/v1/organizations/{organization.Id}", Details(organization));
     }
 
+    /// <summary>
+    /// Development only (tasks/README "Phase 2 stubs"): approves the member's own organization, standing in for the
+    /// KYB decision of task 007 so the thin slice can be demonstrated.
+    /// </summary>
+    public async Task<IResult> ApproveForDevelopmentAsync(Guid organizationId, CancellationToken cancellationToken)
+    {
+        var organization = await orgs.Organizations.SingleAsync(o => o.Id == organizationId, cancellationToken);
+        var previous = organization.OnboardingStatus;
+        organization.OnboardingStatus = OnboardingStatus.Approved;
+        return await SaveAsync(
+            async ct => await audit.WriteAsync(new AuditEntry("Organization.Approved", "Organization", organization.Id, organization.Id,
+                PreviousState: previous.ToString(), NewState: nameof(OnboardingStatus.Approved), Reason: "development_stub"), ct),
+            () => WithETag(Details(organization), organization.Version),
+            cancellationToken);
+    }
+
     public async Task<IResult> GetAsync(CancellationToken cancellationToken) =>
         await orgs.Organizations.AsNoTracking().SingleOrDefaultAsync(o => o.Id == OrgId, cancellationToken) is { } organization
             ? WithETag(Details(organization), organization.Version)

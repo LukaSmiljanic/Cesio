@@ -6,3 +6,14 @@ public interface IUserDirectory
     /// <summary>The user's email, or null when the user does not exist.</summary>
     Task<string?> GetEmailAsync(Guid userId, CancellationToken cancellationToken);
 }
+
+/// <summary>Platform staff roles (security.md §3). Until the staff realm (task 007) they are user claims.</summary>
+public static class PlatformRoles
+{
+    public const string ComplianceOfficer = "ComplianceOfficer";
+}
+
+public interface IPlatformRoles
+{
+    Task<bool> HasRoleAsync(Guid userId, string role, CancellationToken cancellationToken);
+}

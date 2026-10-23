@@ -332,11 +332,47 @@ internal sealed partial class ImportService(
             return new ImportResult(sefId, "NotFound");
         }
 
-        var live = await receivables.Receivables.AsNoTracking()
-            .Where(r => r.InvoiceId == invoice.Id && r.State != ReceivableState.Rejected && r.State != ReceivableState.Cancelled)
-            .Select(r => (Guid?)r.Id)
-            .SingleOrDefaultAsync(cancellationToken);
-        return new ImportResult(sefId, "AlreadyImported", live);
+        var earlier = await receivables.Receivables.AsNoTracking().Where(r => r.InvoiceId == invoice.Id).ToListAsync(cancellationToken);
+        if (earlier.FirstOrDefault(r => r.State is not (ReceivableState.Rejected or ReceivableState.Cancelled)) is { } live)
+        {
+            return new ImportResult(sefId, "AlreadyImported", live.Id);
+        }
+
+        // Task 011: an invoice rejected for fraud can never come back; otherwise a corrected resubmission gets a new
+        // Draft receivable (the unique index excludes Rejected and Cancelled ones).
+        if (earlier.Any(r => r.RejectionReason == VerificationService.FraudReason))
+        {
+            return new ImportResult(sefId, "Unsupported", Reason: "fraud_rejected");
+        }
+
+        if (earlier.Count == 0)
+        {
+            return new ImportResult(sefId, "AlreadyImported");
+        }
+
+        var template = earlier.OrderByDescending(r => r.CreatedAt).First();
+        var receivable = new Receivable
+        {
+            Id = SequentialGuid.NewGuid(),
+            InvoiceId = invoice.Id,
+            SellerOrgId = invoice.SellerOrgId,
+            DebtorId = invoice.DebtorId,
+            FaceValue = template.FaceValue,
+            MaturityDate = invoice.DueDate,
+            State = ReceivableState.Draft,
+            Fingerprint = template.Fingerprint,
+            CreatedAt = timeProvider.GetUtcNow(),
+        };
+        receivables.Receivables.Add(receivable);
+        await unitOfWork.ExecuteInTransactionAsync(
+            async ct =>
+            {
+                await receivables.SaveChangesAsync(ct);
+                await audit.WriteAsync(new AuditEntry("Receivable.Created", "Receivable", receivable.Id, invoice.SellerOrgId,
+                    NewState: nameof(ReceivableState.Draft), Related: [new AuditReference("Invoice", invoice.Id)], Reason: "resubmission"), ct);
+            },
+            cancellationToken);
+        return new ImportResult(sefId, "Imported", receivable.Id);
     }
 
     private static string Fingerprint(string debtorPib, decimal gross, Currency currency, DateOnly issue, DateOnly due) =>

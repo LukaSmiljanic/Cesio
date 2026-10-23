@@ -25,6 +25,13 @@ public sealed class FakeSefClient : ISefClient
         return id;
     }
 
+    /// <summary>Simulates the buyer approving, rejecting or the seller cancelling the invoice in SEF.</summary>
+    public void SetStatus(string apiKey, long invoiceId, string status)
+    {
+        var invoices = For(apiKey);
+        invoices[invoiceId] = (status, invoices[invoiceId].Ubl);
+    }
+
     public Task CheckKeyAsync(string apiKey, CancellationToken cancellationToken)
     {
         Guard(apiKey);

@@ -37,6 +37,7 @@ A seller completes declarations and attachments for a Draft receivable and submi
 # Business Rules
 - Checks are append-only `verification_checks` rows; re-verification produces new rows.
 - A receivable rejected with reason `Fraud` blocks re-import of the same SEF invoice (unique index still holds because Rejected is excluded, so add an explicit application check for fraud-rejected invoices).
+- Implementation notes (2026-10-23, simplest options; phase-2 stubs per tasks/README): `IHoldQuery` is a no-holds stub (local/dev/staging only) until task 007; organizations are approved in development with `POST /dev/organizations/{id}/approve`; the ComplianceOfficer role is a user claim granted in development with `POST /dev/me/platform-roles` until the staff realm (task 007); `DEBTOR_SCREENING` warns (manual review) until screening exists (task 007); `RELATED_PARTY` passes with "no data yet"; defaults: `minDaysAtListing` 15 (placeholder, not in the docs), `maxTenorDays` 180 (LQ-10), amount limits 500,000–200,000,000 RSD (BQ-03), `autoApproveMaxFaceValue` 0 (no automatic approval); a re-import of a non-fraud rejected invoice creates a new Draft receivable; when SEF is unavailable the receivable stays PendingVerification for the task 020 job; the FraudInvestigation hold from the queue comes with holds (task 007/021).
 
 # Technical Requirements
 A check pipeline as a list of `IReceivableCheck` implementations (ordered, each returning Pass/Warn/Fail + details). All thresholds come from business parameters.

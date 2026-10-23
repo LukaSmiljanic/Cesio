@@ -65,6 +65,56 @@ namespace Modules.Receivables.Persistence.Migrations
                     b.ToTable("debtors", "receivables");
                 });
 
+            modelBuilder.Entity("Modules.Receivables.Persistence.DeclarationVersion", b =>
+                {
+                    b.Property<string>("Version")
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("version");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ItemCodes")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("item_codes");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .HasColumnName("sha256")
+                        .IsFixedLength();
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Version")
+                        .HasName("pk_declaration_versions");
+
+                    b.ToTable("declaration_versions", "receivables", t =>
+                        {
+                            t.HasCheckConstraint("ck_declaration_version_item_codes_json", "ISJSON([item_codes]) = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Version = "DRAFT-0",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 10, 23, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            ItemCodes = "[\"NoPriorAssignment\",\"NoAssignmentProhibition\",\"NoSetOffOrDispute\",\"GoodsOrServicesDelivered\"]",
+                            Sha256 = "10734902504f2d52e33eae5d7251123ef6310e7f6b2cf302b18c7620bdee88be",
+                            Text = "NACRT (DRAFT-0), čeka konačan tekst. Potvrđujem: (1) potraživanje nije ranije ustupljeno niti založeno; (2) ugovor sa dužnikom ne zabranjuje ustupanje; (3) ne postoji prebijanje ni spor sa dužnikom; (4) roba je isporučena odnosno usluga izvršena."
+                        });
+                });
+
             modelBuilder.Entity("Modules.Receivables.Persistence.Invoice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -207,6 +257,14 @@ namespace Modules.Receivables.Persistence.Migrations
                         .HasColumnType("date")
                         .HasColumnName("maturity_date");
 
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<bool>("ReviewRequired")
+                        .HasColumnType("bit")
+                        .HasColumnName("review_required");
+
                     b.Property<Guid>("SellerOrgId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("seller_org_id");
@@ -266,6 +324,31 @@ namespace Modules.Receivables.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Modules.Receivables.Persistence.ReceivableDocument", b =>
+                {
+                    b.Property<Guid>("ReceivableId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("receivable_id");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("document_id");
+
+                    b.Property<DateTimeOffset>("AttachedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("attached_at");
+
+                    b.Property<Guid>("AttachedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("attached_by");
+
+                    b.HasKey("ReceivableId", "DocumentId")
+                        .HasName("pk_receivable_documents");
+
+                    b.ToTable("receivable_documents", "receivables");
+                });
+
             modelBuilder.Entity("Modules.Receivables.Persistence.SefStatusObservation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -305,6 +388,109 @@ namespace Modules.Receivables.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Modules.Receivables.Persistence.SellerDeclaration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AcceptedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("accepted_at");
+
+                    b.Property<Guid>("AcceptedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("accepted_by");
+
+                    b.Property<bool>("AllConfirmed")
+                        .HasColumnType("bit")
+                        .HasColumnName("all_confirmed");
+
+                    b.Property<string>("Answers")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("answers");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(45)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(45)")
+                        .HasColumnName("ip_address");
+
+                    b.Property<Guid>("ReceivableId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("receivable_id");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_seller_declarations");
+
+                    b.HasIndex("Version")
+                        .HasDatabaseName("ix_seller_declarations_version");
+
+                    b.HasIndex("ReceivableId", "AcceptedAt")
+                        .HasDatabaseName("ix_seller_declarations_receivable_id_accepted_at");
+
+                    b.ToTable("seller_declarations", "receivables", t =>
+                        {
+                            t.HasCheckConstraint("ck_seller_declaration_answers_json", "ISJSON([answers]) = 1");
+                        });
+                });
+
+            modelBuilder.Entity("Modules.Receivables.Persistence.VerificationCheck", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)")
+                        .HasColumnName("details");
+
+                    b.Property<DateTimeOffset>("RanAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("ran_at");
+
+                    b.Property<Guid>("ReceivableId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("receivable_id");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("result");
+
+                    b.Property<int>("Run")
+                        .HasColumnType("int")
+                        .HasColumnName("run");
+
+                    b.HasKey("Id")
+                        .HasName("pk_verification_checks");
+
+                    b.HasIndex("ReceivableId", "Run")
+                        .HasDatabaseName("ix_verification_checks_receivable_id_run");
+
+                    b.ToTable("verification_checks", "receivables");
+                });
+
             modelBuilder.Entity("Modules.Receivables.Persistence.Invoice", b =>
                 {
                     b.HasOne("Modules.Receivables.Persistence.Debtor", null)
@@ -332,6 +518,16 @@ namespace Modules.Receivables.Persistence.Migrations
                         .HasConstraintName("fk_receivables_invoices_invoice_id");
                 });
 
+            modelBuilder.Entity("Modules.Receivables.Persistence.ReceivableDocument", b =>
+                {
+                    b.HasOne("Modules.Receivables.Persistence.Receivable", null)
+                        .WithMany()
+                        .HasForeignKey("ReceivableId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_receivable_documents_receivables_receivable_id");
+                });
+
             modelBuilder.Entity("Modules.Receivables.Persistence.SefStatusObservation", b =>
                 {
                     b.HasOne("Modules.Receivables.Persistence.Invoice", null)
@@ -340,6 +536,33 @@ namespace Modules.Receivables.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_sef_status_history_invoices_invoice_id");
+                });
+
+            modelBuilder.Entity("Modules.Receivables.Persistence.SellerDeclaration", b =>
+                {
+                    b.HasOne("Modules.Receivables.Persistence.Receivable", null)
+                        .WithMany()
+                        .HasForeignKey("ReceivableId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_seller_declarations_receivables_receivable_id");
+
+                    b.HasOne("Modules.Receivables.Persistence.DeclarationVersion", null)
+                        .WithMany()
+                        .HasForeignKey("Version")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_seller_declarations_declaration_versions_version");
+                });
+
+            modelBuilder.Entity("Modules.Receivables.Persistence.VerificationCheck", b =>
+                {
+                    b.HasOne("Modules.Receivables.Persistence.Receivable", null)
+                        .WithMany()
+                        .HasForeignKey("ReceivableId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_verification_checks_receivables_receivable_id");
                 });
 #pragma warning restore 612, 618
         }

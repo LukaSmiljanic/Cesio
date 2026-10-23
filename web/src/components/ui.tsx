@@ -78,6 +78,11 @@ const messages: Record<string, string> = {
   sef_no_invoices:
     'Za ovaj ključ SEF nema izlaznih faktura u poslednjih 90 dana, pa PIB ne može da se potvrdi.',
   upstream_unavailable: 'SEF trenutno nije dostupan. Pokušajte kasnije.',
+  declaration_incomplete: 'Potvrdite sve stavke izjave pre slanja.',
+  documents_missing: 'Priložite bar jedan prateći dokument (ugovor, porudžbenicu ili otpremnicu).',
+  hold_active: 'Potraživanje je blokirano.',
+  sef_not_approved: 'SEF trenutno ne prikazuje fakturu kao odobrenu od kupca.',
+  wrong_document_purpose: 'Dokument nije otpremljen kao prateći dokument.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

@@ -12,6 +12,7 @@ import {
   StartSellerPage,
 } from './pages/OrganizationPages'
 import { ImportPage, ReceivablesPage } from './pages/ReceivablePages'
+import { ReceivableDetailPage, ReviewQueuePage } from './pages/VerificationPages'
 import {
   ConfirmEmailPage,
   ForgotPasswordPage,
@@ -65,6 +66,14 @@ export function AppRoutes() {
       <Route
         path="/receivables/import"
         element={<RequireSession>{() => <ImportPage />}</RequireSession>}
+      />
+      <Route
+        path="/receivables/:id"
+        element={<RequireSession>{() => <ReceivableDetailPage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/review"
+        element={<RequireSession>{() => <ReviewQueuePage />}</RequireSession>}
       />
       <Route
         path="/"

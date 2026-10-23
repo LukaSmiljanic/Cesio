@@ -57,7 +57,7 @@ app.UseIdempotency();
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains(HostSetup.ReadyTag) });
 
-app.MapIdentityEndpoints();
+app.MapIdentityEndpoints(includeDevelopmentEndpoints: app.Environment.IsDevelopment());
 app.MapOrganizationEndpoints(includeDevelopmentEndpoints: app.Environment.IsDevelopment());
 app.MapDocumentEndpoints();
 app.MapReceivableEndpoints();

@@ -95,6 +95,8 @@ public static class IdentityModule
         services.AddScoped<SessionStore>();
         services.AddScoped<AuthService>();
         services.AddScoped<IUserDirectory, UserDirectory>();
+        services.AddScoped<PlatformRoleStore>();
+        services.AddScoped<IPlatformRoles>(provider => provider.GetRequiredService<PlatformRoleStore>());
         return services;
     }
 

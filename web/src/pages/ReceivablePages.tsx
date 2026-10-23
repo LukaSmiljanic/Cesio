@@ -172,7 +172,11 @@ export function ReceivablesPage() {
         <tbody>
           {list.data?.map((r) => (
             <tr key={r.id} className="border-t border-slate-100">
-              <td className="py-1">{r.invoice.number}</td>
+              <td className="py-1">
+                <Link className="underline" to={`/receivables/${r.id}`}>
+                  {r.invoice.number}
+                </Link>
+              </td>
               <td>{r.debtor.legalName}</td>
               <td>{formatMoney(r.faceValue)}</td>
               <td>{r.maturityDate}</td>
