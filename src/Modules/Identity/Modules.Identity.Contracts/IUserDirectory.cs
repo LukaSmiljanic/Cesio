@@ -17,6 +17,9 @@ public static class PlatformRoles
 
     /// <summary>Fee schedules (task 017a); four-eyes between two Finance users.</summary>
     public const string Finance = "Finance";
+
+    /// <summary>Platform configuration such as the signature trust store (task 016); no compliance decisions (security.md).</summary>
+    public const string PlatformAdmin = "PlatformAdmin";
 }
 
 public interface IPlatformRoles

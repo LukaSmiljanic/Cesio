@@ -268,10 +268,23 @@ internal sealed class DocumentService(
         Results.Problem(statusCode: StatusCodes.Status404NotFound, extensions: new Dictionary<string, object?> { ["errorCode"] = "not_found" });
 }
 
-internal sealed class DocumentQuery(DocumentsDbContext documents) : IDocumentQuery
+internal sealed class DocumentQuery(DocumentsDbContext documents, IDocumentStore store) : IDocumentQuery
 {
     public async Task<DocumentInfo?> GetAsync(Guid documentId, CancellationToken cancellationToken) =>
         (await documents.StoredDocuments.AsNoTracking().SingleOrDefaultAsync(d => d.Id == documentId, cancellationToken))?.ToInfo();
+
+    public async Task<byte[]?> ReadCleanAsync(Guid documentId, CancellationToken cancellationToken)
+    {
+        if (await documents.StoredDocuments.AsNoTracking().SingleOrDefaultAsync(d => d.Id == documentId, cancellationToken) is not { ScanStatus: ScanStatus.Clean } document)
+        {
+            return null;
+        }
+
+        await using var stream = await store.OpenCleanAsync(document.BlobKey, cancellationToken);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer, cancellationToken);
+        return buffer.ToArray();
+    }
 }
 
 internal static class Problems

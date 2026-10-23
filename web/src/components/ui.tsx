@@ -99,6 +99,13 @@ const messages: Record<string, string> = {
   already_confirmed: 'Vaša firma je već potvrdila ovaj ugovor.',
   wrong_document: 'Otpremite ugovor kao PDF.',
   kyb_consent_missing: 'Prodavac još nije dao saglasnost za deljenje KYB paketa.',
+  deadline_passed: 'Rok za potpise je istekao.',
+  signature_invalid: 'Potpis nije ispravan ili ga nema.',
+  certificate_not_qualified: 'Sertifikat nije kvalifikovan.',
+  certificate_untrusted: 'Sertifikat nije od pouzdanog izdavaoca.',
+  certificate_revoked: 'Sertifikat je opozvan.',
+  document_mismatch: 'Potpisan je drugi dokument od usaglašenog ugovora.',
+  signer_not_authorized: 'Potpisnik nije zastupnik nijedne strane.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

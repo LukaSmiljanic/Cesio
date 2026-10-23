@@ -36,6 +36,12 @@ public interface IOrganizationQuery
     Task<MembershipSummary?> GetMembershipAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
 
     Task<bool> IsSignatoryAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The names of the organization's legal representatives valid on <paramref name="on"/>, the persons whose QES
+    /// may bind it (task 016; verified attorneys come with task 007, LQ-61).
+    /// </summary>
+    Task<IReadOnlyList<string>> AuthorizedSignerNamesAsync(Guid organizationId, DateOnly on, CancellationToken cancellationToken);
 }
 
 /// <summary>Published through the outbox when an organization is submitted for review (KYB starts in task 007).</summary>

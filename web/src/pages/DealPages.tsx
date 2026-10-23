@@ -19,6 +19,16 @@ const dealStates: Record<string, string> = {
   Terminated: 'Raskinuto',
 }
 
+const signatureResults: Record<string, string> = {
+  Valid: 'Ispravan potpis',
+  signature_invalid: 'Potpis nije ispravan',
+  certificate_not_qualified: 'Sertifikat nije kvalifikovan',
+  certificate_untrusted: 'Sertifikat nije od pouzdanog izdavaoca',
+  certificate_revoked: 'Sertifikat je opozvan',
+  document_mismatch: 'Potpisan je drugi dokument',
+  signer_not_authorized: 'Potpisnik nije zastupnik',
+}
+
 const waitingLabels: Record<string, string> = {
   Seller: 'Na potezu je prodavac.',
   Factor: 'Na potezu je faktor.',
@@ -83,6 +93,13 @@ function DealSteps({ detail }: { detail: DealDetail }) {
       withStepUp(() => dealsApi.cancel(deal.id, 'PartyCancelled', reason.trim() || null)),
     onSuccess: refresh,
   })
+  const signed = useMutation({
+    mutationFn: (file: File) =>
+      withStepUp(async () =>
+        dealsApi.signedContract(deal.id, (await dealsApi.uploadContract(file)).id),
+      ),
+    onSuccess: refresh,
+  })
   const fetchContract = useMutation({
     mutationFn: (documentId: string) => download(`/documents/${documentId}/content`, 'ugovor.pdf'),
   })
@@ -91,6 +108,13 @@ function DealSteps({ detail }: { detail: DealDetail }) {
   )
   const iConfirmed = myRole === 'Seller' ? steps.sellerConfirmed : steps.factorConfirmed
   const current = steps.contract
+
+  function onSignedFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    if (file) {
+      signed.mutate(file)
+    }
+  }
 
   function onFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
@@ -170,7 +194,32 @@ function DealSteps({ detail }: { detail: DealDetail }) {
         </div>
       )}
       {deal.state === 'AwaitingSignatures' && (
-        <p>Ugovor je usaglašen. Sledeći korak je potpis kvalifikovanim elektronskim potpisom.</p>
+        <div className="space-y-2">
+          <h2 className="font-medium">Potpisivanje</h2>
+          <p>
+            Potpišite usaglašeni ugovor kvalifikovanim elektronskim potpisom zastupnika i otpremite
+            potpisani PDF. Posao je potpisan kada obe strane imaju bar jedan ispravan potpis.
+          </p>
+          <input
+            aria-label="Potpisani ugovor (PDF)"
+            type="file"
+            accept=".pdf"
+            onChange={onSignedFile}
+          />
+        </div>
+      )}
+      {steps.signatures.length > 0 && (
+        <ul className="space-y-1">
+          {steps.signatures.map((s) => (
+            <li key={`${s.signer}-${s.validatedAt}`}>
+              <span className={s.result === 'Valid' ? 'text-green-700' : 'text-red-700'}>
+                {signatureResults[s.result] ?? s.result}
+              </span>{' '}
+              · {s.signer}
+              {s.party && ` (${s.party === 'Seller' ? 'prodavac' : 'faktor'})`}
+            </li>
+          ))}
+        </ul>
       )}
       {beforeSigning && (
         <Button
@@ -182,7 +231,14 @@ function DealSteps({ detail }: { detail: DealDetail }) {
         </Button>
       )}
       <ErrorMessage
-        error={cdd.error ?? contract.error ?? confirm.error ?? cancel.error ?? fetchContract.error}
+        error={
+          cdd.error ??
+          contract.error ??
+          confirm.error ??
+          cancel.error ??
+          signed.error ??
+          fetchContract.error
+        }
       />
     </section>
   )

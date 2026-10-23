@@ -2,9 +2,12 @@ using System.Globalization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Modules.Deals.Persistence;
 using Modules.Documents.Contracts;
+using Modules.Identity.Contracts;
 using Shared.Infrastructure.Idempotency;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
@@ -14,16 +17,33 @@ namespace Modules.Deals;
 /// <summary>Composition entry point of the Deals module; the hosts call it to register the module's services.</summary>
 public static class DealsModule
 {
+    /// <summary>Environments where the fake signature validator may run (like the fake SEF client).</summary>
+    private static readonly string[] FakeValidatorEnvironments = ["Development", "local", "dev"];
+
     public static IServiceCollection AddDealsModule(this IServiceCollection services)
     {
         services.AddModuleDbContext<DealsDbContext>(DealsDbContext.SchemaName, migrationOrder: 8);
         services.AddScoped<DealService>();
         services.AddScoped<DealStepService>();
+        services.AddScoped<TrustStoreService>();
         services.AddScoped<IDocumentAccessPolicy, DealDocumentPolicy>();
+        services.AddSingleton<ISignatureValidator>(provider =>
+        {
+            var fake = provider.GetRequiredService<IConfiguration>()["Signatures:Validator"] == "Fake";
+            var environment = provider.GetRequiredService<IHostEnvironment>().EnvironmentName;
+            return !fake
+                ? new UnconfiguredSignatureValidator()
+                : FakeValidatorEnvironments.Contains(environment, StringComparer.OrdinalIgnoreCase)
+                    ? new FakeSignatureValidator()
+                    : throw new InvalidOperationException($"The fake signature validator must not run in '{environment}'.");
+        });
         return services;
     }
 
-    /// <summary>Offer acceptance and the deal reads of the two parties (task 014); the steps before signing (task 015).</summary>
+    /// <summary>
+    /// Offer acceptance and the deal reads of the two parties (task 014); the steps before signing (task 015); the
+    /// signed contract and the trust store (task 016).
+    /// </summary>
     public static IEndpointRouteBuilder MapDealEndpoints(this IEndpointRouteBuilder app)
     {
         var api = app.MapGroup("/api/v1").RequireAuthorization().RequireOrganization();
@@ -42,6 +62,15 @@ public static class DealsModule
             service.ConfirmTermsAsync(id, body, StepUpAt(http), ct)).RequireIdempotency().RequireStepUp();
         api.MapPost("/deals/{id:guid}/cancel", (Guid id, CancelDealRequest body, HttpContext http, DealStepService service, CancellationToken ct) =>
             service.CancelAsync(id, body, StepUpAt(http), ct)).RequireIdempotency().RequireStepUp();
+        api.MapPost("/deals/{id:guid}/signed-contract", (Guid id, ContractRequest body, DealStepService service, CancellationToken ct) =>
+            service.UploadSignedContractAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
+
+        var admin = app.MapGroup("/api/v1/admin/trusted-certificates").RequireAuthorization().AddEndpointFilter(RequirePlatformAdmin);
+        admin.MapGet("", (TrustStoreService service, CancellationToken ct) => service.ListAsync(ct));
+        admin.MapPost("", (AddTrustedCertificateRequest body, TrustStoreService service, CancellationToken ct) => service.AddAsync(body, ct))
+            .RequireIdempotency().RequireStepUp();
+        admin.MapPost("/{id:guid}/deactivate", (Guid id, TrustStoreService service, CancellationToken ct) => service.DeactivateAsync(id, ct))
+            .RequireIdempotency().RequireStepUp();
         return app;
     }
 
@@ -51,4 +80,15 @@ public static class DealsModule
     /// <summary>The listing version from <c>If-Match: "3"</c>, if sent (api.md §1).</summary>
     private static int? IfMatch(HttpContext http) =>
         int.TryParse(http.Request.Headers.IfMatch.ToString().Trim('"', ' '), NumberStyles.None, CultureInfo.InvariantCulture, out var version) ? version : null;
+
+    /// <summary>The trust store is for platform administrators only; anyone else gets 404 (security.md §3).</summary>
+    private static async ValueTask<object?> RequirePlatformAdmin(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    {
+        var http = context.HttpContext;
+        var roles = http.RequestServices.GetRequiredService<IPlatformRoles>();
+        return Guid.TryParse(http.User.FindFirst(CesioClaims.UserId)?.Value, out var userId)
+            && await roles.HasRoleAsync(userId, PlatformRoles.PlatformAdmin, http.RequestAborted)
+                ? await next(context)
+                : Results.Problem(statusCode: StatusCodes.Status404NotFound, extensions: new Dictionary<string, object?> { ["errorCode"] = "not_found" });
+    }
 }

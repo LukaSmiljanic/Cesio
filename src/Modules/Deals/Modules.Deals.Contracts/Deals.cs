@@ -28,3 +28,9 @@ public sealed record DealCancelled(Guid DealId, string Reason, Guid SellerOrgId,
 {
     public static string EventType => "Deals.DealCancelled";
 }
+
+/// <summary>Published when both parties validly signed (task 016); the receivable is Assigned.</summary>
+public sealed record DealSigned(Guid DealId, Guid ReceivableId, Guid SellerOrgId, Guid FactorOrgId) : IIntegrationEvent
+{
+    public static string EventType => "Deals.DealSigned";
+}

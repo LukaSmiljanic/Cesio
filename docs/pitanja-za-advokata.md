@@ -87,6 +87,10 @@ Ako radite u fazama, molimo prvo ova pitanja, od kojih zavisi da li je model uop
 **Šta želimo:** ponudu prihvata i ugovor potpisuje zastupnik upisan u APR ili osoba sa punomoćjem. Platforma to proverava.
 **Pitanje:** Koja lica to smeju? U kojoj formi mora biti punomoćje (pisano, potpisano elektronskim potpisom, overeno)? Kako zajednički nalog utiče na dokazivanje ko je radnju zaista preduzeo? (Povezano sa pitanjima 9 i 11.)
 
+### 10a. Kako utvrditi da je potpis dao zastupnik? (LQ-75 · P1)
+**Šta želimo:** platforma proverava kvalifikovani elektronski potpis na ugovoru i upoređuje ime iz sertifikata sa zastupnikom firme upisanim u APR.
+**Pitanje:** Da li je dovoljno poklapanje imena i prezimena, ili je potreban i lični identifikator (JMBG ili drugi broj iz sertifikata)? Sme li platforma da obrađuje i čuva JMBG iz sertifikata radi tog poređenja? Kako postupiti kada je ime u sertifikatu ćirilicom, a u APR latinicom? Ko snosi rizik ako potpisnik sa istim imenom nije zastupnik? (Povezano sa pitanjima 10 i 11.)
+
 ### 11. Kako proveriti identitet zastupnika na daljinu? (LQ-32 · P1)
 **Šta želimo:** registraciju bez dolaska u kancelariju. Zastupnik potpisuje pristupnicu kvalifikovanim elektronskim potpisom, ili šalje skeniranu ručno potpisanu pristupnicu koju potvrdimo preko službenog emaila firme iz APR-a.
 **Pitanje:**

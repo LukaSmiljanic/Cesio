@@ -40,6 +40,7 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
             ["ConnectionStrings:Documents"] = storage.ConnectionString,
             ["Documents:Scanner"] = "Fake",
             ["Sef:Client"] = "Fake",
+            ["Signatures:Validator"] = "Fake",
         });
     }
 
@@ -306,6 +307,9 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
         Assert.True(await CountAsync($"SELECT COUNT(*) FROM audit.access_log WHERE entity_id = '{documentId}' AND action = 'Document.Downloaded'") >= 1);
     }
 
+    /// <summary>Every test organization has one legal representative with this name (the QES signer of task 016).</summary>
+    private static string RepresentativeOf(string pib) => $"Zastupnik {pib}";
+
     private sealed record Party(ApiClient Client, Guid Org, string Pib, string Key, string Email = "");
 
     private async Task<Party> SellerAsync()
@@ -314,6 +318,11 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
         var (email, _) = await client.SignUpAsync();
         var pib = TestIds.NewPib();
         var org = (await ApiClient.ReadAsync(await client.PostAsync("/api/v1/organizations", new { pib }))).GetProperty("id").GetGuid();
+        using (var representative = await client.PostAsync($"/api/v1/organizations/{org}/legal-representatives", new { name = RepresentativeOf(pib), role = "Direktor" }))
+        {
+            Assert.Equal(HttpStatusCode.Created, representative.StatusCode);
+        }
+
         using (var approved = await client.PostAsync($"/api/v1/dev/organizations/{org}/approve"))
         {
             Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
@@ -336,6 +345,11 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
         await client.SignUpAsync();
         pib ??= TestIds.NewPib();
         var org = (await ApiClient.ReadAsync(await client.PostAsync("/api/v1/dev/factor-organizations", new { pib, legalName = "Faktor a.d." }))).GetProperty("id").GetGuid();
+        using (var representative = await client.PostAsync($"/api/v1/organizations/{org}/legal-representatives", new { name = RepresentativeOf(pib), role = "Direktor" }))
+        {
+            Assert.Equal(HttpStatusCode.Created, representative.StatusCode);
+        }
+
         if (approve)
         {
             using var approved = await client.PostAsync($"/api/v1/dev/organizations/{org}/approve");

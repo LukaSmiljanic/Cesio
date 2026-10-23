@@ -19,6 +19,7 @@
     <ProjectReference Include="../../Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
     <ProjectReference Include="../../Compliance/Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
     <ProjectReference Include="../../Documents/Modules.Documents.Contracts/Modules.Documents.Contracts.csproj" />
+    <ProjectReference Include="../../Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../../Marketplace/Modules.Marketplace.Contracts/Modules.Marketplace.Contracts.csproj" />
     <ProjectReference Include="../../Organizations/Modules.Organizations.Contracts/Modules.Organizations.Contracts.csproj" />
     <ProjectReference Include="../../Receivables/Modules.Receivables.Contracts/Modules.Receivables.Contracts.csproj" />

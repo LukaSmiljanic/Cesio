@@ -64,7 +64,7 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 - **CddDecision** — approved or declined (with a reason), decidedBy, decidedAt, step-up time; one per deal, append-only (ADR-015).
 - **ContractDocument** — a version of the factor's agreement: documentId, sha256, uploadedBy, uploadedAt; the newest is current, a replacement voids earlier confirmations; append-only.
 - **TermsConfirmation** — one party's confirmation (Signatory, step-up) that one ContractDocument version matches the deal terms; append-only.
-- **Signature** — party, signerName, certificate subject/issuer/serial, signingTime, validationResult, signer matched to an APR legal representative or verified attorney of the organization (bool + reference).
+- **Signature** — party, signerName, certificate subject/issuer/serial, signingTime, result (`Valid` or the first failed rule), the validator report, and the party whose legal representative signed (null when the signer matches none); MVP matching is by name (LQ-75).
 - **CefRegistration** — status (`NotApplicable | Pending | Registered | Failed`), cefReference, evidenceDocumentId, recordedBy.
 - **DebtorNotification** — responsibleParty, channel, sentAt, evidenceDocumentId.
 - **FundingReport** — amount, valueDate, paymentReference, payerAccount, payeeBankAccountId, reportedBy. **FundingConfirmation** — confirmed / discrepancy, by, at.

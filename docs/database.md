@@ -14,6 +14,7 @@ Target: Microsoft SQL Server 2022+ compatible, hosted as **Azure SQL Database** 
 - **Deletion:** no hard deletes of business or financial rows. Soft delete (`deleted_at`) **only** for drafts, notification preferences and unsubmitted documents. Immutability (ADR-021):
   - **Fully append-only tables** (`audit.*`, `deals.deal_state_history`, `deals.signatures`, `deals.contract_documents`, `deals.funding_reports`, `deals.funding_confirmations`, `receivables.verification_checks`, `receivables.seller_declarations`, `receivables.sef_status_history`, `deals.cdd_decisions`, `deals.terms_confirmations`): `DENY UPDATE, DELETE` to `app_rw` + an INSTEAD OF UPDATE, DELETE trigger that throws.
   - **Tables whose state changes but some columns are fixed** (`marketplace.offers`: price, recourse, terms and the fee snapshot `fee_schedule_version`, `platform_fee`, `seller_fee`, `vat_pending`; only `state` and the once-written `rejection_reason` change; `deals.deals`: parties, amounts, recourse, terms, fee snapshot and acceptance; `fees.fee_charges`: amounts, payer): column-level `DENY UPDATE (col, …)` to `app_rw` + an AFTER UPDATE trigger with `IF UPDATE(col) THROW`.
+  - **Staff-maintained reference data** (`deals.trusted_certificates`): rows are never deleted; only `deactivated_at`, `deactivated_by` and `version` change (deactivation, audited).
   - **Versioned configuration** (`fees.fee_schedules`): an AFTER UPDATE trigger allows only the one-time approval (`approved_by`, `approved_at`) and an INSTEAD OF DELETE trigger throws. The seed version is created by the system user (all zeros) and approved by a distinct system approver ID, so the four-eyes CHECK holds for it too.
   - **EF Core:** every table with a trigger is declared with `ToTable(t => t.HasTrigger("…"))` in its mapping. Otherwise EF Core's `OUTPUT` clause fails on tables with triggers.
 
@@ -193,7 +194,14 @@ CREATE TABLE deals.contract_documents (id uniqueidentifier PRIMARY KEY, deal_id 
 CREATE TABLE deals.terms_confirmations (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, contract_document_id uniqueidentifier NOT NULL,
   sha256 char(64) NOT NULL, party_org_id uniqueidentifier NOT NULL, confirmed_by uniqueidentifier NOT NULL, confirmed_at datetimeoffset(3) NOT NULL,
   step_up_at datetimeoffset(3) NOT NULL, UNIQUE (contract_document_id, party_org_id));
-CREATE TABLE deals.signatures (...), deals.cef_registrations (...),
+-- task 016: validated signatures (append-only evidence) and the staff-maintained trust store
+CREATE TABLE deals.signatures (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, document_id uniqueidentifier NOT NULL, party varchar(10) /* Seller, Factor or NULL */,
+  signer_name nvarchar(200) NOT NULL, certificate_subject nvarchar(400) NOT NULL, certificate_issuer nvarchar(400) NOT NULL, certificate_serial varchar(100) NOT NULL,
+  signing_time datetimeoffset(3), result varchar(40) NOT NULL /* Valid or the first failed rule */, report nvarchar(max) /* JSON */ NOT NULL,
+  uploaded_by uniqueidentifier NOT NULL, validated_at datetimeoffset(3) NOT NULL);
+CREATE TABLE deals.trusted_certificates (id uniqueidentifier PRIMARY KEY, name nvarchar(200) NOT NULL, sha256_thumbprint char(64) NOT NULL UNIQUE,
+  certificate nvarchar(max) NOT NULL, added_by uniqueidentifier NOT NULL, added_at datetimeoffset(3) NOT NULL, deactivated_at datetimeoffset(3), deactivated_by uniqueidentifier, version int NOT NULL);
+CREATE TABLE deals.cef_registrations (...),
              deals.debtor_notifications (...), deals.funding_reports (...), deals.funding_confirmations (...),
              deals.outcomes (... UNIQUE (deal_id) ...);
 CREATE TABLE deals.disputes (...);

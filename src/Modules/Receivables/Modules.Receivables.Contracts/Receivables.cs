@@ -82,4 +82,7 @@ public interface IReceivableWriter
 
     /// <summary>A deal ended before signing (task 015): the receivable goes back from Reserved to Verified, so the seller may re-list it.</summary>
     Task ReleaseAsync(Guid receivableId, Guid dealId, string reason, CancellationToken cancellationToken);
+
+    /// <summary>The factoring agreement is signed (task 016): Reserved → Assigned, with an audit event (subject to LQ-25).</summary>
+    Task AssignAsync(Guid receivableId, Guid dealId, CancellationToken cancellationToken);
 }

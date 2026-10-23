@@ -29,6 +29,10 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
 
     internal DbSet<TermsConfirmation> TermsConfirmations => Set<TermsConfirmation>();
 
+    internal DbSet<Signature> Signatures => Set<Signature>();
+
+    internal DbSet<TrustedCertificate> TrustedCertificates => Set<TrustedCertificate>();
+
     protected override string Schema => SchemaName;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
@@ -105,6 +109,32 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
             confirmation.HasOne<Deal>().WithMany().HasForeignKey(c => c.DealId).OnDelete(DeleteBehavior.Restrict);
             confirmation.HasOne<ContractDocument>().WithMany().HasForeignKey(c => c.ContractDocumentId).OnDelete(DeleteBehavior.Restrict);
             confirmation.HasIndex(c => new { c.ContractDocumentId, c.PartyOrgId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Signature>(signature =>
+        {
+            signature.ToTable("signatures", table => table.HasTrigger("tr_signatures_append_only"));
+            signature.HasKey(s => s.Id);
+            signature.Property(s => s.Id).ValueGeneratedNever();
+            signature.Property(s => s.Party).HasMaxLength(10).IsUnicode(false);
+            signature.Property(s => s.SignerName).HasMaxLength(200);
+            signature.Property(s => s.CertificateSubject).HasMaxLength(400);
+            signature.Property(s => s.CertificateIssuer).HasMaxLength(400);
+            signature.Property(s => s.CertificateSerial).HasMaxLength(100).IsUnicode(false);
+            signature.Property(s => s.Result).HasMaxLength(40).IsUnicode(false);
+            signature.HasJsonCheck("report");
+            signature.HasOne<Deal>().WithMany().HasForeignKey(s => s.DealId).OnDelete(DeleteBehavior.Restrict);
+            signature.HasIndex(s => new { s.DealId, s.ValidatedAt });
+        });
+
+        modelBuilder.Entity<TrustedCertificate>(certificate =>
+        {
+            certificate.ToTable("trusted_certificates");
+            certificate.HasKey(c => c.Id);
+            certificate.Property(c => c.Id).ValueGeneratedNever();
+            certificate.Property(c => c.Name).HasMaxLength(200);
+            certificate.Property(c => c.Sha256Thumbprint).HasMaxLength(64).IsFixedLength().IsUnicode(false);
+            certificate.HasIndex(c => c.Sha256Thumbprint).IsUnique();
         });
     }
 }
@@ -237,6 +267,61 @@ internal sealed class TermsConfirmation
     public DateTimeOffset ConfirmedAt { get; init; }
 
     public DateTimeOffset StepUpAt { get; init; }
+}
+
+/// <summary>One validated signature of an uploaded signed contract, with the validator's report as evidence; append-only.</summary>
+internal sealed class Signature
+{
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
+    public Guid DocumentId { get; init; }
+
+    /// <summary><c>Seller</c> or <c>Factor</c> when the signer is one of that party's legal representatives; else null.</summary>
+    public string? Party { get; init; }
+
+    public required string SignerName { get; init; }
+
+    public required string CertificateSubject { get; init; }
+
+    public required string CertificateIssuer { get; init; }
+
+    public required string CertificateSerial { get; init; }
+
+    public DateTimeOffset? SigningTime { get; init; }
+
+    /// <summary><c>Valid</c>, or the first failed rule (e.g. <c>signature_invalid</c>, <c>document_mismatch</c>, <c>signer_not_authorized</c>).</summary>
+    public required string Result { get; init; }
+
+    public required string Report { get; init; }
+
+    public Guid UploadedBy { get; init; }
+
+    public DateTimeOffset ValidatedAt { get; init; }
+}
+
+/// <summary>A root or intermediate certificate of a Serbian qualified trust service provider (integrations.md §7); staff-maintained.</summary>
+internal sealed class TrustedCertificate
+{
+    public Guid Id { get; init; }
+
+    public required string Name { get; init; }
+
+    public required string Sha256Thumbprint { get; init; }
+
+    /// <summary>The certificate (DER, Base64).</summary>
+    public required string Certificate { get; init; }
+
+    public Guid AddedBy { get; init; }
+
+    public DateTimeOffset AddedAt { get; init; }
+
+    public DateTimeOffset? DeactivatedAt { get; set; }
+
+    public Guid? DeactivatedBy { get; set; }
+
+    public int Version { get; set; }
 }
 
 internal sealed class DealsDbContextDesignTimeFactory : IDesignTimeDbContextFactory<DealsDbContext>

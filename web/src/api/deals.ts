@@ -25,7 +25,16 @@ export interface Deal {
   agreedContractSha256: string | null
 }
 
+export interface SignatureResult {
+  signer: string
+  party: 'Seller' | 'Factor' | null
+  result: string
+  signingTime: string | null
+  validatedAt: string
+}
+
 export interface DealSteps {
+  signatures: SignatureResult[]
   cdd: { approved: boolean; reason: string | null; decidedAt: string } | null
   contract: {
     contractDocumentId: string
@@ -73,6 +82,10 @@ export const dealsApi = {
     api<{ state: string }>('POST', `/deals/${id}/terms-confirmation`, {
       contractDocumentId,
       confirmed: true,
+    }),
+  signedContract: (id: string, documentId: string) =>
+    api<{ state: string; signatures: SignatureResult[] }>('POST', `/deals/${id}/signed-contract`, {
+      documentId,
     }),
   cancel: (id: string, reasonCode: string, comment: string | null) =>
     api<{ state: string }>('POST', `/deals/${id}/cancel`, { reasonCode, comment }),

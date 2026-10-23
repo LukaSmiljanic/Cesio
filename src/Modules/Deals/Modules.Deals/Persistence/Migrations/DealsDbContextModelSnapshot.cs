@@ -337,6 +337,93 @@ namespace Modules.Deals.Persistence.Migrations
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
+            modelBuilder.Entity("Modules.Deals.Persistence.Signature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CertificateIssuer")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)")
+                        .HasColumnName("certificate_issuer");
+
+                    b.Property<string>("CertificateSerial")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("certificate_serial");
+
+                    b.Property<string>("CertificateSubject")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)")
+                        .HasColumnName("certificate_subject");
+
+                    b.Property<Guid>("DealId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deal_id");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("document_id");
+
+                    b.Property<string>("Party")
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("party");
+
+                    b.Property<string>("Report")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("report");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("result");
+
+                    b.Property<string>("SignerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("signer_name");
+
+                    b.Property<DateTimeOffset?>("SigningTime")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("signing_time");
+
+                    b.Property<Guid>("UploadedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("uploaded_by");
+
+                    b.Property<DateTimeOffset>("ValidatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("validated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_signatures");
+
+                    b.HasIndex("DealId", "ValidatedAt")
+                        .HasDatabaseName("ix_signatures_deal_id_validated_at");
+
+                    b.ToTable("signatures", "deals", t =>
+                        {
+                            t.HasTrigger("tr_signatures_append_only");
+
+                            t.HasCheckConstraint("ck_signature_report_json", "ISJSON([report]) = 1");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
             modelBuilder.Entity("Modules.Deals.Persistence.TermsConfirmation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -395,6 +482,64 @@ namespace Modules.Deals.Persistence.Migrations
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
+            modelBuilder.Entity("Modules.Deals.Persistence.TrustedCertificate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("added_at");
+
+                    b.Property<Guid>("AddedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("added_by");
+
+                    b.Property<string>("Certificate")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("certificate");
+
+                    b.Property<DateTimeOffset?>("DeactivatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("deactivated_at");
+
+                    b.Property<Guid?>("DeactivatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("deactivated_by");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Sha256Thumbprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .HasColumnName("sha256_thumbprint")
+                        .IsFixedLength();
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_trusted_certificates");
+
+                    b.HasIndex("Sha256Thumbprint")
+                        .IsUnique()
+                        .HasDatabaseName("ix_trusted_certificates_sha256_thumbprint");
+
+                    b.ToTable("trusted_certificates", "deals");
+                });
+
             modelBuilder.Entity("Modules.Deals.Persistence.CddDecision", b =>
                 {
                     b.HasOne("Modules.Deals.Persistence.Deal", null)
@@ -423,6 +568,16 @@ namespace Modules.Deals.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_deal_state_history_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.Signature", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Deal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_signatures_deals_deal_id");
                 });
 
             modelBuilder.Entity("Modules.Deals.Persistence.TermsConfirmation", b =>

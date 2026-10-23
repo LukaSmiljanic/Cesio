@@ -15,7 +15,7 @@ Changing an Accepted decision requires a new ADR that supersedes it. AI agents m
 | ADR-008 | Money = decimal + ISO currency; rounding half away from zero at fee calculation | Accepted | — |
 | ADR-009 | MVP limited to RSD, SEF e-invoices, full assignment, domestic private-sector debtors | Proposed | BQ-02, BQ-03 |
 | ADR-010 | Frontend component library: shadcn/ui + Tailwind + TanStack Table (see [ux-design.md](ux-design.md) §8) | Accepted (product owner 2026-10-22) | — |
-| ADR-011 | PAdES/QES validation approach (library vs. QTSP validation service) | Open | before task 016 (until then a Compliance Officer checks QES manually, e.g. the pristupnica in task 007a) |
+| ADR-011 | PAdES/QES validation approach (library vs. QTSP validation service): validation behind `ISignatureValidator`; production validator chosen by a spike with Serbian QES samples (candidate: the EU DSS validation service in a sidecar) | Proposed (2026-10-23; the spike needs QES samples from at least two Serbian QTSPs) | LQ-24, LQ-61, LQ-75; until accepted, no deal can become Signed outside development |
 | ADR-012 | Invoice and Receivable are separate entities | Accepted | — |
 | ADR-013 | Offers state a purchase price and are immutable | Accepted | — |
 | ADR-014 | Holds are an overlay, not lifecycle states | Accepted | — |
@@ -42,6 +42,9 @@ Changing an Accepted decision requires a new ADR that supersedes it. AI agents m
 
 ## ADR-009 MVP scope limits
 **Why:** SEF gives machine-verifiable invoices with buyer acceptance and a future CEF link; RSD avoids FX legal questions (LQ-50); full assignment keeps INV-R1 simple. **Revisit** after legal review and pilot feedback.
+
+## ADR-011 Signature validation (Proposed)
+The platform validates PAdES signatures and never signs. Validation sits behind `ISignatureValidator` (task 016): integrity; the signed original revision equals the agreed contract hash; a qualified certificate; a chain to a trust-store root (Serbian QTSPs, staff-maintained in `deals.trusted_certificates`); revocation at signing time (OCSP/CRL with a timeout, unavailable → fail closed); and the signer named as a legal representative of the party (matching rule: LQ-75; who qualifies: LQ-61). **Options:** (a) iText 9 + BouncyCastle in process (commercial licence for closed source); (b) the EU DSS validation service as a sidecar container (open source, LGPL, REST, LTV support); (c) a QTSP validation API (per-call cost, external dependency). **Proposal:** (b), confirmed by a spike against smart-card and cloud QES from at least two Serbian QTSPs. **Until accepted:** development uses a fake validator; every other environment uses a validator that always answers "unavailable", so no deal becomes Signed there.
 
 ## ADR-012 Invoice ≠ Receivable
 See [domain-model.md](domain-model.md) §2. Enables partial assignment and bundles later without remodelling invoices.

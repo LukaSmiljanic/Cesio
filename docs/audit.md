@@ -40,7 +40,7 @@ Goal: for any receivable, deal, organization or fee, we can reconstruct **who di
 - **Marketplace:** listing opened/withdrawn/expired/suspended/closed; listing viewed and document downloaded by a factor (access log); offer submitted/withdrawn/rejected/expired/superseded/accepted.
 - **Deals:** every state transition; CDD confirmation; contract uploaded (hash); terms checklist confirmed; signature validation results; CEF registration recorded; debtor notification recorded; funding reported; funding confirmed or disputed; outcome recorded; cancellation/termination with reason.
 - **Fees:** schedule version created (four-eyes), charge created/invoiced/paid/reversed.
-- **Platform:** business parameter changes, admin role grants, impersonation (**not allowed**; listed so that an attempt is logged), data exports.
+- **Platform:** business parameter changes, signature trust store certificate added/deactivated (`TrustStore.CertificateAdded`, `TrustStore.CertificateDeactivated`), admin role grants, impersonation (**not allowed**; listed so that an attempt is logged), data exports.
 
 ## 4. Storage
 ```sql

@@ -30,7 +30,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 | Disputes | `POST /deals/{id}/disputes` ♻, `GET /disputes/{id}`, `POST /disputes/{id}/comments` |
 | Fees | `GET /fees/charges`, `GET /fees/statements/{period}` |
 | Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `GET/PUT /notification-preferences` |
-| Admin (`/api/v1/admin`, staff realm) | KYB queue and decisions 🔐, factor authorization verification 🔐 (two approvals), receivable review queue, listings suspend/resume (Operations, with reason), holds, organizations suspend/reinstate 🔐, factor organization create + invite 🔐, official email record 🔐, pristupnica decision 🔐, MFA reset execute 🔐, disputes log, business parameters 🔐, fee schedules 🔐, audit search/export, integration health |
+| Admin (`/api/v1/admin`, staff realm) | KYB queue and decisions 🔐, factor authorization verification 🔐 (two approvals), receivable review queue, listings suspend/resume (Operations, with reason), holds, organizations suspend/reinstate 🔐, factor organization create + invite 🔐, official email record 🔐, pristupnica decision 🔐, MFA reset execute 🔐, disputes log, business parameters 🔐, fee schedules 🔐, audit search/export, integration health, signature trust store `GET/POST /admin/trusted-certificates`, `POST /admin/trusted-certificates/{id}/deactivate` 🔐 (PlatformAdmin) |
 
 ## 3. Key endpoint specifications
 
@@ -97,7 +97,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 - **Request:** `{ "documentId": "..." }` (PDF with PAdES signatures, scanned clean).
 - **Validation:** deal `AwaitingSignatures`; before signatureDeadline; the document's *signed content* corresponds to the agreed contract hash (the original byte range is preserved under incremental signatures); every signature is cryptographically valid, the certificate is qualified and not revoked at signing time, and the signer maps to an APR legal representative or verified attorney of the respective org; SEF fresh ≤ 1 h; no holds.
 - **Response 200:** the deal with `signatures[]` validation details. When both parties are valid → `Signed`.
-- **Errors:** 422 `signature_invalid` (with details), 422 `signer_not_authorized`, 422 `document_mismatch`, 409 `deadline_passed`.
+- **Errors:** 422 `signature_invalid` (with details), 422 `certificate_not_qualified`, 422 `certificate_untrusted`, 422 `certificate_revoked`, 422 `signer_not_authorized`, 422 `document_mismatch`, 409 `deadline_passed`, 409 `receivable_ineligible` (SEF changed; the deal stays in AwaitingSignatures), 423 `hold_active`, 503 `upstream_unavailable` (validator, revocation source or SEF unreachable; fail closed, retry later). Every validated signature is stored with its result, also when the request fails.
 - **Audit:** `Deal.SignatureValidated` per signature, `Deal.Signed`, `Receivable.Assigned`.
 
 ### 3.8 `POST /deals/{id}/funding-report` ♻🔐

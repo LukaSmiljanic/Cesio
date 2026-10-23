@@ -61,4 +61,10 @@ internal sealed class OrganizationQuery(OrgsDbContext orgs) : IOrganizationQuery
 
     public async Task<bool> IsSignatoryAsync(Guid organizationId, Guid userId, CancellationToken cancellationToken) =>
         (await GetMembershipAsync(organizationId, userId, cancellationToken))?.IsSignatory == true;
+
+    public async Task<IReadOnlyList<string>> AuthorizedSignerNamesAsync(Guid organizationId, DateOnly on, CancellationToken cancellationToken) =>
+        await orgs.LegalRepresentatives.IgnoreQueryFilters().AsNoTracking()
+            .Where(r => r.OrgId == organizationId && (r.ValidFrom == null || r.ValidFrom <= on) && (r.ValidTo == null || r.ValidTo >= on))
+            .Select(r => r.Name)
+            .ToListAsync(cancellationToken);
 }

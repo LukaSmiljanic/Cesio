@@ -43,6 +43,9 @@ public interface IDocumentAccessPolicy
 public interface IDocumentQuery
 {
     Task<DocumentInfo?> GetAsync(Guid documentId, CancellationToken cancellationToken);
+
+    /// <summary>The content of a clean document, for a module that must inspect it (e.g. signature validation, task 016); null otherwise.</summary>
+    Task<byte[]?> ReadCleanAsync(Guid documentId, CancellationToken cancellationToken);
 }
 
 /// <summary>

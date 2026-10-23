@@ -30,6 +30,8 @@ public sealed record CancelDealRequest(string? ReasonCode, string? Comment);
 internal sealed class DealStepService(
     DealsDbContext deals,
     IReceivableWriter receivables,
+    IReceivableMarket receivableMarket,
+    ISignatureValidator signatureValidator,
     IOrganizationQuery organizations,
     IHoldQuery holds,
     IDocumentQuery documents,
@@ -239,6 +241,139 @@ internal sealed class DealStepService(
     }
 
     /// <summary>
+    /// A party uploads the signed agreement (task 016, api.md §3.7). Every signature is validated and stored with its
+    /// report; when each party has at least one valid signature of a legal representative over the agreed contract,
+    /// SEF is fresh and approved and no hold is active, the deal becomes Signed and the receivable Assigned in one
+    /// transaction.
+    /// </summary>
+    public async Task<IResult> UploadSignedContractAsync(Guid id, ContractRequest body, CancellationToken cancellationToken)
+    {
+        if (await PartyDealAsync(id, cancellationToken) is not { } deal)
+        {
+            return NotFound();
+        }
+
+        if (deal.State == DealState.AwaitingSignatures && deal.SignatureDeadline <= timeProvider.GetUtcNow())
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "deadline_passed", "The signature deadline has passed.");
+        }
+
+        if (await RefusalAsync(deal, DealState.AwaitingSignatures, signatory: true, cancellationToken) is { } refusal)
+        {
+            return refusal;
+        }
+
+        var document = await documents.GetAsync(body.DocumentId, cancellationToken);
+        if (document is null || document.OwnerOrgId != OrganizationId)
+        {
+            return Problems.Error(StatusCodes.Status404NotFound, "not_found", "The document does not exist.");
+        }
+
+        if (document.Purpose != DocumentPurpose.Contract || document.ContentType != "application/pdf"
+            || await documents.ReadCleanAsync(document.Id, cancellationToken) is not { } pdf)
+        {
+            return Problems.Error(StatusCodes.Status422UnprocessableEntity, "wrong_document", "Upload the signed agreement as a clean PDF with purpose Contract.");
+        }
+
+        var validation = await signatureValidator.ValidateAsync(pdf, cancellationToken);
+        if (validation.Outcome == ValidationOutcome.Unavailable)
+        {
+            return Problems.Error(StatusCodes.Status503ServiceUnavailable, "upstream_unavailable", "The signatures cannot be validated right now; try again later.");
+        }
+
+        var today = DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime);
+        var sellerSigners = Names(await organizations.AuthorizedSignerNamesAsync(deal.SellerOrgId, today, cancellationToken));
+        var factorSigners = Names(await organizations.AuthorizedSignerNamesAsync(deal.FactorOrgId, today, cancellationToken));
+        var now = timeProvider.GetUtcNow();
+        var rows = validation.Signatures.Select(check =>
+        {
+            var name = Normalize(check.SignerName);
+            var party = sellerSigners.Contains(name) ? "Seller" : factorSigners.Contains(name) ? "Factor" : null;
+            return new Signature
+            {
+                Id = SequentialGuid.NewGuid(),
+                DealId = id,
+                DocumentId = document.Id,
+                Party = party,
+                SignerName = check.SignerName,
+                CertificateSubject = check.CertificateSubject,
+                CertificateIssuer = check.CertificateIssuer,
+                CertificateSerial = check.CertificateSerial,
+                SigningTime = check.SigningTime,
+                Result = Judge(check, party, deal.AgreedContractSha256),
+                Report = check.ReportJson,
+                UploadedBy = UserId,
+                ValidatedAt = now,
+            };
+        }).ToList();
+        if (rows.Count == 0)
+        {
+            return Problems.Error(StatusCodes.Status422UnprocessableEntity, "signature_invalid", "The document carries no signature.");
+        }
+
+        deals.Signatures.AddRange(rows);
+        var earlier = await deals.Signatures.AsNoTracking().Where(s => s.DealId == id && s.Result == "Valid").Select(s => s.Party).ToListAsync(cancellationToken);
+        var validParties = earlier.Concat(rows.Where(r => r.Result == "Valid").Select(r => r.Party)).ToHashSet();
+        var signed = validParties.Contains("Seller") && validParties.Contains("Factor");
+        if (signed)
+        {
+            switch (await receivableMarket.EnsureFreshApprovalAsync(deal.ReceivableId, TimeSpan.FromHours(1), cancellationToken))
+            {
+                case SefApproval.Unavailable:
+                    return Problems.Error(StatusCodes.Status503ServiceUnavailable, "upstream_unavailable", "SEF cannot be reached to confirm the buyer's approval; try again later.");
+                case SefApproval.NotApproved:
+                    signed = false;
+                    break;
+            }
+        }
+
+        var sefChanged = validParties.Contains("Seller") && validParties.Contains("Factor") && !signed;
+        var outcome = await CommitAsync(
+            async ct =>
+            {
+                foreach (var row in rows)
+                {
+                    await audit.WriteAsync(new AuditEntry("Deal.SignatureValidated", "Deal", id, OrganizationId, EvidenceDocumentIds: [document.Id],
+                        Changes: new Dictionary<string, string?> { ["signer"] = row.SignerName, ["party"] = row.Party, ["result"] = row.Result, ["serial"] = row.CertificateSerial }), ct);
+                }
+
+                if (signed)
+                {
+                    await TransitionAsync(deal, DealState.Signed, "signatures_valid", UserId, ct);
+                    await receivables.AssignAsync(deal.ReceivableId, id, ct);
+                    await outbox.AddAsync(new DealSigned(id, deal.ReceivableId, deal.SellerOrgId, deal.FactorOrgId), ct);
+                }
+            },
+            deal,
+            cancellationToken,
+            () => Results.Ok(new { state = deal.State, signatures = rows.Select(r => new { signer = r.SignerName, party = r.Party, result = r.Result, signingTime = r.SigningTime }) }));
+        if (sefChanged)
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "receivable_ineligible", "The signatures are valid, but SEF no longer shows the invoice as approved by the buyer.");
+        }
+
+        var failure = rows.Where(r => r.Result != "Valid").Select(r => r.Result).FirstOrDefault();
+        return rows.Any(r => r.Result == "Valid") || failure is null
+            ? outcome
+            : Problems.Error(StatusCodes.Status422UnprocessableEntity, failure, $"No valid signature of an authorized person: {string.Join(", ", rows.Select(r => $"{r.SignerName}: {r.Result}"))}.");
+    }
+
+    /// <summary>The first rule a signature breaks, or <c>Valid</c> (task 016 requirement 3).</summary>
+    private static string Judge(SignatureCheck check, string? party, string? agreedSha256) =>
+        !check.IntegrityValid ? "signature_invalid"
+        : !check.Qualified ? "certificate_not_qualified"
+        : !check.ChainValid ? "certificate_untrusted"
+        : !check.NotRevoked ? "certificate_revoked"
+        : agreedSha256 is null || !string.Equals(check.SignedRevisionSha256, agreedSha256, StringComparison.OrdinalIgnoreCase) ? "document_mismatch"
+        : party is null ? "signer_not_authorized"
+        : "Valid";
+
+    private static HashSet<string> Names(IReadOnlyList<string> names) => names.Select(Normalize).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>Case and spacing differences do not matter; script differences (Cyrillic/Latin) are not resolved yet (LQ-61).</summary>
+    private static string Normalize(string name) => string.Join(' ', name.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+
+    /// <summary>
     /// The signature deadline rule (task 015 requirement 6), run by the job of task 020: a deal not signed by its
     /// deadline is cancelled by the system. Returns whether it cancelled.
     /// </summary>
@@ -282,8 +417,12 @@ internal sealed class DealStepService(
             DealState.AwaitingSignatures => "Both",
             _ => null,
         };
+        var signatures = await deals.Signatures.AsNoTracking().Where(s => s.DealId == id).OrderBy(s => s.ValidatedAt)
+            .Select(s => new { signer = s.SignerName, party = s.Party, result = s.Result, signingTime = s.SigningTime, validatedAt = s.ValidatedAt })
+            .ToListAsync(cancellationToken);
         return new
         {
+            signatures,
             cdd = cdd is null ? null : new { approved = cdd.Approved, reason = cdd.Reason, decidedAt = cdd.DecidedAt },
             contract = contract is null ? null : new { contractDocumentId = contract.Id, documentId = contract.DocumentId, sha256 = contract.Sha256, uploadedAt = contract.UploadedAt },
             sellerConfirmed = confirmedBy.Contains(sellerOrgId),

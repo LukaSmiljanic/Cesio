@@ -123,4 +123,19 @@ internal sealed class ReceivableMarket(
         await audit.WriteAsync(new AuditEntry("Receivable.Released", "Receivable", receivableId, receivable.SellerOrgId,
             PreviousState: nameof(ReceivableState.Reserved), NewState: nameof(ReceivableState.Verified), Reason: reason, Related: [new AuditReference("Deal", dealId)]), cancellationToken);
     }
+
+    public async Task AssignAsync(Guid receivableId, Guid dealId, CancellationToken cancellationToken)
+    {
+        await receivables.Database.ExecuteSqlAsync($"SELECT id FROM receivables.receivables WITH (UPDLOCK, ROWLOCK) WHERE id = {receivableId}", cancellationToken);
+        var receivable = await receivables.Receivables.IgnoreQueryFilters().SingleAsync(r => r.Id == receivableId, cancellationToken);
+        if (receivable.State != ReceivableState.Reserved)
+        {
+            throw new DomainConflictException("receivable_ineligible", "The receivable is not reserved for this deal.");
+        }
+
+        receivable.State = ReceivableState.Assigned;
+        await receivables.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync(new AuditEntry("Receivable.Assigned", "Receivable", receivableId, receivable.SellerOrgId,
+            PreviousState: nameof(ReceivableState.Reserved), NewState: nameof(ReceivableState.Assigned), Related: [new AuditReference("Deal", dealId)]), cancellationToken);
+    }
 }
