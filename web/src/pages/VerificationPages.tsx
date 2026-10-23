@@ -37,7 +37,9 @@ function Checks({ checks }: { checks: CheckRow[] }) {
                   ? 'text-red-700'
                   : c.result === 'Warn'
                     ? 'text-amber-700'
-                    : 'text-green-700'
+                    : c.result === 'Review'
+                      ? 'text-slate-600'
+                      : 'text-green-700'
               }
             >
               {c.result}

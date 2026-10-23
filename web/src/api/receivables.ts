@@ -67,7 +67,8 @@ export interface Declaration {
 export interface CheckRow {
   run: number
   code: string
-  result: 'Pass' | 'Warn' | 'Fail'
+  /** 'Review': a check the seller does not see the result of (the cross-seller duplicate check). */
+  result: 'Pass' | 'Warn' | 'Fail' | 'Review'
   details: string | null
   ranAt: string
 }

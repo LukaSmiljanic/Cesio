@@ -1,7 +1,9 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Modules.Organizations.Contracts;
 using Modules.Receivables.Persistence;
 using Shared.Infrastructure.Persistence.Platform;
+using Shared.Kernel;
 
 namespace Modules.Receivables;
 
@@ -43,15 +45,20 @@ internal static class ReceivableParameters
     public const string AutoApproveMaxFaceValue = "receivables.autoApproveMaxFaceValue";
     public const string WarnOnNewDebtor = "receivables.warnOnNewDebtor";
 
-    /// <summary>Not given in the docs; a conservative placeholder until the product owner sets the parameter.</summary>
+    /// <summary>product-spec.md §parameters (default 15).</summary>
     public const int DefaultMinDaysAtListing = 15;
 
+    /// <summary>A working default only; LQ-10 stays open.</summary>
     public const int DefaultMaxTenorDays = 180;
+
     public const decimal DefaultMinFaceValue = 500_000m;
     public const decimal DefaultMaxFaceValue = 200_000_000m;
 
     /// <summary>0: no automatic approval, every receivable goes to the manual queue (auto-approval is "if configured").</summary>
     public const decimal DefaultAutoApproveMaxFaceValue = 0m;
+
+    /// <summary>The amount parameters are RSD amounts (BQ-03); a receivable in another currency has no limits and never passes.</summary>
+    public static readonly Currency LimitCurrency = Currency.Rsd;
 }
 
 internal sealed class SefFreshApprovedCheck : IReceivableCheck
@@ -68,9 +75,14 @@ internal sealed class SellerIsIssuerCheck : IReceivableCheck
 {
     public string Code => "SELLER_IS_ISSUER";
 
-    /// <summary>The supplier PIB of the UBL was compared with the seller's PIB at import; the invoice belongs to the seller.</summary>
+    /// <summary>
+    /// The import refuses an invoice whose UBL supplier PIB is not the seller's PIB (task 010) and stores the invoice
+    /// under that seller; this check confirms the stored link.
+    /// </summary>
     public Task<CheckOutcome> RunAsync(CheckContext context, CancellationToken cancellationToken) =>
-        Task.FromResult(context.Invoice.SellerOrgId == context.Seller.Id ? CheckOutcome.Pass : CheckOutcome.Fail("The invoice belongs to another organization."));
+        Task.FromResult(context.Invoice.SellerOrgId == context.Seller.Id
+            ? new CheckOutcome(CheckResult.Pass, "The supplier PIB matched the seller's PIB at import.")
+            : CheckOutcome.Fail("The invoice belongs to another organization."));
 }
 
 internal sealed class SellerApprovedCheck : IReceivableCheck
@@ -91,7 +103,9 @@ internal sealed class NotMaturedCheck(IBusinessParameters parameters) : IReceiva
     {
         var minDays = await parameters.GetAsync(ReceivableParameters.MinDaysAtListing, ReceivableParameters.DefaultMinDaysAtListing, cancellationToken);
         var days = context.Receivable.MaturityDate.DayNumber - context.Today.DayNumber;
-        return days >= minDays ? CheckOutcome.Pass : CheckOutcome.Fail($"{days} days to maturity; at least {minDays} are required.");
+        return days >= minDays
+            ? CheckOutcome.Pass
+            : CheckOutcome.Fail(string.Create(CultureInfo.InvariantCulture, $"{days} days to maturity; at least {minDays} are required."));
     }
 }
 
@@ -104,7 +118,9 @@ internal sealed class MaxTenorCheck(IBusinessParameters parameters) : IReceivabl
     {
         var maxDays = await parameters.GetAsync(ReceivableParameters.MaxTenorDays, ReceivableParameters.DefaultMaxTenorDays, cancellationToken);
         var days = context.Receivable.MaturityDate.DayNumber - context.Today.DayNumber;
-        return days <= maxDays ? CheckOutcome.Pass : CheckOutcome.Fail($"{days} days to maturity; at most {maxDays} are allowed.");
+        return days <= maxDays
+            ? CheckOutcome.Pass
+            : CheckOutcome.Fail(string.Create(CultureInfo.InvariantCulture, $"{days} days to maturity; at most {maxDays} are allowed."));
     }
 }
 
@@ -114,10 +130,15 @@ internal sealed class AmountLimitsCheck(IBusinessParameters parameters) : IRecei
 
     public async Task<CheckOutcome> RunAsync(CheckContext context, CancellationToken cancellationToken)
     {
-        var min = await parameters.GetAsync(ReceivableParameters.MinFaceValue, ReceivableParameters.DefaultMinFaceValue, cancellationToken);
-        var max = await parameters.GetAsync(ReceivableParameters.MaxFaceValue, ReceivableParameters.DefaultMaxFaceValue, cancellationToken);
-        var amount = context.Receivable.FaceValue.Amount;
-        return amount >= min && amount <= max ? CheckOutcome.Pass : CheckOutcome.Fail($"The face value must be between {min} and {max} RSD.");
+        var faceValue = context.Receivable.FaceValue;
+        if (faceValue.Currency != ReceivableParameters.LimitCurrency)
+        {
+            return CheckOutcome.Fail($"No amount limits are set for {faceValue.Currency.Code}.");
+        }
+
+        var min = new Money(await parameters.GetAsync(ReceivableParameters.MinFaceValue, ReceivableParameters.DefaultMinFaceValue, cancellationToken), ReceivableParameters.LimitCurrency);
+        var max = new Money(await parameters.GetAsync(ReceivableParameters.MaxFaceValue, ReceivableParameters.DefaultMaxFaceValue, cancellationToken), ReceivableParameters.LimitCurrency);
+        return faceValue >= min && faceValue <= max ? CheckOutcome.Pass : CheckOutcome.Fail($"The face value must be between {min} and {max}.");
     }
 }
 
@@ -127,7 +148,7 @@ internal sealed class FaceValueConsistentCheck : IReceivableCheck
 
     /// <summary>INV-R5: faceValue ≤ gross − known credit notes (none are known yet; credit notes are not imported).</summary>
     public Task<CheckOutcome> RunAsync(CheckContext context, CancellationToken cancellationToken) =>
-        Task.FromResult(context.Receivable.FaceValue.Amount <= context.Invoice.GrossAmount
+        Task.FromResult(context.Receivable.FaceValue <= new Money(context.Invoice.GrossAmount, context.Invoice.Currency)
             ? CheckOutcome.Pass
             : CheckOutcome.Fail("The face value is above the invoice gross amount."));
 }
@@ -160,15 +181,23 @@ internal sealed class RelatedPartyCheck : IReceivableCheck
 
 internal sealed class DuplicateFingerprintCheck(ReceivablesDbContext receivables) : IReceivableCheck
 {
-    public string Code => "DUPLICATE_FINGERPRINT";
+    public const string CheckCode = "DUPLICATE_FINGERPRINT";
 
-    /// <summary>INV-R3: the same debtor, amount and dates on any other non-rejected receivable, across all sellers.</summary>
+    /// <summary>What the seller sees instead of the result: the check looks at other sellers' receivables.</summary>
+    public const string SellerDetails = "Checked by compliance staff.";
+
+    public string Code => CheckCode;
+
+    /// <summary>
+    /// INV-R3: the same debtor, amount and dates on a non-rejected receivable of another invoice, across all sellers.
+    /// Drafts are left out, so a mere import by someone else cannot push a receivable into the manual queue.
+    /// </summary>
     public async Task<CheckOutcome> RunAsync(CheckContext context, CancellationToken cancellationToken)
     {
         var receivable = context.Receivable;
         var duplicate = await receivables.Receivables.IgnoreQueryFilters().AnyAsync(
-            r => r.Fingerprint == receivable.Fingerprint && r.Id != receivable.Id
-                && r.State != Contracts.ReceivableState.Rejected && r.State != Contracts.ReceivableState.Cancelled,
+            r => r.Fingerprint == receivable.Fingerprint && r.InvoiceId != receivable.InvoiceId
+                && r.State != Contracts.ReceivableState.Rejected && r.State != Contracts.ReceivableState.Draft,
             cancellationToken);
         return duplicate ? CheckOutcome.Warn("Another receivable has the same debtor, amount and dates.") : CheckOutcome.Pass;
     }
@@ -178,6 +207,7 @@ internal sealed class NewDebtorForSellerCheck(ReceivablesDbContext receivables, 
 {
     public string Code => "NEW_DEBTOR_FOR_SELLER";
 
+    /// <summary>Known means an earlier submitted, not rejected or cancelled receivable of this seller on another invoice.</summary>
     public async Task<CheckOutcome> RunAsync(CheckContext context, CancellationToken cancellationToken)
     {
         if (!await parameters.GetAsync(ReceivableParameters.WarnOnNewDebtor, true, cancellationToken))
@@ -186,8 +216,9 @@ internal sealed class NewDebtorForSellerCheck(ReceivablesDbContext receivables, 
         }
 
         var receivable = context.Receivable;
-        var known = await receivables.Receivables.AnyAsync(
-            r => r.DebtorId == receivable.DebtorId && r.Id != receivable.Id && r.State != Contracts.ReceivableState.Draft,
+        var known = await receivables.Receivables.IgnoreQueryFilters().AnyAsync(
+            r => r.SellerOrgId == receivable.SellerOrgId && r.DebtorId == receivable.DebtorId && r.InvoiceId != receivable.InvoiceId
+                && r.State != Contracts.ReceivableState.Draft && r.State != Contracts.ReceivableState.Rejected && r.State != Contracts.ReceivableState.Cancelled,
             cancellationToken);
         return known ? CheckOutcome.Pass : CheckOutcome.Warn("The first receivable of this seller on this debtor.");
     }

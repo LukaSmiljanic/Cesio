@@ -71,8 +71,8 @@ public sealed class ReceivableVerificationTests(SqlServerContainer server, Azuri
             Assert.True(await AuditCountAsync(receivable.Id, action) >= 1, $"Missing {action}.");
         }
 
-        Assert.Equal(13, await AuditCountAsync(receivable.Id, "Receivable.CheckRecorded"));
-    }
+        // Two runs: at submission and again at the manual decision.
+        Assert.Equal(26, await AuditCountAsync(receivable.Id, "Receivable.CheckRecorded"));    }
 
     [Fact]
     public async Task A_failing_check_rejects_the_receivable_with_its_code()
@@ -177,7 +177,8 @@ public sealed class ReceivableVerificationTests(SqlServerContainer server, Azuri
         var mistake = await ReadyDraftAsync(seller);
         using var officer = await ComplianceOfficerAsync();
         await officer.StepUpAsync();
-        foreach (var (receivable, reason) in new[] { (fraud, "Fraud"), (mistake, "WrongDocuments") })
+        // Any spelling of Fraud blocks the re-import.
+        foreach (var (receivable, reason) in new[] { (fraud, "fraud"), (mistake, "WrongDocuments") })
         {
             using (var submit = await Send(seller, HttpMethod.Post, $"/api/v1/receivables/{receivable.Id}/submit"))
             {
@@ -203,12 +204,72 @@ public sealed class ReceivableVerificationTests(SqlServerContainer server, Azuri
         var receivable = await ReadyDraftAsync(seller);
         var other = await ApprovedSellerAsync();
 
+        var othersDraft = await ImportedDraftAsync(other);
+        var othersDocument = await UploadAsync(other);
+
         using var queue = await other.Client.GetAsync("/api/v1/admin/receivables/review-queue");
+        using var detail = await other.Client.GetAsync($"/api/v1/admin/receivables/{receivable.Id}");
+        using var decision = await other.Client.PostAsync($"/api/v1/admin/receivables/{receivable.Id}/decision", new { decision = "Verified" });
         using var submit = await Send(other, HttpMethod.Post, $"/api/v1/receivables/{receivable.Id}/submit");
         using var declare = await Send(other, HttpMethod.Put, $"/api/v1/receivables/{receivable.Id}/declaration", new { answers = AllYes });
         using var cancel = await Send(other, HttpMethod.Post, $"/api/v1/receivables/{receivable.Id}/cancel");
+        using var checks = await Send(other, HttpMethod.Get, $"/api/v1/receivables/{receivable.Id}/checks");
+        using var get = await Send(other, HttpMethod.Get, $"/api/v1/receivables/{receivable.Id}");
+        using var attachToForeign = await Send(other, HttpMethod.Post, $"/api/v1/receivables/{receivable.Id}/documents", new { documentId = othersDocument });
+        using var attachForeignDocument = await Send(seller, HttpMethod.Post, $"/api/v1/receivables/{receivable.Id}/documents", new { documentId = othersDocument });
+        using var foreignDraft = await Send(seller, HttpMethod.Post, $"/api/v1/receivables/{othersDraft.Id}/submit");
 
-        Assert.All([queue, submit, declare, cancel], r => Assert.Equal(HttpStatusCode.NotFound, r.StatusCode));
+        Assert.All(
+            [queue, detail, decision, submit, declare, cancel, checks, get, attachToForeign, attachForeignDocument, foreignDraft],
+            r => Assert.Equal(HttpStatusCode.NotFound, r.StatusCode));
+    }
+
+    [Fact]
+    public async Task A_decision_needs_step_up_and_a_reason_code_of_letters()
+    {
+        var seller = await ApprovedSellerAsync();
+        var receivable = await ReadyDraftAsync(seller);
+        using (var submit = await Send(seller, HttpMethod.Post, $"/api/v1/receivables/{receivable.Id}/submit"))
+        {
+            Assert.Equal(HttpStatusCode.Accepted, submit.StatusCode);
+        }
+
+        using var officer = await ComplianceOfficerAsync();
+        var withoutStepUp = await ApiClient.ErrorCodeAsync(await officer.PostAsync($"/api/v1/admin/receivables/{receivable.Id}/decision", new { decision = "Rejected", reasonCode = "Fraud" }));
+        await officer.StepUpAsync();
+        var badCode = await ApiClient.ErrorCodeAsync(await officer.PostAsync($"/api/v1/admin/receivables/{receivable.Id}/decision", new { decision = "Rejected", reasonCode = "Fraud!" }));
+        var tooLong = await ApiClient.ErrorCodeAsync(await officer.PostAsync($"/api/v1/admin/receivables/{receivable.Id}/decision", new { decision = "Rejected", reasonCode = "Other", comment = new string('x', 1001) }));
+        using var rejected = await officer.PostAsync($"/api/v1/admin/receivables/{receivable.Id}/decision", new { decision = "Rejected", reasonCode = "Other" });
+        var again = await ApiClient.ErrorCodeAsync(await officer.PostAsync($"/api/v1/admin/receivables/{receivable.Id}/decision", new { decision = "Verified" }));
+
+        Assert.Equal("step_up_required", withoutStepUp);
+        Assert.Equal("validation_failed", badCode);
+        Assert.Equal("validation_failed", tooLong);
+        Assert.Equal(HttpStatusCode.OK, rejected.StatusCode);
+        Assert.Equal("conflict_state", again);
+    }
+
+    [Fact]
+    public async Task A_duplicate_fingerprint_of_another_seller_is_shown_to_compliance_but_not_to_the_seller()
+    {
+        var first = await ApprovedSellerAsync();
+        var second = await ApprovedSellerAsync();
+        var original = await ReadyDraftAsync(first);
+        var copy = await ReadyDraftAsync(second);
+        foreach (var (seller, draft) in new[] { (first, original), (second, copy) })
+        {
+            using var submit = await Send(seller, HttpMethod.Post, $"/api/v1/receivables/{draft.Id}/submit");
+            Assert.Equal(HttpStatusCode.Accepted, submit.StatusCode);
+        }
+
+        var sellerView = (await ApiClient.ReadAsync(await Send(second, HttpMethod.Get, $"/api/v1/receivables/{copy.Id}/checks"))).EnumerateArray()
+            .Single(c => c.GetProperty("code").GetString() == "DUPLICATE_FINGERPRINT");
+        using var officer = await ComplianceOfficerAsync();
+        var adminView = (await ApiClient.ReadAsync(await officer.GetAsync($"/api/v1/admin/receivables/{copy.Id}"))).GetProperty("checks").EnumerateArray()
+            .Single(c => c.GetProperty("code").GetString() == "DUPLICATE_FINGERPRINT");
+
+        Assert.Equal("Review", sellerView.GetProperty("result").GetString());
+        Assert.Equal("Warn", adminView.GetProperty("result").GetString());
     }
 
     private sealed record Seller(ApiClient Client, Guid Org, string Pib, string Key);
@@ -272,6 +333,12 @@ public sealed class ReceivableVerificationTests(SqlServerContainer server, Azuri
 
     private static async Task AttachAsync(Seller seller, Guid id)
     {
+        using var attach = await Send(seller, HttpMethod.Post, $"/api/v1/receivables/{id}/documents", new { documentId = await UploadAsync(seller) });
+        Assert.Equal(HttpStatusCode.NoContent, attach.StatusCode);
+    }
+
+    private static async Task<Guid> UploadAsync(Seller seller)
+    {
         using var form = new MultipartFormDataContent();
         var file = new ByteArrayContent(Encoding.ASCII.GetBytes("%PDF-1.7\nugovor\n%%EOF\n"));
         file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
@@ -279,9 +346,7 @@ public sealed class ReceivableVerificationTests(SqlServerContainer server, Azuri
         form.Add(new StringContent("ReceivableEvidence"), "purpose");
         using var upload = new HttpRequestMessage(HttpMethod.Post, "/api/v1/documents") { Content = form };
         AddHeaders(upload, seller, await seller.Client.AntiforgeryTokenAsync());
-        var document = await ApiClient.ReadAsync(await seller.Client.Http.SendAsync(upload, TestContext.Current.CancellationToken));
-        using var attach = await Send(seller, HttpMethod.Post, $"/api/v1/receivables/{id}/documents", new { documentId = document.GetProperty("id").GetGuid() });
-        Assert.Equal(HttpStatusCode.NoContent, attach.StatusCode);
+        return (await ApiClient.ReadAsync(await seller.Client.Http.SendAsync(upload, TestContext.Current.CancellationToken))).GetProperty("id").GetGuid();
     }
 
     private static async Task<JsonElement> ImportAsync(Seller seller, long sefId) =>

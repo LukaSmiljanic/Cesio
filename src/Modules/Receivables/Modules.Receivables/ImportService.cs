@@ -340,7 +340,7 @@ internal sealed partial class ImportService(
 
         // Task 011: an invoice rejected for fraud can never come back; otherwise a corrected resubmission gets a new
         // Draft receivable (the unique index excludes Rejected and Cancelled ones).
-        if (earlier.Any(r => r.RejectionReason == VerificationService.FraudReason))
+        if (earlier.Any(r => string.Equals(r.RejectionReason, VerificationService.FraudReason, StringComparison.OrdinalIgnoreCase)))
         {
             return new ImportResult(sefId, "Unsupported", Reason: "fraud_rejected");
         }
@@ -350,28 +350,41 @@ internal sealed partial class ImportService(
             return new ImportResult(sefId, "AlreadyImported");
         }
 
-        var template = earlier.OrderByDescending(r => r.CreatedAt).First();
+        var debtor = await receivables.Debtors.AsNoTracking().SingleAsync(d => d.Id == invoice.DebtorId, cancellationToken);
         var receivable = new Receivable
         {
             Id = SequentialGuid.NewGuid(),
             InvoiceId = invoice.Id,
             SellerOrgId = invoice.SellerOrgId,
             DebtorId = invoice.DebtorId,
-            FaceValue = template.FaceValue,
+            FaceValue = new Money(invoice.GrossAmount, invoice.Currency),
             MaturityDate = invoice.DueDate,
             State = ReceivableState.Draft,
-            Fingerprint = template.Fingerprint,
+            Fingerprint = Fingerprint(debtor.Pib, invoice.GrossAmount, invoice.Currency, invoice.IssueDate, invoice.DueDate),
             CreatedAt = timeProvider.GetUtcNow(),
         };
         receivables.Receivables.Add(receivable);
-        await unitOfWork.ExecuteInTransactionAsync(
-            async ct =>
-            {
-                await receivables.SaveChangesAsync(ct);
-                await audit.WriteAsync(new AuditEntry("Receivable.Created", "Receivable", receivable.Id, invoice.SellerOrgId,
-                    NewState: nameof(ReceivableState.Draft), Related: [new AuditReference("Invoice", invoice.Id)], Reason: "resubmission"), ct);
-            },
-            cancellationToken);
+        try
+        {
+            await unitOfWork.ExecuteInTransactionAsync(
+                async ct =>
+                {
+                    await receivables.SaveChangesAsync(ct);
+                    await audit.WriteAsync(new AuditEntry("Receivable.Created", "Receivable", receivable.Id, invoice.SellerOrgId,
+                        NewState: nameof(ReceivableState.Draft), Related: [new AuditReference("Invoice", invoice.Id)], Reason: "resubmission"), ct);
+                },
+                cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is SqlException { Number: 2601 or 2627 })
+        {
+            // A parallel re-import created the new Draft first.
+            receivables.ChangeTracker.Clear();
+            var winner = await receivables.Receivables.AsNoTracking()
+                .Where(r => r.InvoiceId == invoice.Id && r.State != ReceivableState.Rejected && r.State != ReceivableState.Cancelled)
+                .Select(r => (Guid?)r.Id).FirstOrDefaultAsync(cancellationToken);
+            return new ImportResult(sefId, "AlreadyImported", winner);
+        }
+
         return new ImportResult(sefId, "Imported", receivable.Id);
     }
 
