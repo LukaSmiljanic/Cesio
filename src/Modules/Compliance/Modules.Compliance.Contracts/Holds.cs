@@ -12,3 +12,9 @@ public interface IHoldQuery
 {
     Task<bool> HasActiveHoldAsync(HoldSubject subject, Guid subjectId, CancellationToken cancellationToken);
 }
+
+/// <summary>INV-A2: whether a factor organization has a Verified, non-expired FactorAuthorization (task 008).</summary>
+public interface IAuthorizationQuery
+{
+    Task<bool> IsFactorAuthorizedAsync(Guid factorOrgId, CancellationToken cancellationToken);
+}

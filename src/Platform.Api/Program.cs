@@ -61,6 +61,7 @@ app.MapIdentityEndpoints(includeDevelopmentEndpoints: app.Environment.IsDevelopm
 app.MapOrganizationEndpoints(includeDevelopmentEndpoints: app.Environment.IsDevelopment());
 app.MapDocumentEndpoints();
 app.MapReceivableEndpoints();
+app.MapMarketplaceEndpoints();
 
 app.Run();
 

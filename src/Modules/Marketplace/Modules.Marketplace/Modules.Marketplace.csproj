@@ -1,13 +1,27 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Platform.Integration.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Modules.Marketplace.Contracts/Modules.Marketplace.Contracts.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Kernel/Shared.Kernel.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
+    <ProjectReference Include="../../Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
+    <ProjectReference Include="../../Compliance/Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
+    <ProjectReference Include="../../Documents/Modules.Documents.Contracts/Modules.Documents.Contracts.csproj" />
+    <ProjectReference Include="../../Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../../Organizations/Modules.Organizations.Contracts/Modules.Organizations.Contracts.csproj" />
+    <ProjectReference Include="../../Receivables/Modules.Receivables.Contracts/Modules.Receivables.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

@@ -6,6 +6,7 @@ using Modules.Documents;
 using Modules.Identity;
 using Modules.Organizations;
 using Modules.Receivables;
+using Modules.Marketplace;
 using Shared.Infrastructure.Persistence;
 
 // Applies all module migrations and the database roles (task 003 item 8). CI/CD runs it with the migrator identity
@@ -19,7 +20,8 @@ builder.Services
     .AddDocumentsModule()
     .AddIdentityModule()
     .AddOrganizationsModule()
-    .AddReceivablesModule();
+    .AddReceivablesModule()
+    .AddMarketplaceModule();
 
 using var host = builder.Build();
 await DatabaseMigrator.MigrateAsync(host.Services, PersistenceSetup.ConnectionString(builder.Configuration), CancellationToken.None);

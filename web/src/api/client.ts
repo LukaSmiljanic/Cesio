@@ -120,3 +120,21 @@ export async function api<T = void>(
   const contentType = response.headers.get('Content-Type') ?? ''
   return (contentType.includes('json') ? await response.json() : undefined) as T
 }
+
+/** Downloads a file with the session and organization headers (a plain link cannot send X-Organization-Id). */
+export async function download(path: string, fileName: string): Promise<void> {
+  const headers: Record<string, string> = {}
+  if (activeOrganizationId) {
+    headers['X-Organization-Id'] = activeOrganizationId
+  }
+  const response = await fetch(basePath + path, { headers, credentials: 'same-origin' })
+  if (!response.ok) {
+    throw await toError(response)
+  }
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = fileName
+  link.click()
+  URL.revokeObjectURL(url)
+}

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Modules.Identity.Contracts;
+using Modules.Receivables.Contracts;
 using Modules.Receivables.Persistence;
 using Shared.Infrastructure.Idempotency;
 using Shared.Infrastructure.Persistence;
@@ -18,6 +19,8 @@ public static class ReceivablesModule
         services.AddModuleDbContext<ReceivablesDbContext>(ReceivablesDbContext.SchemaName, migrationOrder: 5);
         services.AddScoped<ImportService>();
         services.AddScoped<VerificationService>();
+        services.AddScoped<SefStatusPoller>();
+        services.AddScoped<IReceivableMarket, ReceivableMarket>();
 
         // The check pipeline of task 011, in the order of the task's table.
         services.AddScoped<IReceivableCheck, SefFreshApprovedCheck>();

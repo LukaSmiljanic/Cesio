@@ -31,6 +31,12 @@ function MyOrganizations() {
       <Link to="/receivables" className={`${linkButton} mr-2`}>
         Potraživanja
       </Link>
+      <Link to="/listings" className={`${linkButton} mr-2`}>
+        Moji listinzi
+      </Link>
+      <Link to="/marketplace" className={`${linkButton} mr-2`}>
+        Marketplace (faktori)
+      </Link>
       <Link to="/organizations/new" className={linkButton}>
         Dodaj firmu (prodavac)
       </Link>

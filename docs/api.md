@@ -23,14 +23,14 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 | Factor authorization | `POST /organizations/{id}/factor-authorizations`, `GET /organizations/{id}/factor-authorizations` |
 | Documents | `POST /documents` (multipart; returns id + scan status), `GET /documents/{id}` (metadata), `GET /documents/{id}/content` (authorized stream/redirect) |
 | Invoices & receivables (seller) | `POST /receivables/import-from-sef` ♻, `GET /receivables`, `GET /receivables/{id}`, `GET /receivables/declaration` (current text), `GET /receivables/{id}/checks`, `PUT /receivables/{id}/declaration`, `POST /receivables/{id}/documents`, `POST /receivables/{id}/submit` ♻, `POST /receivables/{id}/cancel` ♻ |
-| Listings (seller) | `POST /receivables/{id}/listings` ♻, `GET /listings/{id}`, `POST /listings/{id}/withdraw` ♻, `GET /listings/{id}/offers` |
-| Marketplace (factor) | `GET /marketplace/listings` (filters: amount, tenor, debtor PIB, recourse preference), `GET /marketplace/listings/{id}`, `GET /marketplace/listings/{id}/documents/{docId}/content` |
+| Listings (seller) | `POST /receivables/{id}/listings` ♻, `GET /listings` (the seller's own), `GET /listings/{id}`, `POST /listings/{id}/withdraw` ♻, `GET /listings/{id}/offers` |
+| Marketplace (factor) | `GET /marketplace/listings` (filters: amount, tenor, debtor PIB, recourse preference), `GET /marketplace/listings/{id}`, `GET /marketplace/listings/{id}/documents/{docId}/content` (MVP: the listing's documents are read through `GET /documents/{docId}/content`, granted by the listing visibility rule) |
 | Offers | `POST /marketplace/listings/{id}/offers` ♻ (factor), `GET /offers` (factor's own), `GET /offers/{id}`, `POST /offers/{id}/withdraw` ♻ (factor), `POST /offers/{id}/reject` ♻ (seller), `POST /offers/{id}/accept` ♻🔐 (seller Signatory) |
 | Deals | `GET /deals`, `GET /deals/{id}`, `POST /deals/{id}/cdd-decision` ♻🔐 (factor Signatory), `POST /deals/{id}/contract` ♻, `POST /deals/{id}/terms-confirmation` ♻🔐, `POST /deals/{id}/signed-contract` ♻🔐, `POST /deals/{id}/cef-registration` ♻, `POST /deals/{id}/debtor-notification` ♻, `POST /deals/{id}/funding-report` ♻🔐, `POST /deals/{id}/funding-confirmation` ♻🔐, `POST /deals/{id}/outcome` ♻🔐, `POST /deals/{id}/cancel` ♻🔐, `GET /deals/{id}/kyb-package` (factor), `GET /deals/{id}/timeline` |
 | Disputes | `POST /deals/{id}/disputes` ♻, `GET /disputes/{id}`, `POST /disputes/{id}/comments` |
 | Fees | `GET /fees/charges`, `GET /fees/statements/{period}` |
 | Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `GET/PUT /notification-preferences` |
-| Admin (`/api/v1/admin`, staff realm) | KYB queue and decisions 🔐, factor authorization verification 🔐 (two approvals), receivable review queue, holds, organizations suspend/reinstate 🔐, factor organization create + invite 🔐, official email record 🔐, pristupnica decision 🔐, MFA reset execute 🔐, disputes log, business parameters 🔐, fee schedules 🔐, audit search/export, integration health |
+| Admin (`/api/v1/admin`, staff realm) | KYB queue and decisions 🔐, factor authorization verification 🔐 (two approvals), receivable review queue, listings suspend/resume (Operations, with reason), holds, organizations suspend/reinstate 🔐, factor organization create + invite 🔐, official email record 🔐, pristupnica decision 🔐, MFA reset execute 🔐, disputes log, business parameters 🔐, fee schedules 🔐, audit search/export, integration health |
 
 ## 3. Key endpoint specifications
 

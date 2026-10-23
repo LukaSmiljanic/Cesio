@@ -17,3 +17,55 @@ public enum ReceivableState
     Ineligible,
     Cancelled,
 }
+
+/// <summary>A receivable as the marketplace shows it (task 012), read regardless of the request's organization.</summary>
+public sealed record MarketReceivable(
+    Guid Id,
+    Guid SellerOrgId,
+    ReceivableState State,
+    Shared.Kernel.Money FaceValue,
+    DateOnly MaturityDate,
+    string InvoiceNumber,
+    DateOnly IssueDate,
+    DateOnly DueDate,
+    Shared.Kernel.Money NetAmount,
+    Shared.Kernel.Money VatAmount,
+    Shared.Kernel.Money GrossAmount,
+    string SefStatus,
+    DateTimeOffset SefStatusCheckedAt,
+    string DebtorPib,
+    string? DebtorMb,
+    string DebtorLegalName,
+    Guid UblDocumentId,
+    IReadOnlyList<Guid> EvidenceDocumentIds);
+
+/// <summary>The buyer approval in SEF as far as it is known now (INV-R4).</summary>
+public enum SefApproval
+{
+    Approved,
+    NotApproved,
+    Unavailable,
+}
+
+/// <summary>What the Marketplace module needs from receivables (task 012): reads, the SEF freshness rule and the listing transitions.</summary>
+public interface IReceivableMarket
+{
+    /// <summary>The receivable for any organization; the caller decides who may see it.</summary>
+    Task<MarketReceivable?> GetAsync(Guid receivableId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// INV-R4: the stored SEF status if it was checked within <paramref name="maxAge"/>, otherwise a fresh poll (saved
+    /// and audited). Unavailable when SEF cannot be asked, so callers fail closed.
+    /// </summary>
+    Task<SefApproval> EnsureFreshApprovalAsync(Guid receivableId, TimeSpan maxAge, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Moves the receivable from <paramref name="from"/> to <paramref name="to"/> with an audit event, inside the
+    /// caller's transaction. False when the receivable is not in <paramref name="from"/>; a concurrent change throws
+    /// the EF concurrency exception.
+    /// </summary>
+    Task<bool> ChangeStateAsync(Guid receivableId, ReceivableState from, ReceivableState to, string reason, CancellationToken cancellationToken);
+
+    /// <summary>The receivable a document belongs to (its invoice UBL or an attached supporting document).</summary>
+    Task<Guid?> ReceivableOfDocumentAsync(Guid documentId, CancellationToken cancellationToken);
+}

@@ -83,6 +83,13 @@ const messages: Record<string, string> = {
   hold_active: 'Potraživanje je blokirano.',
   sef_not_approved: 'SEF trenutno ne prikazuje fakturu kao odobrenu od kupca.',
   wrong_document_purpose: 'Dokument nije otpremljen kao prateći dokument.',
+  receivable_not_verified: 'Samo provereno potraživanje može da se objavi.',
+  listing_already_open: 'Potraživanje već ima aktivan listing.',
+  maturity_too_close: 'Rok za ponude mora biti dovoljno pre dospeća.',
+  organization_not_approved: 'Objavljivanje zahteva odobrenu firmu bez blokade.',
+  unknown_factor: 'Jedan od navedenih ID-jeva nije faktor.',
+  factor_not_authorized: 'Marketplace je dostupan samo odobrenim i ovlašćenim faktorima.',
+  listing_closed: 'Rok za ponude je prošao.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

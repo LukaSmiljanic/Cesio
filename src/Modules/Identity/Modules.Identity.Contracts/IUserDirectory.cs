@@ -11,6 +11,9 @@ public interface IUserDirectory
 public static class PlatformRoles
 {
     public const string ComplianceOfficer = "ComplianceOfficer";
+
+    /// <summary>Platform operations staff, e.g. suspending a listing (task 012).</summary>
+    public const string Operations = "Operations";
 }
 
 public interface IPlatformRoles

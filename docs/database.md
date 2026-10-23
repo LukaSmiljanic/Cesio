@@ -141,6 +141,9 @@ CREATE TABLE marketplace.listings (
   seller_org_id uniqueidentifier NOT NULL, state nvarchar(200) NOT NULL,
   opens_at datetimeoffset(3) NOT NULL, closes_at datetimeoffset(3) NOT NULL,
   audience_type nvarchar(200) NOT NULL, reserve_price decimal(19,4), currency char(3) NOT NULL,
+  -- snapshots at opening (task 012): the feed filters and the related-party rule need no other schema
+  face_value decimal(19,4) NOT NULL, maturity_date date NOT NULL, seller_pib char(9) NOT NULL, debtor_pib char(9) NOT NULL,
+  suspended_reason nvarchar(400),
   version int NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX ux_listing_open_per_receivable ON marketplace.listings(receivable_id) WHERE state = 'Open';

@@ -34,9 +34,7 @@ internal sealed class VerificationService(
     IOrganizationQuery organizations,
     IHoldQuery holds,
     IDocumentQuery documents,
-    ISefClient sef,
-    ISefConnections connections,
-    ISecretStore secrets,
+    SefStatusPoller poller,
     IBusinessParameters parameters,
     UnitOfWork unitOfWork,
     IAuditWriter audit,
@@ -457,45 +455,8 @@ internal sealed class VerificationService(
         }
     }
 
-    /// <summary>The invoice's status re-polled from SEF and added to the history (saved by the next commit); null when SEF cannot be asked.</summary>
-    private async Task<string?> FreshSefStatusAsync(Guid sellerOrgId, Invoice invoice, CancellationToken cancellationToken)
-    {
-        var connection = await connections.GetAsync(sellerOrgId, cancellationToken);
-        var apiKey = connection is { Status: SefConnectionStatus.Connected } ? await secrets.GetAsync(connection.SecretName, cancellationToken) : null;
-        if (apiKey is null)
-        {
-            return null;
-        }
-
-        SefSalesInvoice? fresh;
-        try
-        {
-            fresh = await sef.GetSalesInvoiceAsync(apiKey, long.Parse(invoice.SefInvoiceId, System.Globalization.CultureInfo.InvariantCulture), cancellationToken);
-        }
-        catch (SefUnauthorizedException)
-        {
-            await connections.MarkInvalidAsync(sellerOrgId, cancellationToken);
-            return null;
-        }
-        catch (SefUnavailableException)
-        {
-            return null;
-        }
-
-        var status = fresh?.Status ?? "Deleted";
-        var now = timeProvider.GetUtcNow();
-        invoice.SefStatus = status;
-        invoice.SefStatusCheckedAt = now;
-        receivables.SefStatusHistory.Add(new SefStatusObservation
-        {
-            Id = SequentialGuid.NewGuid(),
-            InvoiceId = invoice.Id,
-            Status = status,
-            ObservedAt = now,
-            Raw = JsonSerializer.Serialize(fresh is null ? new { status } : (object)fresh),
-        });
-        return status;
-    }
+    private Task<string?> FreshSefStatusAsync(Guid sellerOrgId, Invoice invoice, CancellationToken cancellationToken) =>
+        poller.PollAsync(sellerOrgId, invoice, cancellationToken);
 
     private async Task<bool> DeclarationCompleteAsync(Guid receivableId, CancellationToken cancellationToken)
     {

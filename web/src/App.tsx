@@ -11,6 +11,7 @@ import {
   OrganizationPage,
   StartSellerPage,
 } from './pages/OrganizationPages'
+import { MarketplaceListingPage, MarketplacePage, SellerListingsPage } from './pages/ListingPages'
 import { ImportPage, ReceivablesPage } from './pages/ReceivablePages'
 import { ReceivableDetailPage, ReviewQueuePage } from './pages/VerificationPages'
 import {
@@ -70,6 +71,18 @@ export function AppRoutes() {
       <Route
         path="/receivables/:id"
         element={<RequireSession>{() => <ReceivableDetailPage />}</RequireSession>}
+      />
+      <Route
+        path="/listings"
+        element={<RequireSession>{() => <SellerListingsPage />}</RequireSession>}
+      />
+      <Route
+        path="/marketplace"
+        element={<RequireSession>{() => <MarketplacePage />}</RequireSession>}
+      />
+      <Route
+        path="/marketplace/:id"
+        element={<RequireSession>{() => <MarketplaceListingPage />}</RequireSession>}
       />
       <Route
         path="/admin/review"

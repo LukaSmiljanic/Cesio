@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router'
 import { formatMoney, verificationApi, type CheckRow } from '../api/receivables'
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
+import { PublishListingSection } from './ListingPages'
 
 const itemLabels: Record<string, string> = {
   NoPriorAssignment: 'Potraživanje nije ranije ustupljeno niti založeno.',
@@ -144,6 +145,11 @@ export function ReceivableDetailPage() {
             </Button>
           </div>
           <ErrorMessage error={submit.error ?? cancel.error} />
+        </div>
+      )}
+      {r.state === 'Verified' && (
+        <div className="mt-4">
+          <PublishListingSection receivableId={r.id} />
         </div>
       )}
       {submit.data?.reviewRequired && (
