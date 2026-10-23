@@ -89,19 +89,26 @@ internal sealed partial class ImportService(
     }
 
     public async Task<IResult> ListAsync(CancellationToken cancellationToken) =>
-        Results.Ok((await Rows().OrderByDescending(row => row.Receivable.CreatedAt).Take(200).ToListAsync(cancellationToken)).Select(ToView));
+        Results.Ok(await ViewsAsync(receivables.Receivables.AsNoTracking().OrderByDescending(r => r.CreatedAt).Take(200), cancellationToken));
 
     public async Task<IResult> GetAsync(Guid id, CancellationToken cancellationToken) =>
-        await Rows().SingleOrDefaultAsync(row => row.Receivable.Id == id, cancellationToken) is { } row
-            ? Results.Ok(ToView(row))
+        (await ViewsAsync(receivables.Receivables.AsNoTracking().Where(r => r.Id == id), cancellationToken)) is [var view]
+            ? Results.Ok(view)
             : Results.Problem(statusCode: StatusCodes.Status404NotFound, extensions: new Dictionary<string, object?> { ["errorCode"] = "not_found" });
 
-    /// <summary>The entities are loaded and mapped in memory; Money (a complex type) does not translate inside a SQL projection.</summary>
-    private IQueryable<ReceivableRow> Rows() =>
-        from r in receivables.Receivables.AsNoTracking()
-        join i in receivables.Invoices.AsNoTracking() on r.InvoiceId equals i.Id
-        join d in receivables.Debtors.AsNoTracking() on r.DebtorId equals d.Id
-        select new ReceivableRow(r, i, d);
+    /// <summary>
+    /// Receivables (filtered and ordered in SQL), then their invoices and debtors in two lookups; the views are built in
+    /// memory, since Money (a complex type) does not translate inside a joined SQL projection.
+    /// </summary>
+    private async Task<List<ReceivableView>> ViewsAsync(IQueryable<Receivable> query, CancellationToken cancellationToken)
+    {
+        var rows = await query.ToListAsync(cancellationToken);
+        var invoiceIds = rows.Select(r => r.InvoiceId).Distinct().ToList();
+        var debtorIds = rows.Select(r => r.DebtorId).Distinct().ToList();
+        var invoices = await receivables.Invoices.AsNoTracking().Where(i => invoiceIds.Contains(i.Id)).ToDictionaryAsync(i => i.Id, cancellationToken);
+        var debtors = await receivables.Debtors.AsNoTracking().Where(d => debtorIds.Contains(d.Id)).ToDictionaryAsync(d => d.Id, cancellationToken);
+        return [.. rows.Select(r => ToView(new ReceivableRow(r, invoices[r.InvoiceId], debtors[r.DebtorId])))];
+    }
 
     /// <summary>Amounts are stored as decimal(19,4) and shown with the currency's minor units ("1200000.00", api.md §1).</summary>
     private static ReceivableView ToView(ReceivableRow row) =>
