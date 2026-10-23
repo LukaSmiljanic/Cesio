@@ -58,7 +58,7 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 
 **Listing** — id, receivableId, sellerOrgId, state, opensAt, closesAt, audience (`AllVerifiedFactors | Selected(orgIds)`), excludedFactorIds, reservePrice (Money, optional, hidden from factors), version.
 
-**Offer** — id, listingId, factorOrgId, purchasePrice (Money), recourseType (`Recourse | NonRecourse`), fundingDeadlineBusinessDays, validUntil, conditionsText (≤ 1000 chars), feeScheduleSnapshot, computedPlatformFee (Money), state, createdByUserId. **Immutable** except for state.
+**Offer** — id, listingId, factorOrgId, purchasePrice (Money), recourseType (`Recourse | NonRecourse`), fundingDeadlineBusinessDays, validUntil, conditionsText (≤ 1000 chars), feeScheduleSnapshot (version), computedPlatformFee (Money), sellerFee (the seller's part of the fee, 0 when the factor pays), vatPending, state, rejectionReason (set once, at rejection), createdByUserId. **Immutable** except for state and rejectionReason.
 
 **Deal** — id, receivableId, listingId, offerId, sellerOrgId, factorOrgId, purchasePrice, faceValue, recourseType, feeSnapshot, state, signatureDeadline, fundingDeadline, version.
 - **ContractDocument** — documentId, sha256, uploadedBy, termsChecklist confirmations (seller & factor).
@@ -70,7 +70,7 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 
 **Dispute** — id, dealId/receivableId, type, raisedBy (org/user), description, status (`Open | Resolved | Withdrawn`), resolution notes, linked Hold.
 
-**FeeSchedule** — version, payer, basis (`Discount` = faceValue − purchasePrice), share, min, max, vatTreatment, effectiveFrom. Immutable once referenced. The fee never exceeds the discount.
+**FeeSchedule** — version, payer, basis (`Discount` = faceValue − purchasePrice), share, min, max, vatTreatment, effectiveFrom, createdBy, approvedBy/approvedAt (four-eyes). Immutable from creation; only the one-time approval is set. The fee never exceeds the discount.
 **FeeCharge** — dealId, payerOrgId, amount (Money), vatAmount, status (`Pending | Due | Invoiced | Paid | Cancelled | CreditNoted`), dueAt, externalInvoiceRef. Corrections create new rows; rows are never edited.
 
 **AuditEvent** — see [audit.md](audit.md).

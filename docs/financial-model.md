@@ -72,7 +72,7 @@ Revenue excludes VAT (if any) and is before credit losses on unpaid fees, paymen
 ## 4. Configuration model (implemented by the Fees module)
 
 ```
-FeeSchedule (versioned, effective_from, immutable once used)
+FeeSchedule (versioned, effective_from, immutable from creation except the one-time four-eyes approval)
   payer:            Factor | Seller | Split(sellerPct)
   basis:            Discount            -- D = faceValue − purchasePrice of the offer
   share:            decimal             -- MVP: 0.15
@@ -85,6 +85,7 @@ The applicable schedule and the computed fee are **snapshotted onto the offer at
 
 ## 5. Rounding & currency rules
 - Amounts: `decimal` / `decimal(19,4)` internally, rounded to the currency's minor unit (RSD: 2) at defined points: fee calculation and display. Never floats.
+- Fee rounding (task 017a): the total fee is rounded once, half away from zero, to minor units. With a split payer, the seller's part is rounded and the factor's part is the total minus it, so the parts always add up to the total. VAT is rounded separately per payer; with `vatTreatment = TBD` it is 0 and the quote carries `vatPending` until LQ-43.
 - Every amount carries a currency. Cross-currency arithmetic throws.
 - The day count for display metrics is actual/365 (display only, ⚠).
 

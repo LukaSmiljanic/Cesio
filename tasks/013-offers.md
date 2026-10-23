@@ -12,6 +12,7 @@ Authorized factors submit, view and withdraw immutable offers on listings they c
 - `POST /marketplace/listings/{id}/offers` ♻ per api.md §3.5. Snapshot the current fee schedule version and the computed platform fee (for the factor payer) on the offer.
 - `POST /offers/{id}/withdraw` ♻ (factor) → Withdrawn. `POST /offers/{id}/reject` ♻ (seller, optional reason) → Rejected.
 - `GET /offers` (factor's own, filter by state) and `GET /offers/{id}` (factor owner or listing seller only).
+- `GET /marketplace/listings/{id}/fee-preview?purchasePrice=` (factor, same visibility as the listing, 404 otherwise): the discount and the factor's fee for a price, before submitting.
 - `GET /listings/{id}/offers` (seller): offers with **derived metrics**: discount `F − P`, discount %, seller net proceeds (minus fee if seller pays), indicative annual cost `(D/P)×365/t` (if the seller pays the fee `PF`: `((D + PF)/(P − PF))×365/t`, per financial-model.md §2) with t = days from (today + funding deadline) to maturity. Labelled "indicative" (LQ-04).
 - Consumers: `ListingWithdrawn/Expired/Suspended-ended` → Active offers Superseded; `FactorAuthorizationRevoked/Expired` → that factor's Active offers Expired.
 - UI: factor offer form with fee preview and confirmation; factor "my offers"; seller offer comparison table (sortable by net proceeds, cost, recourse).

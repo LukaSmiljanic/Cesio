@@ -64,6 +64,7 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 - **Errors:** 404 if not visible to this factor.
 - **Audit:** access log entry on detail and document download.
 
+
 ### 3.5 `POST /marketplace/listings/{id}/offers` ♻
 - **Auth:** factor, any member.
 - **Request:** `{ "purchasePrice": {"amount":"97000.00","currency":"RSD"}, "recourseType": "NonRecourse", "fundingDeadlineBusinessDays": 2, "validUntil": "2026-10-10T15:00:00Z", "conditions": "Subject to standard agreement v3" }`
