@@ -45,6 +45,8 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
 
     internal DbSet<Dispute> Disputes => Set<Dispute>();
 
+    internal DbSet<DisputeComment> DisputeComments => Set<DisputeComment>();
+
     protected override string Schema => SchemaName;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
@@ -211,7 +213,19 @@ public sealed class DealsDbContext(DbContextOptions<DealsDbContext> options, Uni
             dispute.Property(d => d.Status).HasMaxLength(20).IsUnicode(false);
             dispute.Property(d => d.Reason).HasMaxLength(1000);
             dispute.HasOne<Deal>().WithMany().HasForeignKey(d => d.DealId).OnDelete(DeleteBehavior.Restrict);
+            dispute.Property(d => d.ResolutionSummary).HasMaxLength(2000);
             dispute.HasIndex(d => new { d.DealId, d.Status });
+            dispute.HasIndex(d => new { d.Status, d.OpenedAt });
+        });
+
+        modelBuilder.Entity<DisputeComment>(comment =>
+        {
+            comment.ToTable("dispute_comments", table => table.HasCheckConstraint("ck_dispute_comment_content", "[text] IS NOT NULL OR [document_id] IS NOT NULL"));
+            comment.HasKey(c => c.Id);
+            comment.Property(c => c.Id).ValueGeneratedNever();
+            comment.Property(c => c.Text).HasMaxLength(2000);
+            comment.HasOne<Dispute>().WithMany().HasForeignKey(c => c.DisputeId).OnDelete(DeleteBehavior.Restrict);
+            comment.HasIndex(c => new { c.DisputeId, c.CreatedAt });
         });
     }
 }
@@ -513,31 +527,67 @@ internal sealed class Outcome
 }
 
 /// <summary>
-/// A minimal dispute record (task 017; the workflow and UI come with task 021). While a dispute is Open, it holds the
-/// deal: every step is refused with 423 (holds themselves come with task 007).
+/// A dispute on a deal (tasks 017, 021): opened by a party (or automatically by a funding discrepancy), commented on,
+/// and resolved by staff or withdrawn by its raising party. Every kind except FeeDispute holds the deal.
 /// </summary>
 internal sealed class Dispute
 {
-    public Guid Id { get; init; }
-
-    public Guid DealId { get; init; }
-
     public const string Open = "Open";
 
     public const string FundingDiscrepancy = "FundingDiscrepancy";
 
-    /// <summary>E.g. <c>FundingDiscrepancy</c>.</summary>
+    /// <summary>Does not block the deal (task 021).</summary>
+    public const string FeeDispute = "FeeDispute";
+
+    public Guid Id { get; init; }
+
+    public Guid DealId { get; init; }
+
     public required string Kind { get; init; }
 
+    /// <summary><c>Open</c>, <c>Resolved</c> or <c>Withdrawn</c>.</summary>
     public required string Status { get; set; }
 
+    /// <summary>The description given when it was opened.</summary>
     public string? Reason { get; init; }
 
     public Guid? OpenedBy { get; init; }
 
+    /// <summary>The raising party; null for an automatic dispute.</summary>
+    public Guid? OpenedByOrgId { get; init; }
+
     public DateTimeOffset OpenedAt { get; init; }
 
+    public Guid? AssignedTo { get; set; }
+
+    public string? ResolutionSummary { get; set; }
+
+    public Guid? ClosedBy { get; set; }
+
+    public DateTimeOffset? ClosedAt { get; set; }
+
     public int Version { get; set; }
+}
+
+/// <summary>A comment or attachment on a dispute; internal notes are for staff only.</summary>
+internal sealed class DisputeComment
+{
+    public Guid Id { get; init; }
+
+    public Guid DisputeId { get; init; }
+
+    public Guid? AuthorUserId { get; init; }
+
+    /// <summary>The party's organization; null for staff.</summary>
+    public Guid? AuthorOrgId { get; init; }
+
+    public string? Text { get; init; }
+
+    public Guid? DocumentId { get; init; }
+
+    public bool Internal { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
 }
 
 internal sealed class DealsDbContextDesignTimeFactory : IDesignTimeDbContextFactory<DealsDbContext>

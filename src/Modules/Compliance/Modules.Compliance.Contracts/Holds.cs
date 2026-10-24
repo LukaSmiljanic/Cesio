@@ -26,6 +26,9 @@ public interface IHoldWriter
 {
     /// <summary>Places a hold unless the subject already has an active one of that kind; audited with the reason.</summary>
     Task PlaceSystemHoldAsync(HoldSubject subject, Guid subjectId, HoldKind kind, string reason, Guid? organizationId, CancellationToken cancellationToken);
+
+    /// <summary>Lifts the subject's active holds of <paramref name="kind"/> (not FraudInvestigation, which needs four-eyes); audited.</summary>
+    Task LiftSystemHoldAsync(HoldSubject subject, Guid subjectId, HoldKind kind, string reason, Guid? organizationId, CancellationToken cancellationToken);
 }
 
 /// <summary>INV-A2: whether a factor organization has a Verified, non-expired FactorAuthorization (task 008).</summary>

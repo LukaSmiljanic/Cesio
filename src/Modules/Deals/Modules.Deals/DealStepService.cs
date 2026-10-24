@@ -40,6 +40,7 @@ internal sealed partial class DealStepService(
     IAccessLog accessLog,
     IOrganizationQuery organizations,
     IHoldQuery holds,
+    IHoldWriter holdWriter,
     IAuthorizationQuery authorizations,
     IDocumentQuery documents,
     UnitOfWork unitOfWork,
@@ -477,8 +478,8 @@ internal sealed partial class DealStepService(
             return Problems.Error(StatusCodes.Status403Forbidden, "signatory_required", "Only a Signatory of your organization can take this step.");
         }
 
-        // An open dispute holds the deal (task 017) until holds exist (task 007).
-        if (await deals.Disputes.AnyAsync(d => d.DealId == deal.Id && d.Status == Dispute.Open, cancellationToken)
+        // An open dispute holds the deal through its Disputed hold (task 021); a fee dispute does not block it.
+        if (await deals.Disputes.AnyAsync(d => d.DealId == deal.Id && d.Status == Dispute.Open && d.Kind != Dispute.FeeDispute, cancellationToken)
             || await holds.HasActiveHoldAsync(HoldSubject.Deal, deal.Id, cancellationToken)
             || await holds.HasActiveHoldAsync(HoldSubject.Receivable, deal.ReceivableId, cancellationToken)
             || await holds.HasActiveHoldAsync(HoldSubject.Organization, deal.SellerOrgId, cancellationToken)

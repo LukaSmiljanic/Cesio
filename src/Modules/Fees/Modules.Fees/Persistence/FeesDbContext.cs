@@ -56,7 +56,8 @@ public sealed class FeesDbContext(DbContextOptions<FeesDbContext> options, UnitO
                 .HasFilter("[kind] = 'Charge'")
                 .HasDatabaseName("ux_fee_charge_once");
             // One reversal per charge.
-            charge.HasIndex(c => c.ReversesId).IsUnique().HasFilter("[reverses_id] IS NOT NULL");
+            // One live reversal per charge; a withdrawn one frees the charge for a new reversal (task 021).
+            charge.HasIndex(c => c.ReversesId).IsUnique().HasFilter("[reverses_id] IS NOT NULL AND [status] <> 'Withdrawn'");
             charge.HasIndex(c => new { c.PayerOrgId, c.FundedAt });
         });
 

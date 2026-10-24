@@ -29,6 +29,7 @@ public static class DealsModule
         services.AddScoped<Contracts.IDealQuery, DealQuery>();
         services.AddScoped<DealStepService>();
         services.AddScoped<DealJobs>();
+        services.AddScoped<DisputeService>();
         services.AddIntegrationEventConsumer<Modules.Receivables.Contracts.ReceivableSefStatusChanged, DealJobs>(DealJobs.SefConsumerName);
         services.AddIntegrationEventConsumer<Modules.Compliance.Contracts.FactorAuthorizationRevoked, DealJobs>(DealJobs.RevokedConsumerName);
         services.AddIntegrationEventConsumer<Modules.Compliance.Contracts.FactorAuthorizationExpired, DealJobs>(DealJobs.ExpiredConsumerName);
@@ -86,6 +87,22 @@ public static class DealsModule
             service.ConfirmFundingAsync(id, body, StepUpAt(http), ct)).RequireIdempotency().RequireStepUp();
         api.MapPost("/deals/{id:guid}/outcome", (Guid id, OutcomeRequest body, HttpContext http, DealStepService service, CancellationToken ct) =>
             service.RecordOutcomeAsync(id, body, StepUpAt(http), ct)).RequireIdempotency().RequireStepUp();
+
+        api.MapGet("/deals/{id:guid}/disputes", (Guid id, DisputeService service, CancellationToken ct) => service.ForDealAsync(id, ct));
+        api.MapPost("/deals/{id:guid}/disputes", (Guid id, OpenDisputeRequest body, DisputeService service, CancellationToken ct) => service.OpenAsync(id, body, ct)).RequireIdempotency();
+        api.MapGet("/disputes/{id:guid}", (Guid id, DisputeService service, CancellationToken ct) => service.GetAsync(id, staff: false, ct));
+        api.MapPost("/disputes/{id:guid}/comments", (Guid id, DisputeCommentRequest body, DisputeService service, CancellationToken ct) =>
+            service.CommentAsync(id, body, staff: false, ct)).RequireIdempotency();
+        api.MapPost("/disputes/{id:guid}/withdraw", (Guid id, DisputeService service, CancellationToken ct) => service.WithdrawAsync(id, ct)).RequireIdempotency();
+
+        var disputes = app.MapGroup("/api/v1/admin/disputes").RequireAuthorization().AddEndpointFilter(RequireOperationsOrCompliance);
+        disputes.MapGet("", (string? status, DisputeService service, CancellationToken ct) => service.QueueAsync(status, ct));
+        disputes.MapGet("/{id:guid}", (Guid id, DisputeService service, CancellationToken ct) => service.GetAsync(id, staff: true, ct));
+        disputes.MapPost("/{id:guid}/comments", (Guid id, DisputeCommentRequest body, DisputeService service, CancellationToken ct) =>
+            service.CommentAsync(id, body, staff: true, ct)).RequireIdempotency();
+        disputes.MapPost("/{id:guid}/assign", (Guid id, DisputeService service, CancellationToken ct) => service.AssignAsync(id, ct)).RequireIdempotency();
+        disputes.MapPost("/{id:guid}/resolve", (Guid id, ResolveDisputeRequest body, DisputeService service, CancellationToken ct) =>
+            service.ResolveAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
 
         var staff = app.MapGroup("/api/v1/admin/deals").RequireAuthorization().AddEndpointFilter(RequireOperationsOrCompliance);
         staff.MapPost("/{id:guid}/terminate", (Guid id, TerminateDealRequest body, DealStepService service, CancellationToken ct) =>

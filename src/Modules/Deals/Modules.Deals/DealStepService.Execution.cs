@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Modules.Compliance.Contracts;
 using Modules.Audit.Contracts;
 using Modules.Deals.Contracts;
 using Modules.Deals.Persistence;
@@ -199,6 +200,7 @@ internal sealed partial class DealStepService
                 if (!matches)
                 {
                     await audit.WriteAsync(new AuditEntry("Dispute.Opened", "Deal", id, deal.SellerOrgId, Reason: Dispute.FundingDiscrepancy), ct);
+                    await holdWriter.PlaceSystemHoldAsync(HoldSubject.Deal, id, HoldKind.Disputed, "dispute:funding_discrepancy", deal.SellerOrgId, ct);
                 }
 
                 await TransitionAsync(deal, DealState.FundingReported, matches ? "funding_reported" : "funding_reported_amount_differs", UserId, ct,
@@ -266,6 +268,7 @@ internal sealed partial class DealStepService
                 else
                 {
                     await audit.WriteAsync(new AuditEntry("Dispute.Opened", "Deal", id, OrganizationId, Reason: $"{Dispute.FundingDiscrepancy}: {reason}"), ct);
+                    await holdWriter.PlaceSystemHoldAsync(HoldSubject.Deal, id, HoldKind.Disputed, "dispute:funding_receipt_denied", deal.SellerOrgId, ct);
                 }
 
                 await audit.WriteAsync(new AuditEntry(body.Received ? "Deal.FundingConfirmed" : "Deal.FundingDisputed", "Deal", id, OrganizationId,
@@ -407,6 +410,7 @@ internal sealed partial class DealStepService
             Status = Dispute.Open,
             Reason = reason,
             OpenedBy = openedBy,
+            OpenedByOrgId = openedBy is null ? null : OrganizationId,
             OpenedAt = timeProvider.GetUtcNow(),
         });
 

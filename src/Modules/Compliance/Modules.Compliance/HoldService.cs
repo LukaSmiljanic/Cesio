@@ -129,6 +129,24 @@ internal sealed class HoldService(ComplianceDbContext compliance, UnitOfWork uni
         await NotifyAsync(hold, cancellationToken);
     }
 
+    public async Task LiftSystemHoldAsync(HoldSubject subject, Guid subjectId, HoldKind kind, string reason, Guid? organizationId, CancellationToken cancellationToken)
+    {
+        if (kind == HoldKind.FraudInvestigation)
+        {
+            throw new InvalidOperationException("A FraudInvestigation hold is lifted by two officers, not by the system.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        foreach (var hold in await compliance.Holds.Where(h => h.SubjectType == subject && h.SubjectId == subjectId && h.Kind == kind && h.LiftedAt == null).ToListAsync(cancellationToken))
+        {
+            hold.LiftedBy = request.UserId ?? Guid.Empty;
+            hold.LiftedAt = now;
+            await compliance.SaveChangesAsync(cancellationToken);
+            await audit.WriteAsync(new AuditEntry("Hold.Lifted", "Hold", hold.Id, organizationId, PreviousState: "Active", NewState: "Lifted", Reason: reason,
+                Related: [new AuditReference(subject.ToString(), subjectId)]), cancellationToken);
+        }
+    }
+
     /// <summary>An organization hold is announced to its members (task 019); deal and receivable holds reach them through their screens.</summary>
     private Task NotifyAsync(Hold hold, CancellationToken cancellationToken) =>
         hold.SubjectType == HoldSubject.Organization

@@ -160,7 +160,7 @@ namespace Modules.Fees.Persistence.Migrations
                     b.HasIndex("ReversesId")
                         .IsUnique()
                         .HasDatabaseName("ix_fee_charges_reverses_id")
-                        .HasFilter("[reverses_id] IS NOT NULL");
+                        .HasFilter("[reverses_id] IS NOT NULL AND [status] <> 'Withdrawn'");
 
                     b.HasIndex("DealId", "PayerOrgId")
                         .IsUnique()

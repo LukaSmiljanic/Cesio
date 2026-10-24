@@ -448,6 +448,19 @@ namespace Modules.Deals.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("AssignedTo")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("assigned_to");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid?>("ClosedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("closed_by");
+
                     b.Property<Guid>("DealId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("deal_id");
@@ -468,10 +481,19 @@ namespace Modules.Deals.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("opened_by");
 
+                    b.Property<Guid?>("OpenedByOrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("opened_by_org_id");
+
                     b.Property<string>("Reason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)")
                         .HasColumnName("reason");
+
+                    b.Property<string>("ResolutionSummary")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("resolution_summary");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -491,7 +513,58 @@ namespace Modules.Deals.Persistence.Migrations
                     b.HasIndex("DealId", "Status")
                         .HasDatabaseName("ix_disputes_deal_id_status");
 
+                    b.HasIndex("Status", "OpenedAt")
+                        .HasDatabaseName("ix_disputes_status_opened_at");
+
                     b.ToTable("disputes", "deals");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.DisputeComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AuthorOrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("author_org_id");
+
+                    b.Property<Guid?>("AuthorUserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("author_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DisputeId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("dispute_id");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("document_id");
+
+                    b.Property<bool>("Internal")
+                        .HasColumnType("bit")
+                        .HasColumnName("internal");
+
+                    b.Property<string>("Text")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_dispute_comments");
+
+                    b.HasIndex("DisputeId", "CreatedAt")
+                        .HasDatabaseName("ix_dispute_comments_dispute_id_created_at");
+
+                    b.ToTable("dispute_comments", "deals", t =>
+                        {
+                            t.HasCheckConstraint("ck_dispute_comment_content", "[text] IS NOT NULL OR [document_id] IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("Modules.Deals.Persistence.FundingConfirmation", b =>
@@ -933,6 +1006,16 @@ namespace Modules.Deals.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_disputes_deals_deal_id");
+                });
+
+            modelBuilder.Entity("Modules.Deals.Persistence.DisputeComment", b =>
+                {
+                    b.HasOne("Modules.Deals.Persistence.Dispute", null)
+                        .WithMany()
+                        .HasForeignKey("DisputeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_dispute_comments_disputes_dispute_id");
                 });
 
             modelBuilder.Entity("Modules.Deals.Persistence.FundingConfirmation", b =>

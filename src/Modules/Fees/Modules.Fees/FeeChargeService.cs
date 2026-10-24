@@ -125,7 +125,7 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
             return Problems.Error(StatusCodes.Status400BadRequest, "validation_failed", "Give the reason (at most 400 characters).");
         }
 
-        if (await fees.FeeCharges.AnyAsync(c => c.ReversesId == id, cancellationToken))
+        if (await fees.FeeCharges.AnyAsync(c => c.ReversesId == id && c.Status != "Withdrawn", cancellationToken))
         {
             return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", "The charge already has a reversal.");
         }
@@ -210,6 +210,42 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
         return Results.Ok(View(reversal));
     }
 
+    /// <summary>
+    /// <c>POST /admin/fees/charges/{id}/withdraw-reversal</c> (task 021 follow-up): Finance withdraws a reversal that is
+    /// still pending, e.g. proposed by mistake; the charge can then be reversed again.
+    /// </summary>
+    public async Task<IResult> WithdrawReversalAsync(Guid id, CancellationToken cancellationToken)
+    {
+        if (await fees.FeeCharges.SingleOrDefaultAsync(c => c.Id == id && c.Kind == FeeCharge.ReversalKind, cancellationToken) is not { } reversal)
+        {
+            return NotFound();
+        }
+
+        if (reversal.Status != "PendingApproval")
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", $"The reversal is {reversal.Status}.");
+        }
+
+        reversal.Status = "Withdrawn";
+        try
+        {
+            await unitOfWork.ExecuteInTransactionAsync(
+                async ct =>
+                {
+                    await fees.SaveChangesAsync(ct);
+                    await audit.WriteAsync(new AuditEntry("FeeCharge.ReversalWithdrawn", "FeeCharge", reversal.Id, reversal.PayerOrgId,
+                        PreviousState: "PendingApproval", NewState: "Withdrawn", Related: [new AuditReference("FeeCharge", reversal.ReversesId!.Value)]), ct);
+                },
+                cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", "The reversal was changed in the meantime.");
+        }
+
+        return Results.Ok(View(reversal));
+    }
+
     /// <summary>The month's charges minus effective reversals as CSV for the accounting system (invariant decimals, UTF-8 BOM).</summary>
     public async Task<IResult> ExportAsync(string? period, CancellationToken cancellationToken)
     {
@@ -255,7 +291,7 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
             return NotFound();
         }
 
-        if (await fees.FeeCharges.AnyAsync(c => c.ReversesId == id, cancellationToken))
+        if (await fees.FeeCharges.AnyAsync(c => c.ReversesId == id && c.Status != "Withdrawn", cancellationToken))
         {
             return Problems.Error(StatusCodes.Status409Conflict, "charge_reversed", "The charge has a reversal; it is not invoiced or collected.");
         }
