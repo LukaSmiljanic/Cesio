@@ -35,10 +35,23 @@ This task is the security gate.
 # Tests
 As listed above.
 
+Implementation notes (2026-10-24):
+- The cross-tenant suite (`MarketplaceTests.CrossTenant.cs`) finds every endpoint with organization-scoped metadata. It calls each one as another seller and another factor, using the ids of a real signed deal. It accepts 403, 404, 405 and 400, because a body validated before the lookup says nothing about the resource. A short allowlist holds the endpoints that only return the caller's own lists. A second test calls every `/admin/` endpoint as a customer and expects 404.
+- API responses carry a strict CSP (`default-src 'none'; frame-ancestors 'none'`) and the other headers (`SecurityHeaders.cs`); HSTS outside Development. The SPA's CSP belongs to its hosting, task 024.
+- `SecurityHardeningTests` covers three things:
+  - the headers;
+  - logs, captured through a test logger provider, never containing the email, SEF key, bank account number or password of a full flow;
+  - the `app_rw` role being refused UPDATE and DELETE on the audit log, and DELETE on fee charges, as a real database user.
+- STRIDE appendix: [security.md](../docs/security.md) Appendix A. Runbooks, the rate-limit review and the scan record: [runbooks.md](../docs/runbooks.md).
+- Open:
+  - forwarded client IP for the auth limiter, persisted data protection keys, container and IaC scans, the first restore drill and DB grants in a deployed environment: all task 024;
+  - a staff "sign out user" action (none exists; noted in the runbook);
+  - the external penetration test, which the product owner engages.
+
 # Acceptance Criteria
-- [ ] Cross-tenant suite covers 100% of org-scoped endpoints.
+- [x] Cross-tenant suite covers 100% of org-scoped endpoints.
 - [ ] Pen-test report received; criticals/highs fixed and retested.
-- [ ] Runbooks committed.
+- [x] Runbooks committed.
 
 # Out of Scope
 ISO 27001 certification, bug bounty.
