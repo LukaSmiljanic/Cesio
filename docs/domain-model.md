@@ -124,6 +124,15 @@ Deal.RecordOutcome()                   factor; requires Funded → Closed; recei
 Any forward transition                 blocked while an applicable Hold is active
 ```
 
+### Hold policy (task 021, `HoldPolicy` in code)
+| Hold on | Blocks (every kind: ComplianceHold, Disputed, FraudInvestigation) |
+|---|---|
+| Organization | listing, offers and acceptance by the organization; every step of its deals; being seen as a factor |
+| Receivable | submission and verification decisions, listing, acceptance, every step of its deal |
+| Deal | every deal step (CDD, contract, terms, signatures, funding report and confirmation, outcome), the KYB package |
+
+A FraudInvestigation hold is lifted by two different officers; a Disputed hold comes and goes with the deal's disputes (all kinds except FeeDispute). A hold never changes a state by itself.
+
 ## 7. Domain events (in-process, published through the outbox)
 `OrganizationClaimed`, `OrganizationApproved`, `SefConnectionValidated`, `PristupnicaAccepted`, `MfaResetExecuted`, `FactorAuthorizationVerified/Expired/Revoked`, `ReceivableVerified/Rejected/BecameIneligible`, `ListingOpened/Closed/Expired`, `OfferSubmitted/Withdrawn/Accepted/Superseded`, `DealCreated/Signed/FundingReported/Funded/Closed/Cancelled/Terminated`, `HoldPlaced/Lifted`, `SefStatusChanged`, `FeeChargeCreated`.
 Consumers: Notifications, Fees, Audit enrichment, read models. The PIB claim itself happens in the SEF connection request, not in a `SefConnectionValidated` consumer (task 007a). Handlers must be idempotent.

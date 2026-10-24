@@ -68,6 +68,25 @@ public sealed partial class MarketplaceTests
         Assert.Equal("validation_failed", invalid);
     }
 
+    [Theory]
+    [InlineData("ComplianceHold")]
+    [InlineData("Disputed")]
+    [InlineData("FraudInvestigation")]
+    public async Task Every_hold_kind_on_a_deal_blocks_its_next_step(string kind)
+    {
+        var (_, factor, dealId, _) = await SignedDealAsync();
+        await factor.Client.StepUpAsync();
+        var account = (await ApiClient.ReadAsync(await Send(factor, HttpMethod.Get, $"/api/v1/deals/{dealId}/funding-accounts")))[0].GetProperty("id").GetGuid();
+        using var officer = await StaffAsync("ComplianceOfficer");
+        await officer.StepUpAsync();
+        await ApiClient.ReadAsync(await officer.PostAsync("/api/v1/admin/holds", new { subjectType = "Deal", subjectId = dealId, kind, reason = "Provera" }));
+
+        var blocked = await ApiClient.ErrorCodeAsync(await Send(factor, HttpMethod.Post, $"/api/v1/deals/{dealId}/funding-report",
+            new { amount = new { amount = "1150000.00", currency = "RSD" }, valueDate = Today, paymentReference = "97-3", payeeBankAccountId = account }));
+
+        Assert.Equal("hold_active", blocked);
+    }
+
     [Fact]
     public async Task Disputes_are_only_for_the_parties_and_staff()
     {

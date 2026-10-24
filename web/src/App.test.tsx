@@ -178,6 +178,6 @@ describe('start-seller wizard', () => {
       String(url).includes('/confirmations/'),
     )
     expect(String(confirmation?.[0])).toContain('/confirmations/abc')
-    expect((confirmation?.[1] as RequestInit).method).toBe('POST')
+    expect((confirmation as unknown as [unknown, RequestInit])[1].method).toBe('POST')
   })
 })

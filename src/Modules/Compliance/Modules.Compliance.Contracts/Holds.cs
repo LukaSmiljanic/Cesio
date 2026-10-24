@@ -15,6 +15,24 @@ public enum HoldKind
     FraudInvestigation,
 }
 
+/// <summary>
+/// The hold policy (task 021, ADR-014; documented in domain-model.md): in the MVP every kind blocks the same forward
+/// transitions; they differ in who may lift them (FraudInvestigation: two officers) and why they were placed.
+/// </summary>
+public static class HoldPolicy
+{
+    /// <summary>What an active hold on each subject blocks.</summary>
+    public static readonly IReadOnlyDictionary<HoldSubject, string> Blocks = new Dictionary<HoldSubject, string>
+    {
+        [HoldSubject.Organization] = "listing, offers and acceptance by the organization, every deal step of its deals, being seen as a factor",
+        [HoldSubject.Receivable] = "submission and verification decisions, listing, acceptance, every deal step of its deal",
+        [HoldSubject.Deal] = "every deal step (CDD, contract, terms, signatures, funding report and confirmation, outcome), the KYB package",
+    };
+
+    /// <summary>Kinds that need a second, different officer to lift.</summary>
+    public static readonly IReadOnlyList<HoldKind> FourEyesLift = [HoldKind.FraudInvestigation];
+}
+
 /// <summary>Whether a hold blocks forward transitions of a subject (ADR-014).</summary>
 public interface IHoldQuery
 {

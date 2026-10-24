@@ -7,6 +7,8 @@ import { formatMoney } from '../api/receivables'
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 import { DealExecution } from './DealExecution'
+import { DealDisputes } from './DisputePages'
+import { useActiveOrganization } from '../organizations/activeOrganization'
 
 const dealStates: Record<string, string> = {
   AwaitingFactorCdd: 'Čeka proveru faktora (CDD)',
@@ -247,6 +249,7 @@ function DealSteps({ detail }: { detail: DealDetail }) {
 
 /** A deal with its terms, the steps before signing and the timeline (tasks 014, 015). */
 export function DealPage() {
+  const { activeId } = useActiveOrganization()
   const { id = '' } = useParams()
   const detail = useQuery({ queryKey: ['deal', id], queryFn: () => dealsApi.get(id) })
   const timeline = useQuery({
@@ -282,6 +285,7 @@ export function DealPage() {
       </dl>
       <DealSteps detail={detail.data} />
       <DealExecution detail={detail.data} />
+      <DealDisputes dealId={d.id} organizationId={activeId} />
       <h2 className="mt-4 font-medium">Tok posla</h2>
       <ol className="text-sm">
         {timeline.data?.map((t) => (

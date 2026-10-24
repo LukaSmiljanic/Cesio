@@ -266,8 +266,14 @@ CREATE TABLE deals.funding_confirmations (id uniqueidentifier PRIMARY KEY, deal_
 CREATE TABLE deals.outcomes (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL UNIQUE, type varchar(20) NOT NULL, date date NOT NULL,
   amount_collected decimal(19,4), reported_by uniqueidentifier NOT NULL, reported_at datetimeoffset(3) NOT NULL);
 -- minimal in task 017 (an Open dispute holds the deal); the workflow comes with task 021
-CREATE TABLE deals.disputes (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, kind varchar(40) NOT NULL, status varchar(20) NOT NULL, reason nvarchar(1000),
-  opened_by uniqueidentifier, opened_at datetimeoffset(3) NOT NULL, version int NOT NULL);
+CREATE TABLE deals.disputes (id uniqueidentifier PRIMARY KEY, deal_id uniqueidentifier NOT NULL, kind varchar(40) NOT NULL,
+  status varchar(20) NOT NULL,                       -- Open | Resolved | Withdrawn (task 021)
+  reason nvarchar(1000), opened_by uniqueidentifier, opened_by_org_id uniqueidentifier, opened_at datetimeoffset(3) NOT NULL,
+  assigned_to uniqueidentifier, resolution_summary nvarchar(2000), closed_by uniqueidentifier, closed_at datetimeoffset(3), version int NOT NULL);
+CREATE TABLE deals.dispute_comments (id uniqueidentifier PRIMARY KEY, dispute_id uniqueidentifier NOT NULL REFERENCES deals.disputes(id),
+  author_user_id uniqueidentifier, author_org_id uniqueidentifier /* null = staff */, text nvarchar(2000), document_id uniqueidentifier,
+  internal bit NOT NULL /* staff-only note */, created_at datetimeoffset(3) NOT NULL,
+  CONSTRAINT ck_dispute_comment_content CHECK (text IS NOT NULL OR document_id IS NOT NULL));
 
 -- fees
 CREATE TABLE fees.fee_schedules (version int PRIMARY KEY, definition nvarchar(max) /* JSON, CHECK (ISJSON(...) = 1) */ NOT NULL, effective_from datetimeoffset(3) NOT NULL,
@@ -289,6 +295,7 @@ CREATE UNIQUE INDEX ux_fee_charge_reversal_once ON fees.fee_charges(reverses_id)
 CREATE UNIQUE INDEX ux_fee_charge_once ON fees.fee_charges(deal_id, payer_org_id) WHERE kind = 'Charge';
 -- task 018: the deal snapshot (deal_reference, invoice_number, face_value, funded_at) serves the statements; a reversal copies the charge's amounts
 -- and snapshot, has no due_at of its own, and is approved by a second Finance user (approved_by).
+-- One live reversal per charge (unique on reverses_id WHERE status <> 'Withdrawn'); a pending one can be Withdrawn (task 021).
 -- approved_at is set once (trigger); Effective reversals from before the column got approved_at = created_at.
 -- Status: a charge Due → Invoiced → Paid; a reversal PendingApproval → Effective; one reversal per charge. Amounts are never negative: a reversal
 -- states the amount it takes back. Triggers allow only status, external_invoice_ref, approved_by, approved_at and version to change, and no deletes.

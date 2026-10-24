@@ -16,7 +16,7 @@ Parties can raise disputes on deals; disputes place holds, notify parties and co
 - UI: dispute button and thread on the deal page; admin dispute queue; hold badges on entities.
 
 # Business Rules
-- Implementation notes (2026-10-24, in progress): disputes and comments in deals.disputes / deals.dispute_comments; every kind except FeeDispute places a Disputed hold through IHoldWriter, lifted when the last such dispute is resolved or withdrawn; staff endpoints for Operations and ComplianceOfficer; a pending fee reversal can be withdrawn (`POST /admin/fees/charges/{id}/withdraw-reversal`). Not done yet: the hold policy table, the UI, docs (api.md, database.md).
+- Implementation notes (2026-10-24, simplest options): disputes and comments in deals.disputes / deals.dispute_comments; every kind except FeeDispute places a Disputed hold through IHoldWriter, lifted when the last such dispute is resolved or withdrawn; staff endpoints for Operations and ComplianceOfficer; a pending fee reversal can be withdrawn (`POST /admin/fees/charges/{id}/withdraw-reversal`). The hold policy table is `HoldPolicy` in code and in domain-model.md; UI: disputes on the deal page and `/admin/disputes`.
 - A dispute never changes financial records by itself; any resulting change goes through normal commands (e.g. a fee reversal in 018).
 - A `Funded` deal with a dispute stays `Funded`.
 
@@ -37,7 +37,7 @@ Dispute → hold blocks the next deal transition; resolve → unblocked; interna
 
 # Acceptance Criteria
 - [x] Automatic disputes from 017 appear in the queue.
-- [ ] Hold policy enforced and tested for each kind.
+- [x] Hold policy enforced and tested for each kind.
 
 # Follow-ups from the phase 2–3 review (2026-10-24)
 - A `FundingDiscrepancy` dispute opened by a differing funding amount holds the deal (task 017): resolving it must let the seller confirm receipt, or end the deal.
