@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Modules.Compliance.Contracts;
 using Modules.Documents.Contracts;
 using Modules.Identity.Contracts;
 using Modules.Marketplace.Contracts;
 using Modules.Marketplace.Persistence;
 using Shared.Infrastructure.Idempotency;
+using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
 
@@ -30,6 +32,8 @@ public static class MarketplaceModule
         services.AddScoped<OfferService>();
         services.AddScoped<IListingWriter, ListingWriter>();
         services.AddScoped<IDocumentAccessPolicy, ListingDocumentPolicy>();
+        services.AddIntegrationEventConsumer<FactorAuthorizationRevoked, FactorAuthorizationEndedConsumer>(FactorAuthorizationEndedConsumer.RevokedConsumerName);
+        services.AddIntegrationEventConsumer<FactorAuthorizationExpired, FactorAuthorizationEndedConsumer>(FactorAuthorizationEndedConsumer.ExpiredConsumerName);
         services.Configure<RateLimiterOptions>(options => options.AddPolicy(RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
             http.User.FindFirst(CesioClaims.UserId)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = RequestsPerMinute, Window = TimeSpan.FromMinutes(1) })));

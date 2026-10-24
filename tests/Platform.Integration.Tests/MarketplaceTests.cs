@@ -354,6 +354,9 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
         {
             using var approved = await client.PostAsync($"/api/v1/dev/organizations/{org}/approve");
             Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+
+            // A Verified authorization (task 008), set directly: FactorAuthorizationTests covers the two-officer flow.
+            await _database.ExecuteAsync($"INSERT INTO compliance.factor_authorizations (id, org_id, kind, issuing_authority, status, verified_at, reverify_by, submitted_by, created_at, version) VALUES (NEWID(), '{org}', 'Bank', 'NationalBankOfSerbia', 'Verified', SYSDATETIMEOFFSET(), DATEADD(day, 30, CAST(GETDATE() AS date)), NEWID(), SYSDATETIMEOFFSET(), 0)");
         }
 
         return new Party(client, org, pib, string.Empty);

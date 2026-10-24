@@ -79,6 +79,8 @@ public static class OrganizationEndpoints
             service.ConfirmAsync(token, purpose, ct)).AllowAnonymous().RequireRateLimiting(AuthPolicies.RateLimit);
 
         var admin = app.MapGroup("/api/v1/admin").RequireAuthorization().AddEndpointFilter(RequireComplianceOfficer);
+        admin.MapPost("/factor-organizations", (StaffFactorOrganizationRequest body, OrganizationService service, CancellationToken ct) =>
+            service.CreateFactorForStaffAsync(body, ct)).RequireIdempotency().RequireStepUp();
         admin.MapPost("/organizations/{id:guid}/official-email", (Guid id, OfficialEmailRequest body, PristupnicaService service, CancellationToken ct) =>
             service.RecordOfficialEmailAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
         admin.MapGet("/pristupnice", (string? status, PristupnicaService service, CancellationToken ct) => service.QueueAsync(status, ct));
@@ -93,7 +95,7 @@ public static class OrganizationEndpoints
         return app;
     }
 
-    /// <summary>Staff endpoints of task 007a are for Compliance Officers only; anyone else gets 404 (security.md §3).</summary>
+    /// <summary>Staff endpoints of tasks 007a and 008 are for Compliance Officers only; anyone else gets 404 (security.md §3).</summary>
     private static async ValueTask<object?> RequireComplianceOfficer(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;

@@ -22,6 +22,8 @@ public sealed record CreateOrganizationRequest(string Pib);
 
 public sealed record CreateFactorOrganizationRequest(string Pib, string LegalName);
 
+public sealed record StaffFactorOrganizationRequest(string? Pib, string? LegalName, string? FirstUserEmail);
+
 public sealed record UpdateOrganizationRequest(string? LegalName, string? Mb, string? LegalForm, string? RegisteredAddress);
 
 public sealed record InviteMemberRequest(string Email);
@@ -122,6 +124,67 @@ internal sealed class OrganizationService(
 
         var organization = await CreateAsync(OrganizationType.Factor, pib, body.LegalName.Trim(), timeProvider.GetUtcNow(), "Organization.Created", cancellationToken);
         return Results.Created($"/api/v1/organizations/{organization.Id}", Details(organization));
+    }
+
+    /// <summary>
+    /// <c>POST /admin/factor-organizations</c> (task 008, product-spec §6.2): staff create a factor organization, claimed
+    /// at invitation, and invite its first user; the invited user becomes its first Owner by accepting. Who may accept
+    /// the Terms of Use for the factor is open (LQ-73); the acceptance is recorded as for every organization.
+    /// </summary>
+    public async Task<IResult> CreateFactorForStaffAsync(StaffFactorOrganizationRequest body, CancellationToken cancellationToken)
+    {
+        var address = body.FirstUserEmail?.Trim();
+        if (!Pib.TryParse(body.Pib, out var pib) || string.IsNullOrWhiteSpace(body.LegalName) || body.LegalName.Length > 200
+            || string.IsNullOrEmpty(address) || address.Length > 256 || !address.Contains('@', StringComparison.Ordinal))
+        {
+            return Problems.Validation("pib", "invalid_factor_organization", "A valid PIB, a legal name and the first user's email are required.");
+        }
+
+        if (await orgs.Organizations.IgnoreQueryFilters().AnyAsync(o => o.Pib == pib.Value && o.ClaimedAt != null, cancellationToken))
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "pib_already_claimed", "An organization with this PIB is already registered.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var organization = new Organization
+        {
+            Id = SequentialGuid.NewGuid(),
+            OrgType = OrganizationType.Factor,
+            Pib = pib.Value,
+            LegalName = body.LegalName.Trim(),
+            ClaimedAt = now,
+            OnboardingStatus = OnboardingStatus.Draft,
+            CreatedAt = now,
+            CreatedBy = UserId,
+        };
+        var token = NewToken();
+        var invitation = new Invitation
+        {
+            Id = SequentialGuid.NewGuid(),
+            OrgId = organization.Id,
+            Email = address,
+            TokenHash = Hash(token),
+            CreatedAt = now,
+            ExpiresAt = now + InvitationValidity,
+            InvitedBy = UserId,
+        };
+        orgs.Organizations.Add(organization);
+        orgs.Invitations.Add(invitation);
+        var result = await SaveAsync(
+            async ct =>
+            {
+                await audit.WriteAsync(new AuditEntry("Organization.Created", "Organization", organization.Id, organization.Id, Reason: "staff_factor_invitation"), ct);
+                await audit.WriteAsync(new AuditEntry("Member.Invited", "Organization", organization.Id, organization.Id,
+                    Changes: new Dictionary<string, string?> { ["email"] = Masking.Email(invitation.Email) },
+                    Related: [new AuditReference("Invitation", invitation.Id)]), ct);
+            },
+            () => Results.Created($"/api/v1/organizations/{organization.Id}", new { id = organization.Id, invitationId = invitation.Id, expiresAt = invitation.ExpiresAt }),
+            cancellationToken);
+        await email.SendAsync(
+            new EmailMessage(invitation.Email, "Poziv na platformu Cesio",
+                $"Pozvani ste da registrujete faktora {organization.LegalName} na platformi Cesio: {options.Value.PublicBaseUrl.TrimEnd('/')}/invitations/accept?token={token}"),
+            cancellationToken);
+        return result;
     }
 
     /// <summary>
@@ -261,7 +324,7 @@ internal sealed class OrganizationService(
         }
 
         SerializeMembershipChanges(organization);
-        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var token = NewToken();
         var now = timeProvider.GetUtcNow();
         var invitation = new Invitation
         {
@@ -659,6 +722,8 @@ internal sealed class OrganizationService(
     };
 
     private static ETagResult WithETag(object value, int version) => new(Results.Ok(value), version);
+
+    private static string NewToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     private static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 

@@ -5,6 +5,7 @@ import { organizationsApi, type Member, type Organization } from '../api/organiz
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 import { useActiveOrganization } from '../organizations/activeOrganization'
+import { FactorAuthorizationSection } from './FactorAuthorizationPages'
 import { KybSection } from './KybPages'
 import { MfaResetApprovals, PristupnicaSection, SellerChecklist } from './OnboardingPages'
 import { SefConnectionSection } from './ReceivablePages'
@@ -249,9 +250,16 @@ export function OrganizationPage() {
         {o.type === 'Seller' && <SefConnectionSection organizationId={o.id} />}
         {o.type === 'Seller' && o.claimed && <PristupnicaSection organizationId={o.id} />}
         <KybSection organizationId={o.id} />
+        {o.type === 'Factor' && <FactorAuthorizationSection organizationId={o.id} />}
         {o.status === 'Draft' && (
           <section className="space-y-2">
             <h2 className="font-medium">Uslovi korišćenja</h2>
+            {o.type === 'Factor' && (
+              <p className="text-sm text-slate-600">
+                Prihvatanje se beleži (verzija, korisnik, vreme). Ko sme da prihvati Uslove u ime
+                faktora još je otvoreno pitanje (LQ-73).
+              </p>
+            )}
             {terms.isSuccess ? (
               <p className="text-sm">Uslovi su prihvaćeni.</p>
             ) : (

@@ -25,6 +25,8 @@ public sealed class ComplianceDbContext(DbContextOptions<ComplianceDbContext> op
 
     internal DbSet<Hold> Holds => Set<Hold>();
 
+    internal DbSet<FactorAuthorization> FactorAuthorizations => Set<FactorAuthorization>();
+
     protected override string Schema => SchemaName;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
@@ -101,6 +103,28 @@ public sealed class ComplianceDbContext(DbContextOptions<ComplianceDbContext> op
             hold.Property(h => h.Kind).HasConversion<string>().HasMaxLength(30).IsUnicode(false);
             hold.Property(h => h.Reason).HasMaxLength(1000);
             hold.HasIndex(h => new { h.SubjectType, h.SubjectId, h.LiftedAt });
+        });
+
+        modelBuilder.Entity<FactorAuthorization>(authorization =>
+        {
+            authorization.ToTable("factor_authorizations", table =>
+            {
+                table.HasCheckConstraint("ck_factor_auth_decision",
+                    "[kind] = 'Bank' OR ([decision_number] IS NOT NULL AND [decision_date] IS NOT NULL AND [evidence_document_id] IS NOT NULL)");
+                table.HasCheckConstraint("ck_factor_auth_four_eyes", "[verified_by] IS NULL OR [first_approver] IS NULL OR [verified_by] <> [first_approver]");
+            });
+            authorization.HasKey(a => a.Id);
+            authorization.Property(a => a.Id).ValueGeneratedNever();
+            authorization.Property(a => a.Kind).HasMaxLength(20).IsUnicode(false);
+            authorization.Property(a => a.IssuingAuthority).HasMaxLength(30).IsUnicode(false);
+            authorization.Property(a => a.DecisionNumber).HasMaxLength(100);
+            authorization.Property(a => a.OfficialSourceUrl).HasMaxLength(1000);
+            authorization.Property(a => a.VerificationMethod).HasMaxLength(40).IsUnicode(false);
+            authorization.Property(a => a.Status).HasMaxLength(30).IsUnicode(false);
+            authorization.Property(a => a.Notes).HasMaxLength(1000);
+            authorization.Property(a => a.DecisionReason).HasMaxLength(1000);
+            authorization.HasIndex(a => a.OrgId).IsUnique().HasFilter("[status] = 'Verified'").HasDatabaseName("ux_factor_auth_active");
+            authorization.HasIndex(a => new { a.Status, a.ReverifyBy });
         });
     }
 }
@@ -247,6 +271,62 @@ internal sealed class Hold
     public Guid? LiftedBy { get; set; }
 
     public DateTimeOffset? LiftedAt { get; set; }
+
+    public int Version { get; set; }
+}
+
+/// <summary>
+/// A factor's authorization to buy receivables (task 008, compliance.md §4): submitted by the factor, checked by
+/// compliance against the official source, Verified by a second officer, and never changed afterwards.
+/// </summary>
+internal sealed class FactorAuthorization
+{
+    public Guid Id { get; init; }
+
+    public Guid OrgId { get; init; }
+
+    /// <summary><c>Bank</c> or <c>FactoringCompany</c>.</summary>
+    public required string Kind { get; init; }
+
+    /// <summary><c>NationalBankOfSerbia</c> for a bank; <c>MinistryOfFinance</c> or <c>SecuritiesCommission</c> for a factoring company.</summary>
+    public required string IssuingAuthority { get; init; }
+
+    public string? DecisionNumber { get; init; }
+
+    public DateOnly? DecisionDate { get; init; }
+
+    public Guid? EvidenceDocumentId { get; init; }
+
+    public string? OfficialSourceUrl { get; init; }
+
+    public Guid? SourceSnapshotDocumentId { get; set; }
+
+    /// <summary><c>OfficialRegisterLookup</c> or <c>AuthorityConfirmationLetter</c>.</summary>
+    public string? VerificationMethod { get; set; }
+
+    /// <summary><c>Submitted</c>, <c>PendingSecondApproval</c>, <c>Verified</c>, <c>Rejected</c>, <c>Revoked</c> or <c>Expired</c>.</summary>
+    public required string Status { get; set; }
+
+    public string? Notes { get; set; }
+
+    public Guid? FirstApprover { get; set; }
+
+    public Guid? VerifiedBy { get; set; }
+
+    public DateTimeOffset? VerifiedAt { get; set; }
+
+    public DateOnly? ReverifyBy { get; set; }
+
+    /// <summary>The rejection or revocation reason.</summary>
+    public string? DecisionReason { get; set; }
+
+    public Guid? DecidedBy { get; set; }
+
+    public DateTimeOffset? DecidedAt { get; set; }
+
+    public Guid SubmittedBy { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
 
     public int Version { get; set; }
 }

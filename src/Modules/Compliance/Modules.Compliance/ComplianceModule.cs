@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Modules.Compliance.Contracts;
 using Modules.Compliance.Persistence;
 using Modules.Identity.Contracts;
@@ -17,9 +16,6 @@ namespace Modules.Compliance;
 /// <summary>Composition entry point of the Compliance module; the hosts call it to register the module's services.</summary>
 public static class ComplianceModule
 {
-    /// <summary>Environments where the phase-2 stubs may run (tasks/README, "Phase 2 stubs").</summary>
-    private static readonly string[] StubEnvironments = ["Development", "local", "dev", "staging"];
-
     public static IServiceCollection AddComplianceModule(this IServiceCollection services)
     {
         services.AddModuleDbContext<ComplianceDbContext>(ComplianceDbContext.SchemaName, migrationOrder: 4);
@@ -30,13 +26,15 @@ public static class ComplianceModule
         services.AddScoped<KybService>();
         services.AddScoped<IKybQuery>(provider => provider.GetRequiredService<KybService>());
         services.AddIntegrationEventConsumer<OrganizationSubmitted, KybService>(KybService.ConsumerName);
-        services.AddScoped<IAuthorizationQuery>(provider =>
-        {
-            var environment = provider.GetRequiredService<IHostEnvironment>().EnvironmentName;
-            return StubEnvironments.Contains(environment, StringComparer.OrdinalIgnoreCase)
-                ? new AuthorizedFactorsStub()
-                : throw new InvalidOperationException($"Factor authorization (task 008) is not implemented; the stub must not run in '{environment}'.");
-        });
+        services.AddScoped<FactorAuthorizationService>();
+        services.AddScoped<IAuthorizationQuery, FactorAuthorizationQuery>();
+        return services;
+    }
+
+    /// <summary>The daily jobs of the module; the worker calls it.</summary>
+    public static IServiceCollection AddComplianceJobs(this IServiceCollection services)
+    {
+        services.AddHostedService<FactorAuthorizationExpiryJob>();
         return services;
     }
 
@@ -47,6 +45,10 @@ public static class ComplianceModule
         customer.MapGet("", (Guid id, KybService service, CancellationToken ct) => service.CustomerViewAsync(id, ct));
         customer.MapPost("/beneficial-owners", (Guid id, BeneficialOwnersRequest body, KybService service, CancellationToken ct) =>
             service.DeclareOwnersAsync(id, body, ct)).RequireIdempotency();
+        var factor = app.MapGroup("/api/v1/organizations/{id:guid}/factor-authorizations").RequireAuthorization().RequireOrganization("id");
+        factor.MapGet("", (Guid id, FactorAuthorizationService service, CancellationToken ct) => service.ListMineAsync(id, ct));
+        factor.MapPost("", (Guid id, FactorAuthorizationRequest body, FactorAuthorizationService service, CancellationToken ct) =>
+            service.SubmitAsync(id, body, ct)).RequireIdempotency();
         customer.MapPost("/sharing-consent", (Guid id, ConsentRequest body, KybService service, CancellationToken ct) =>
             service.ConsentAsync(id, body, ct)).RequireIdempotency();
 
@@ -63,6 +65,15 @@ public static class ComplianceModule
         admin.MapGet("/screening-lists", (ScreeningService service, CancellationToken ct) => service.ListsAsync(ct));
         admin.MapPost("/screening-lists/{source}", async (string source, HttpRequest httpRequest, ScreeningService service, CancellationToken ct) =>
             await service.ImportAsync(source, httpRequest.HasFormContentType ? (await httpRequest.ReadFormAsync(ct)).Files["file"] : null, ct)).RequireIdempotency();
+        admin.MapGet("/factor-authorizations", (string? status, FactorAuthorizationService service, CancellationToken ct) => service.QueueAsync(status, ct));
+        admin.MapPost("/factor-authorizations/{id:guid}/snapshot", async (Guid id, HttpRequest httpRequest, FactorAuthorizationService service, CancellationToken ct) =>
+            await service.UploadSnapshotAsync(id, httpRequest.HasFormContentType ? (await httpRequest.ReadFormAsync(ct)).Files["file"] : null, ct)).RequireIdempotency();
+        admin.MapPost("/factor-authorizations/{id:guid}/approve", (Guid id, FactorAuthorizationApproval body, FactorAuthorizationService service, CancellationToken ct) =>
+            service.ApproveAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
+        admin.MapPost("/factor-authorizations/{id:guid}/reject", (Guid id, ReasonRequest body, FactorAuthorizationService service, CancellationToken ct) =>
+            service.RejectAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
+        admin.MapPost("/factor-authorizations/{id:guid}/revoke", (Guid id, ReasonRequest body, FactorAuthorizationService service, CancellationToken ct) =>
+            service.RevokeAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
         admin.MapGet("/holds", (HoldService service, CancellationToken ct) => service.ListAsync(ct));
         admin.MapPost("/holds", (PlaceHoldRequest body, HoldService service, CancellationToken ct) => service.PlaceAsync(body, ct)).RequireIdempotency();
         admin.MapPost("/holds/{id:guid}/lift", (Guid id, HoldService service, CancellationToken ct) => service.LiftAsync(id, ct)).RequireIdempotency().RequireStepUp();
@@ -78,14 +89,5 @@ public static class ComplianceModule
             && await roles.HasRoleAsync(userId, PlatformRoles.ComplianceOfficer, http.RequestAborted)
                 ? await next(context)
                 : Results.Problem(statusCode: StatusCodes.Status404NotFound, extensions: new Dictionary<string, object?> { ["errorCode"] = "not_found" });
-    }
-
-    /// <summary>
-    /// Phase-2 stub: every factor organization counts as authorized until task 008 builds FactorAuthorization; callers
-    /// still require the organization to be an Approved factor.
-    /// </summary>
-    private sealed class AuthorizedFactorsStub : IAuthorizationQuery
-    {
-        public Task<bool> IsFactorAuthorizedAsync(Guid factorOrgId, CancellationToken cancellationToken) => Task.FromResult(true);
     }
 }

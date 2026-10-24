@@ -126,6 +126,11 @@ const messages: Record<string, string> = {
   reset_already_requested: 'Reset je već zatražen za ovaj nalog.',
   organization_required: 'Član ste više firmi; obratite se podršci Cesio uz PIB firme.',
   invalid_method: 'Izaberite način potpisa.',
+  authority_inconsistent: 'Izdavalac ne odgovara vrsti ovlašćenja.',
+  decision_required: 'Društvo za faktoring navodi broj i datum rešenja i prilaže rešenje.',
+  decision_not_applicable: 'Banka nema rešenje o faktoringu; ostavite ta polja prazna.',
+  invalid_factor_organization: 'Unesite ispravan PIB, poslovno ime i email prvog korisnika.',
+  unsupported_file_type: 'Dozvoljeni su PDF i slike.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

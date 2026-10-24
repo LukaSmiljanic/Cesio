@@ -378,6 +378,10 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 **Šta želimo:** firmu registruje samo onaj ko važećim SEF ključem dokaže njen PIB; ostali nacrti za isti PIB se zatvaraju uz poruku „firma je već registrovana, obratite se njenom administratoru”, a nepotvrđeni nacrti ističu posle 7 dana. Ako dva različita korisnika imaju važeći SEF ključ za isti PIB, pravi se interno upozorenje.
 **Pitanje:** Da li to smemo i šta o tome moraju da kažu Uslovi korišćenja? Moramo li takav slučaj nekome da prijavimo?
 
+### 73. Snimak registra kao dokaz i period ponovne provere faktora (LQ-79 · P1)
+**Šta želimo:** službenik proverava faktora u registru APR (društva za faktoring) ili na spisku NBS (banke), čuva snimak tog izvora i rešenje, a dva službenika odobravaju; provera se ponavlja na 90 dana za društva za faktoring i na 30 dana za banke.
+**Pitanje:** Smemo li da čuvamo te snimke i rešenja kao dokaz i koliko dugo? Odgovaramo li ako se faktoru saglasnost ukine između dve provere? Koji period ponovne provere je dovoljan?
+
 ---
 
 ## Dokumenti koje vas molimo da pripremite

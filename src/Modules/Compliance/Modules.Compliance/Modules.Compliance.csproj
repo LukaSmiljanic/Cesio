@@ -19,6 +19,7 @@
     <ProjectReference Include="../../Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
     <ProjectReference Include="../../Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />
     <ProjectReference Include="../../Organizations/Modules.Organizations.Contracts/Modules.Organizations.Contracts.csproj" />
+    <ProjectReference Include="../../Documents/Modules.Documents.Contracts/Modules.Documents.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

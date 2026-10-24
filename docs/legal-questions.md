@@ -106,6 +106,7 @@ Prioritet: **P0** blokira pokretanje · **P1** blokira jednu funkciju · **P2** 
 | LQ-09 | P0 | Koji javni izvor je merodavan za proveru saglasnosti društva za faktoring posle prelaska nadležnosti na Komisiju za HoV? Ostaju li saglasnosti Ministarstva finansija važeće bez ikakve radnje? *Istraživanje 2026-10-17:* APR Registar faktoringa (čl. 10) je javan i pretraživ (izvor u regulatory.md S9). Ostaje pitanje: da li je upis ili potvrda APR-a sam po sebi dovoljan dokaz, i koliko brzo se nove saglasnosti Komisije upisuju? |
 | LQ-11 | P1 | Mogu li strani faktori bez saglasnosti u Srbiji kupovati domaća potraživanja preko platforme? |
 | LQ-65 | P1 | Da li banke i društva za faktoring korišćenje platforme smatraju eksternalizacijom (npr. odluka NBS o upravljanju rizikom eksternalizacije za banke)? Ako da, koje ugovorne odredbe platforma mora da prihvati (pravo revizije, lokacija podataka, plan izlaska, podizvođači kao što je Azure)? |
+| LQ-79 | P1 | Sme li platforma da kao dokaz ovlašćenosti faktora čuva snimak (PDF ili sliku) javnog registra APR ili spiska NBS i rešenje o saglasnosti, i koliko dugo? Da li platforma odgovara ako se faktoru saglasnost ukine u periodu između dve provere (sada 90 dana za društva za faktoring i 30 dana za banke, kao poslovni parametri)? Koji period ponovne provere je pravno dovoljan? (vidi LQ-09 i LQ-65) |
 
 ### 3.7 SEF i uvoz faktura
 | ID | P | Pitanje |

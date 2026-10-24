@@ -17,7 +17,7 @@ Jobs in `Platform.Worker`, each guarded by an application lock (`sp_getapplock`)
 | Maturity ineligibility | daily 00:30 Europe/Belgrade | Verified/Listed receivables with maturity − today < `minDaysAtListing` → Ineligible (listing → Withdrawn by system) |
 | SEF monitoring | daily + on demand | Re-poll SEF status for receivables in Verified, Listed, Reserved, Assigned, Funded (until Closed). On cancel/storno/credit note: before `Assigned` → Ineligible (+ listing withdrawn / deal cancelled); at or after `Assigned` → Hold `FraudInvestigation` on the deal + alert to both parties and compliance |
 | Pending verification retry | every 15 min | Re-run SEF-dependent checks for receivables stuck in PendingVerification |
-| Authorization expiry | daily | `reverifyBy` passed → Expired + events (13/14 consumers act); 14-day reminder events |
+| Authorization expiry | daily | Done in task 008 (`FactorAuthorizationExpiryJob`: `reverifyBy` passed → Expired + event). Left here: the re-check reminders 14 days (factoring company) / 7 days (bank) before `reverifyBy`, and the consumers of `FactorAuthorizationRevoked/Expired` (expire the factor's Active offers, hold its deals before Signed; stub in Marketplace) |
 | Funding follow-up | daily | Deals `FundingReported` > N business days without confirmation → Operations alert; `Signed` past funding deadline → alert both parties |
 | Outcome overdue | daily | `Funded` deals past maturity + 30 days without outcome → reminder to factor |
 | KYB periodic review | daily | Orgs past `nextReviewAt` → review case opened |

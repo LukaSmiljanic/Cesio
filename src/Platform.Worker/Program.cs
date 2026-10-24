@@ -27,6 +27,7 @@ builder.Services
     .AddAuditModule()
     .AddDocumentsModule()
     .AddAuditJobs()
-    .AddOrganizationsJobs();
+    .AddOrganizationsJobs()
+    .AddComplianceJobs();
 
 builder.Build().Run();

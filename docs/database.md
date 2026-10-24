@@ -92,8 +92,13 @@ CREATE TABLE compliance.factor_authorizations (
   evidence_document_id uniqueidentifier, source_snapshot_document_id uniqueidentifier,
   official_source_url nvarchar(max),
   verification_method nvarchar(200),          -- OfficialRegisterLookup | AuthorityConfirmationLetter
-  status nvarchar(200) NOT NULL, verified_by uniqueidentifier, verified_at datetimeoffset(3), reverify_by date,
-  version int NOT NULL DEFAULT 0
+  status nvarchar(200) NOT NULL,              -- Submitted | PendingSecondApproval | Verified | Rejected | Revoked | Expired
+  notes nvarchar(1000), first_approver uniqueidentifier,
+  verified_by uniqueidentifier, verified_at datetimeoffset(3), reverify_by date,
+  decision_reason nvarchar(1000), decided_by uniqueidentifier, decided_at datetimeoffset(3),   -- reject, revoke, expiry
+  submitted_by uniqueidentifier NOT NULL, created_at datetimeoffset(3) NOT NULL,
+  version int NOT NULL DEFAULT 0,
+  CONSTRAINT ck_factor_auth_four_eyes CHECK (verified_by IS NULL OR first_approver IS NULL OR verified_by <> first_approver)
 );
 CREATE UNIQUE INDEX ux_factor_auth_active ON compliance.factor_authorizations(org_id)
   WHERE status = 'Verified';

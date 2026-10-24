@@ -94,6 +94,134 @@ namespace Modules.Compliance.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Modules.Compliance.Persistence.FactorAuthorization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("decided_by");
+
+                    b.Property<DateOnly?>("DecisionDate")
+                        .HasColumnType("date")
+                        .HasColumnName("decision_date");
+
+                    b.Property<string>("DecisionNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("decision_number");
+
+                    b.Property<string>("DecisionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("decision_reason");
+
+                    b.Property<Guid?>("EvidenceDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("evidence_document_id");
+
+                    b.Property<Guid?>("FirstApprover")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("first_approver");
+
+                    b.Property<string>("IssuingAuthority")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("issuing_authority");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("OfficialSourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("official_source_url");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("org_id");
+
+                    b.Property<DateOnly?>("ReverifyBy")
+                        .HasColumnType("date")
+                        .HasColumnName("reverify_by");
+
+                    b.Property<Guid?>("SourceSnapshotDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("source_snapshot_document_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SubmittedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("submitted_by");
+
+                    b.Property<string>("VerificationMethod")
+                        .HasMaxLength(40)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("verification_method");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("verified_at");
+
+                    b.Property<Guid?>("VerifiedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("verified_by");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_factor_authorizations");
+
+                    b.HasIndex("OrgId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_factor_auth_active")
+                        .HasFilter("[status] = 'Verified'");
+
+                    b.HasIndex("Status", "ReverifyBy")
+                        .HasDatabaseName("ix_factor_authorizations_status_reverify_by");
+
+                    b.ToTable("factor_authorizations", "compliance", t =>
+                        {
+                            t.HasCheckConstraint("ck_factor_auth_decision", "[kind] = 'Bank' OR ([decision_number] IS NOT NULL AND [decision_date] IS NOT NULL AND [evidence_document_id] IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_factor_auth_four_eyes", "[verified_by] IS NULL OR [first_approver] IS NULL OR [verified_by] <> [first_approver]");
+                        });
+                });
+
             modelBuilder.Entity("Modules.Compliance.Persistence.Hold", b =>
                 {
                     b.Property<Guid>("Id")

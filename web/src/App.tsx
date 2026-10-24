@@ -13,6 +13,7 @@ import {
 } from './pages/OrganizationPages'
 import { DealPage, DealsPage } from './pages/DealPages'
 import { AdminFeesPage, FeesPage } from './pages/FeePages'
+import { AdminFactorAuthorizationsPage } from './pages/FactorAuthorizationPages'
 import { KybCasePage, KybQueuePage } from './pages/KybPages'
 import {
   AdminMfaResetsPage,
@@ -102,6 +103,10 @@ export function AppRoutes() {
       <Route
         path="/admin/kyb/:id"
         element={<RequireSession>{() => <KybCasePage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/factor-authorizations"
+        element={<RequireSession>{() => <AdminFactorAuthorizationsPage />}</RequireSession>}
       />
       <Route
         path="/admin/pristupnice"
