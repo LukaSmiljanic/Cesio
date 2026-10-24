@@ -43,7 +43,7 @@ Audit all transitions with the step-up timestamp; non-party access → 404.
 - Idempotent replay returns the same dealId.
 
 # Acceptance Criteria
-- [x] All tests above green (except the 423 hold path: holds are a stub until task 007).
+- [x] All tests above green (the 423 hold path uses the holds of task 007).
 - [x] One transaction per acceptance verified (rollback on any failure leaves no partial state).
 
 # Out of Scope

@@ -91,9 +91,31 @@ CREATE TABLE compliance.holds (
   id uniqueidentifier PRIMARY KEY, subject_type nvarchar(200) NOT NULL, subject_id uniqueidentifier NOT NULL,
   kind nvarchar(200) NOT NULL, reason nvarchar(max) NOT NULL,
   placed_by uniqueidentifier NOT NULL, placed_at datetimeoffset(3) NOT NULL,
-  lifted_by uniqueidentifier, lifted_at datetimeoffset(3)
+  lift_requested_by uniqueidentifier, -- first officer of a FraudInvestigation lift (task 007)
+  lifted_by uniqueidentifier, lifted_at datetimeoffset(3), version int NOT NULL,
+  CHECK (lifted_by IS NULL OR lift_requested_by IS NULL OR lifted_by <> lift_requested_by) -- four-eyes
 );
 CREATE INDEX ix_holds_active ON compliance.holds(subject_type, subject_id) WHERE lifted_at IS NULL;
+-- task 007: KYB
+CREATE TABLE compliance.kyb_cases (id uniqueidentifier PRIMARY KEY, organization_id uniqueidentifier NOT NULL,
+  status varchar(30) NOT NULL,             -- Open | InReview | PendingSecondApproval | Approved | Rejected | NeedsInfo
+  risk_rating varchar(10), risk_reason nvarchar(400), sharing_consent bit NOT NULL, sharing_consent_at datetimeoffset(3),
+  first_approver uniqueidentifier, second_approver uniqueidentifier, decision_reason nvarchar(1000), decided_at datetimeoffset(3),
+  next_review_at datetimeoffset(3), created_at datetimeoffset(3) NOT NULL, version int NOT NULL,
+  CHECK (second_approver IS NULL OR second_approver <> first_approver));
+CREATE TABLE compliance.beneficial_owners (id uniqueidentifier PRIMARY KEY, organization_id uniqueidentifier NOT NULL, name nvarchar(200) NOT NULL,
+  date_of_birth date, nationality char(2), ownership_percent decimal(5,2), control_type nvarchar(100), pep_declared bit NOT NULL,
+  [current] bit NOT NULL /* a new declaration replaces the current one */, declared_by uniqueidentifier NOT NULL, declared_at datetimeoffset(3) NOT NULL,
+  version int NOT NULL, CHECK (ownership_percent IS NOT NULL OR control_type IS NOT NULL));
+CREATE TABLE compliance.screening_lists (id uniqueidentifier PRIMARY KEY, source varchar(20) NOT NULL /* UN | APML | EU | OFAC */,
+  sha256 char(64) NOT NULL, entry_count int NOT NULL, imported_by uniqueidentifier NOT NULL, imported_at datetimeoffset(3) NOT NULL,
+  UNIQUE (source, sha256));
+CREATE TABLE compliance.screening_list_entries (id uniqueidentifier PRIMARY KEY, list_id uniqueidentifier NOT NULL REFERENCES compliance.screening_lists(id),
+  name nvarchar(400) NOT NULL, normalized_name nvarchar(400) NOT NULL);
+CREATE TABLE compliance.screening_results (id uniqueidentifier PRIMARY KEY, kyb_case_id uniqueidentifier NOT NULL REFERENCES compliance.kyb_cases(id),
+  subject_kind varchar(20) NOT NULL, subject_name nvarchar(400) NOT NULL, list_source varchar(20), entry_name nvarchar(400), score decimal(5,4) NOT NULL,
+  result varchar(20) NOT NULL,             -- Clear | NoLists | PotentialMatch | ConfirmedMatch | Superseded
+  resolved_by uniqueidentifier, resolution_note nvarchar(1000), screened_at datetimeoffset(3) NOT NULL, version int NOT NULL);
 
 -- receivables
 CREATE TABLE receivables.debtors (
@@ -238,7 +260,7 @@ CREATE UNIQUE INDEX ux_fee_charge_once ON fees.fee_charges(deal_id, payer_org_id
 -- task 018: the deal snapshot (deal_reference, invoice_number, face_value, funded_at) serves the statements; a reversal copies the charge's amounts
 -- and snapshot, has no due_at of its own, and is approved by a second Finance user (approved_by).
 -- Status: a charge Due → Invoiced → Paid; a reversal PendingApproval → Effective; one reversal per charge. Amounts are never negative: a reversal
--- states the amount it takes back. Triggers allow only status, external_invoice_ref, approved_by and version to change, and no deletes.
+-- states the amount it takes back. Triggers allow only status, external_invoice_ref, approved_by, approved_at and version to change, and no deletes.
 CREATE TABLE fees.fee_payments (id uniqueidentifier PRIMARY KEY, charge_id uniqueidentifier NOT NULL UNIQUE REFERENCES fees.fee_charges(id),
   paid_on date NOT NULL, reference nvarchar(200) NOT NULL, recorded_by uniqueidentifier NOT NULL, recorded_at datetimeoffset(3) NOT NULL); -- append-only
 

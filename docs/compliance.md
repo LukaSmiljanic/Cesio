@@ -13,7 +13,7 @@ Position (pending LQ-28/29): the platform is probably **not** an AML obligor. **
 | Sanctions & PEP | Org, representatives, BOs | Lists: UN consolidated, Serbian designated persons (APML), EU, OFAC (pending LQ-31). PEP: self-declaration in the MVP; a provider later | Name screening with fuzzy matching; potential matches resolved manually with notes |
 | Bank accounts | Account number in the org's name | NBS account register lookup snapshot (mandatory); a bank letter is only a supplement | Owner = org PIB |
 | Terms & consents | Terms of Use version, privacy notice, KYB data-sharing consent | Platform | Versioned acceptance with user, timestamp, IP |
-| Risk rating | Low / Medium / High (rules: org age < 1 year, high-risk jurisdiction BOs, PEP, complex structure, adverse media optional) | Computed + officer override | High → four-eyes approval, review every 12 months (Medium 24, Low 36) |
+| Risk rating | Low / Medium / High (rules: org age < 1 year, high-risk jurisdiction BOs, PEP, complex structure, adverse media optional) | Computed + officer override (MVP: set by the officer with a reason, task 007) | High → four-eyes approval, review every 12 months (Medium 24, Low 36) |
 
 Outcome: `KybCase` approved/rejected with a reason. An organization cannot transact until `Approved` (INV-A1).
 

@@ -40,13 +40,13 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 - **LegalRepresentative** — name, role (*zastupnik*), source (APR snapshot / document), validFrom/To, linked userId (optional).
 - **BankAccount** — accountNumber (18-digit Serbian format, check digits validated), bankName, currency, verificationStatus, verification evidence (NBS account register snapshot, mandatory; bank letter optional supplement), usableFrom. Only `Verified` accounts can appear in funding.
 
-**KybCase** — orgId, version, status (`Open → InReview → Approved | Rejected | NeedsInfo`), reviewer(s), decisionReason, nextReviewAt.
+**KybCase** — orgId, version, status (`Open → InReview → (PendingSecondApproval →) Approved | Rejected | NeedsInfo`), riskRating + reason, reviewer(s) (first and second approver), decisionReason, nextReviewAt, the KYB data-sharing consent (given or withdrawn by the organization, carried to its next case).
 - **BeneficialOwner** — name, DOB, nationality, ownershipPct / controlType, source (APR CESV snapshot), PEP flag.
 - **ScreeningResult** — subject (org/person), lists checked + versions, result (`Clear | PotentialMatch | ConfirmedMatch`), resolvedBy.
 
 **FactorAuthorization** — orgId, kind (`Bank | FactoringCompany`), issuingAuthority (`NationalBankOfSerbia | MinistryOfFinance | SecuritiesCommission`), decisionNumber, decisionDate, evidenceDocumentId (all three required for `FactoringCompany`, null for `Bank`), officialSourceUrl, sourceSnapshotDocumentId (PDF/HTML capture), verifiedBy, verifiedAt, verificationMethod (`OfficialRegisterLookup | AuthorityConfirmationLetter`), status (`Pending | Verified | Rejected | Expired | Revoked`), reverifyBy (+90 days factoring company, +30 days bank).
 
-**Hold** — subjectType (`Organization | Receivable | Deal`), subjectId, kind (`ComplianceHold | Disputed | FraudInvestigation`), reason, placedBy, placedAt, liftedBy, liftedAt.
+**Hold** — subjectType (`Organization | Receivable | Deal`), subjectId, kind (`ComplianceHold | Disputed | FraudInvestigation`), reason, placedBy, placedAt, liftRequestedBy (the first officer of a FraudInvestigation lift), liftedBy (a different officer), liftedAt.
 
 **Debtor** — id, PIB, MB, legalName, status snapshot (active / in liquidation / blocked account, if a source is available), sanctionsScreening ref. Shared reference data; **not** a tenant.
 
@@ -73,7 +73,7 @@ Keeping them separate lets partial assignment, instalments and bundles arrive la
 **Dispute** — id, dealId/receivableId, type, raisedBy (org/user), description, status (`Open | Resolved | Withdrawn`), resolution notes, linked Hold.
 
 **FeeSchedule** — version, payer, basis (`Discount` = faceValue − purchasePrice), share, min, max, vatTreatment, effectiveFrom, createdBy, approvedBy/approvedAt (four-eyes). Immutable from creation; only the one-time approval is set. The fee never exceeds the discount.
-**FeeCharge** — dealId, payerOrgId, payerRole, kind (`Charge | Reversal`), amount (Money, never negative), vatAmount, vatPending, feeScheduleVersion, status, dueAt, externalInvoiceRef, reversesId, a deal snapshot for statements. A charge moves `Due → Invoiced → Paid`; a correction is a Reversal row (`PendingApproval → Effective`, four-eyes) that references the charge; amounts are never edited (task 018).
+**FeeCharge** — dealId, payerOrgId, payerRole, kind (`Charge | Reversal`), amount (Money, never negative), vatAmount, vatPending, feeScheduleVersion, status, dueAt, externalInvoiceRef, reversesId, approvedBy/approvedAt (the reversal's second Finance user), a deal snapshot for statements. A charge moves `Due → Invoiced → Paid`; a correction is a Reversal row (`PendingApproval → Effective`, four-eyes) that references the charge; amounts are never edited (task 018).
 
 **AuditEvent** — see [audit.md](audit.md).
 
