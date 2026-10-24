@@ -1,3 +1,4 @@
+using Modules.Identity.Contracts;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
@@ -15,9 +16,9 @@ namespace Modules.Identity;
 /// </summary>
 public static class AuthEndpoints
 {
-    public const string RateLimitPolicy = "auth";
+    public const string RateLimitPolicy = AuthPolicies.RateLimit;
 
-    public const string PendingPolicy = "pending-mfa";
+    public const string PendingPolicy = AuthPolicies.PendingMfa;
 
     /// <param name="includeDevelopmentEndpoints">Maps <c>POST /dev/me/platform-roles</c>; Development only.</param>
     public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder app, bool includeDevelopmentEndpoints = false)

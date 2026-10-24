@@ -18,6 +18,9 @@ public interface ISecretStore
 
     /// <summary>The secret, or null when it does not exist.</summary>
     Task<string?> GetAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>Removes the secret; nothing happens when it does not exist.</summary>
+    Task DeleteAsync(string name, CancellationToken cancellationToken);
 }
 
 /// <summary>Key Vault through managed identity (<see cref="DefaultAzureCredential"/>), configured by <c>KeyVault:Uri</c>.</summary>
@@ -37,6 +40,18 @@ internal sealed class KeyVaultSecretStore(SecretClient client) : ISecretStore
             return null;
         }
     }
+
+    public async Task DeleteAsync(string name, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await client.StartDeleteSecretAsync(name, cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status == 404)
+        {
+            // Already gone.
+        }
+    }
 }
 
 /// <summary>Local development only: secrets in memory, lost when the process stops (re-enter the SEF key).</summary>
@@ -52,6 +67,12 @@ internal sealed class InMemorySecretStore : ISecretStore
 
     public Task<string?> GetAsync(string name, CancellationToken cancellationToken) =>
         Task.FromResult(_secrets.TryGetValue(name, out var value) ? value : null);
+
+    public Task DeleteAsync(string name, CancellationToken cancellationToken)
+    {
+        _secrets.TryRemove(name, out _);
+        return Task.CompletedTask;
+    }
 }
 
 public static class SecretsSetup

@@ -19,15 +19,22 @@ export function SefConnectionSection({ organizationId }: { organizationId: strin
   const queryClient = useQueryClient()
   const withStepUp = useStepUp()
   const [apiKey, setApiKey] = useState('')
+  const [pending, setPending] = useState(false)
   const connection = useQuery({
     queryKey: ['sef-connection', organizationId],
     queryFn: () => receivablesApi.sefConnection(organizationId),
   })
   const connect = useMutation({
     mutationFn: () => withStepUp(() => receivablesApi.connectSef(organizationId, apiKey)),
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       setApiKey('')
-      queryClient.setQueryData(['sef-connection', organizationId], updated)
+      if (updated.status === 'PendingConfirmation') {
+        setPending(true)
+        await queryClient.invalidateQueries({ queryKey: ['sef-connection', organizationId] })
+      } else {
+        queryClient.setQueryData(['sef-connection', organizationId], updated)
+      }
+      await queryClient.invalidateQueries({ queryKey: ['organization', organizationId] })
     },
   })
 
@@ -47,6 +54,11 @@ export function SefConnectionSection({ organizationId }: { organizationId: strin
             ? 'ključ ne važi'
             : 'nije povezano'}
       </p>
+      {pending && (
+        <p className="text-sm">
+          Novi ključ važi kada ga potvrdite preko linka poslatog na službeni email firme iz APR-a.
+        </p>
+      )}
       <form className="space-y-2" onSubmit={submit}>
         <Field
           id="sefKey"

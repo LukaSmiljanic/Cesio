@@ -336,7 +336,7 @@ public sealed class OrganizationTests(SqlServerContainer server) : IAsyncLifetim
     public void Every_organization_route_has_the_organization_context_and_commands_need_an_idempotency_key()
     {
         var endpoints = _app.Services.GetRequiredService<EndpointDataSource>().Endpoints.OfType<RouteEndpoint>()
-            .Where(e => e.RoutePattern.RawText?.Contains("/organizations/{", StringComparison.Ordinal) == true)
+            .Where(e => e.RoutePattern.RawText?.Contains("/organizations/{", StringComparison.Ordinal) == true && !e.RoutePattern.RawText.Contains("/admin/", StringComparison.Ordinal))
             .ToList();
 
         Assert.NotEmpty(endpoints);

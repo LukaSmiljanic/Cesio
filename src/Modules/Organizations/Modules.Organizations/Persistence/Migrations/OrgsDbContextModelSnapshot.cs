@@ -23,6 +23,63 @@ namespace Modules.Organizations.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Modules.Organizations.Persistence.ConfirmationToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("purpose");
+
+                    b.Property<Guid?>("SubjectId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("subject_id");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .HasColumnName("token_hash")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset?>("UsedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("used_at");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_confirmation_tokens");
+
+                    b.HasIndex("OrgId")
+                        .HasDatabaseName("ix_confirmation_tokens_org_id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_confirmation_tokens_token_hash");
+
+                    b.ToTable("confirmation_tokens", "orgs");
+                });
+
             modelBuilder.Entity("Modules.Organizations.Persistence.Invitation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -204,6 +261,81 @@ namespace Modules.Organizations.Persistence.Migrations
                     b.ToTable("memberships", "orgs");
                 });
 
+            modelBuilder.Entity("Modules.Organizations.Persistence.MfaResetRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApprovalKind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("approval_kind");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("approved_at");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("approved_by");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("ExecutedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("executed_at");
+
+                    b.Property<Guid?>("ExecutedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("executed_by");
+
+                    b.Property<Guid?>("FirstOfficer")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("first_officer");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("user_id");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_mfa_reset_requests");
+
+                    b.HasIndex("OrgId")
+                        .HasDatabaseName("ix_mfa_reset_requests_org_id");
+
+                    b.HasIndex("UserId", "Status")
+                        .HasDatabaseName("ix_mfa_reset_requests_user_id_status");
+
+                    b.ToTable("mfa_reset_requests", "orgs", t =>
+                        {
+                            t.HasCheckConstraint("ck_mfa_reset_four_eyes", "[executed_by] IS NULL OR [first_officer] IS NULL OR [executed_by] <> [first_officer]");
+                        });
+                });
+
             modelBuilder.Entity("Modules.Organizations.Persistence.Organization", b =>
                 {
                     b.Property<Guid>("Id")
@@ -245,6 +377,19 @@ namespace Modules.Organizations.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)")
                         .HasColumnName("official_email");
+
+                    b.Property<DateTimeOffset?>("OfficialEmailRecordedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("official_email_recorded_at");
+
+                    b.Property<Guid?>("OfficialEmailRecordedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("official_email_recorded_by");
+
+                    b.Property<Guid?>("OfficialEmailSourceDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("official_email_source_document_id");
 
                     b.Property<string>("OnboardingStatus")
                         .IsRequired()
@@ -305,6 +450,91 @@ namespace Modules.Organizations.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_organization_org_type", "[org_type] IN ('Seller','Factor')");
                         });
+                });
+
+            modelBuilder.Entity("Modules.Organizations.Persistence.Pristupnica", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("decided_by");
+
+                    b.Property<Guid>("GeneratedDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("generated_document_id");
+
+                    b.Property<string>("GeneratedSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("char(64)")
+                        .HasColumnName("generated_sha256")
+                        .IsFixedLength();
+
+                    b.Property<Guid?>("MatchedRepresentativeId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("matched_representative_id");
+
+                    b.Property<string>("Method")
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("method");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("org_id");
+
+                    b.Property<Guid?>("PowerOfAttorneyDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("power_of_attorney_document_id");
+
+                    b.Property<Guid?>("SignedDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("signed_document_id");
+
+                    b.Property<string>("SignerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("signer_name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_pristupnice");
+
+                    b.HasIndex("OrgId", "CreatedAt")
+                        .HasDatabaseName("ix_pristupnice_org_id_created_at");
+
+                    b.ToTable("pristupnice", "orgs");
                 });
 
             modelBuilder.Entity("Modules.Organizations.Persistence.SefConnection", b =>
@@ -395,6 +625,16 @@ namespace Modules.Organizations.Persistence.Migrations
                     b.ToTable("terms_acceptances", "orgs");
                 });
 
+            modelBuilder.Entity("Modules.Organizations.Persistence.ConfirmationToken", b =>
+                {
+                    b.HasOne("Modules.Organizations.Persistence.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_confirmation_tokens_organizations_org_id");
+                });
+
             modelBuilder.Entity("Modules.Organizations.Persistence.Invitation", b =>
                 {
                     b.HasOne("Modules.Organizations.Persistence.Organization", null)
@@ -429,6 +669,26 @@ namespace Modules.Organizations.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_memberships_organizations_org_id");
+                });
+
+            modelBuilder.Entity("Modules.Organizations.Persistence.MfaResetRequest", b =>
+                {
+                    b.HasOne("Modules.Organizations.Persistence.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_mfa_reset_requests_organizations_org_id");
+                });
+
+            modelBuilder.Entity("Modules.Organizations.Persistence.Pristupnica", b =>
+                {
+                    b.HasOne("Modules.Organizations.Persistence.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_pristupnice_organizations_org_id");
                 });
 
             modelBuilder.Entity("Modules.Organizations.Persistence.SefConnection", b =>

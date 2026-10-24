@@ -304,6 +304,11 @@ internal sealed class KybService(
                 return Problems.Error(StatusCodes.Status409Conflict, "screening_unresolved", "Resolve every potential match first.");
             }
 
+            if (!await organizations.SellerOnboardingCompleteAsync(kyb.OrganizationId, cancellationToken))
+            {
+                return Problems.Error(StatusCodes.Status409Conflict, "onboarding_incomplete", "A seller is approved only when a SEF key claimed its PIB and its pristupnica is accepted (task 007a).");
+            }
+
             if (kyb.RiskRating is null || !body.RepresentativesVerified)
             {
                 return Problems.Error(StatusCodes.Status409Conflict, "kyb_incomplete", "Rate the risk and verify the representatives against APR first.");

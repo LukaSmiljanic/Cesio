@@ -34,7 +34,7 @@ Goal: for any receivable, deal, organization or fee, we can reconstruct **who di
 
 ## 3. Mandatory audited actions (minimum)
 - **Identity:** login success/failure, MFA enrolment/change, password reset, session revoke, lockout.
-- **Organizations:** created, submitted, approved/rejected/suspended, claim created/won/closed, pristupnica uploaded/accepted, official email recorded, member invited/added/removed, Signatory flag changed, MFA reset requested/executed, bank account added/verified/changed, SEF key set/rotated/invalidated, terms accepted.
+- **Organizations:** created, submitted, approved/rejected/suspended, claim created/won/closed (`Organization.ClaimWon`, `Organization.ClaimClosed`), compliance alert on a second valid SEF key for a claimed PIB (`Compliance.Alert`), pristupnica generated/uploaded/email-confirmed/accepted/rejected, confirmation sent/used/expired (`Confirmation.*`), official email recorded, member invited/added/removed, Signatory flag changed, MFA reset requested/approved/executed (`User.MfaReset*`), SEF key change requested, bank account added/verified/changed, SEF key set/rotated/invalidated, terms accepted.
 - **Compliance:** KYB case opened/decided, screening run/result/resolution, factor authorization submitted/verified (both approvers)/expired/revoked, hold placed/lifted, risk rating changed.
 - **Receivables:** imported (with UBL hash), declaration accepted, submitted, every verification check, verified/rejected (reviewer), became ineligible, SEF status change observed, cancelled.
 - **Marketplace:** listing opened/withdrawn/expired/suspended/closed; listing viewed and document downloaded by a factor (access log); offer submitted/withdrawn/rejected/expired/superseded/accepted.

@@ -232,6 +232,9 @@ export function MfaVerifyPage() {
       >
         {useRecovery ? 'Koristi kod iz aplikacije' : 'Koristi kod za oporavak'}
       </button>
+      <Link className={`${linkClass} mt-2 block`} to="/mfa/reset">
+        Nemam ni aplikaciju ni kodove za oporavak
+      </Link>
     </Card>
   )
 }

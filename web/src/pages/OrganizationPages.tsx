@@ -6,6 +6,7 @@ import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 import { useActiveOrganization } from '../organizations/activeOrganization'
 import { KybSection } from './KybPages'
+import { MfaResetApprovals, PristupnicaSection, SellerChecklist } from './OnboardingPages'
 import { SefConnectionSection } from './ReceivablePages'
 
 const statusLabels: Record<string, string> = {
@@ -15,6 +16,7 @@ const statusLabels: Record<string, string> = {
   Approved: 'Odobreno',
   Rejected: 'Odbijeno',
   Suspended: 'Suspendovano',
+  ClaimClosed: 'Zatvoreno (firmu je registrovao drugi nalog ili je rok istekao)',
 }
 
 /** Organization switcher: the active organization is sent with every API call. */
@@ -241,9 +243,11 @@ export function OrganizationPage() {
         {o.type === 'Seller' ? 'Prodavac' : 'Faktor'} · status: {statusLabels[o.status] ?? o.status}
       </p>
       <div className="space-y-6">
+        {o.type === 'Seller' && <SellerChecklist organization={o} />}
         <DetailsForm key={o.version} organization={o} />
         <Representatives organization={o} />
         {o.type === 'Seller' && <SefConnectionSection organizationId={o.id} />}
+        {o.type === 'Seller' && o.claimed && <PristupnicaSection organizationId={o.id} />}
         <KybSection organizationId={o.id} />
         {o.status === 'Draft' && (
           <section className="space-y-2">
@@ -378,6 +382,7 @@ export function MembersPage() {
           />
         ))}
       </ul>
+      <MfaResetApprovals organizationId={id} />
       <form className="space-y-3" onSubmit={(e) => (e.preventDefault(), invite.mutate())}>
         <Field
           id="inviteEmail"

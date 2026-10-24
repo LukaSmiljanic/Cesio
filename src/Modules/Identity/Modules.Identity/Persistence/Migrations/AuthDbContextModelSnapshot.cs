@@ -219,6 +219,11 @@ namespace Modules.Identity.Persistence.Migrations
                         .HasColumnType("nvarchar(max)")
                         .HasColumnName("security_stamp");
 
+                    b.Property<DateTimeOffset?>("StepUpBlockedUntil")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("step_up_blocked_until");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit")
                         .HasColumnName("two_factor_enabled");

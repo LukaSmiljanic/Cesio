@@ -17,6 +17,9 @@ public enum OnboardingStatus
     Approved,
     Rejected,
     Suspended,
+
+    /// <summary>An unclaimed Draft closed because another organization proved the PIB with a SEF key, or because it expired (task 007a).</summary>
+    ClaimClosed,
 }
 
 public sealed record OrganizationSummary(Guid Id, OrganizationType Type, OnboardingStatus Status, string Pib, string? LegalName)
@@ -67,6 +70,9 @@ public interface IOrganizationQuery
     /// may bind it (task 016; verified attorneys come with task 007, LQ-61).
     /// </summary>
     Task<IReadOnlyList<string>> AuthorizedSignerNamesAsync(Guid organizationId, DateOnly on, CancellationToken cancellationToken);
+
+    /// <summary>ADR-020 for sellers (task 007a): claimed by a valid SEF key and its pristupnica accepted. Always true for factors.</summary>
+    Task<bool> SellerOnboardingCompleteAsync(Guid organizationId, CancellationToken cancellationToken);
 }
 
 /// <summary>Published through the outbox when an organization is submitted for review (KYB starts in task 007).</summary>

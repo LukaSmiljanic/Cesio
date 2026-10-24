@@ -29,3 +29,26 @@ public interface IPlatformRoles
     /// <summary>Whether the user is platform staff (any role); staff cannot belong to customer organizations (task 007).</summary>
     Task<bool> IsStaffAsync(Guid userId, CancellationToken cancellationToken);
 }
+
+/// <summary>Executes an approved MFA reset (task 007a, security.md §1); the request and its approvals live in Organizations.</summary>
+public interface IMfaReset
+{
+    /// <summary>
+    /// Removes the authenticator and the recovery codes, ends every session (the next sign-in enrols MFA again) and blocks
+    /// step-up until <paramref name="stepUpBlockedUntil"/>.
+    /// </summary>
+    Task ResetAsync(Guid userId, DateTimeOffset stepUpBlockedUntil, CancellationToken cancellationToken);
+}
+
+/// <summary>Authorization and rate-limit policy names other modules use on authentication-adjacent endpoints.</summary>
+public static class AuthPolicies
+{
+    /// <summary>A user who passed the password but not yet MFA.</summary>
+    public const string PendingMfa = "pending-mfa";
+
+    /// <summary>A user who passed the password and must now pass MFA (MFA is enrolled), e.g. to ask for an MFA reset.</summary>
+    public const string PendingMfaVerify = "pending-mfa-verify";
+
+    /// <summary>The per-IP limit of the sign-in endpoints.</summary>
+    public const string RateLimit = "auth";
+}

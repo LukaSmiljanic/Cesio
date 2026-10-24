@@ -48,6 +48,8 @@ public sealed class CapturingEmailSender : IEmailSender
 {
     private readonly ConcurrentQueue<EmailMessage> _sent = new();
 
+    public IReadOnlyCollection<EmailMessage> Sent => _sent.ToArray();
+
     public Task SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
         _sent.Enqueue(message);

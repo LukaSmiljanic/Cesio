@@ -366,6 +366,18 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 **Šta želimo:** da Uslove, pa i visinu naknade, možemo menjati kako se platforma razvija.
 **Pitanje:** Može li platforma jednostrano menjati Uslove za faktore, posebno visinu naknade? Pod kojim uslovima izmena obavezuje faktora koji je ranije prihvatio Uslove: rok obaveštenja, izričito ponovno prihvatanje, pravo na raskid? Da li se izmena primenjuje na ponude i poslove započete pre izmene? (Povezano sa pitanjima 9 i 67.)
 
+### 70. Šta mora da sadrži pristupnica prodavca? (LQ-76 · P0)
+**Šta želimo:** da platforma generiše pristupnicu iz podataka firme (zastupnici, stvarni vlasnici, verzija Uslova, saglasnosti), a da je potpiše zakonski zastupnik ili punomoćnik, kvalifikovanim elektronskim potpisom ili svojeručno uz potvrdu sa službenog emaila iz APR-a.
+**Pitanje:** Koji tekst pristupnica mora da sadrži da bi obavezivala firmu i pokrila korišćenje SEF API ključa (ključ omogućava i storniranje i brisanje faktura), deljenje KYB paketa sa faktorom, prihvatanje Uslova, isplatu na račun firme i izjavu o stvarnim vlasnicima? Treba li mesto, datum, svojstvo potpisnika i podaci o punomoćju? Sme li tekst biti bez dijakritika ili mora biti latinica sa dijakriticima ili ćirilica?
+
+### 71. Da li je klik na link sa službenog emaila valjana potvrda firme? (LQ-77 · P1)
+**Šta želimo:** da osetljive promene (skenirana pristupnica, promena SEF ključa, promena računa za isplatu, reset dvofaktorske prijave) potvrdi firma klikom na jednokratni link poslat na njen službeni email iz APR-a; link važi 72 sata.
+**Pitanje:** Da li je takav klik valjana potvrda volje firme i dovoljan dokaz? Ako nije, šta treba dodati? Koje dokaze o slanju i potvrdi moramo čuvati i koliko dugo?
+
+### 72. Smemo li zatvoriti tuđi nacrt registracije za isti PIB? (LQ-78 · P1)
+**Šta želimo:** firmu registruje samo onaj ko važećim SEF ključem dokaže njen PIB; ostali nacrti za isti PIB se zatvaraju uz poruku „firma je već registrovana, obratite se njenom administratoru”, a nepotvrđeni nacrti ističu posle 7 dana. Ako dva različita korisnika imaju važeći SEF ključ za isti PIB, pravi se interno upozorenje.
+**Pitanje:** Da li to smemo i šta o tome moraju da kažu Uslovi korišćenja? Moramo li takav slučaj nekome da prijavimo?
+
 ---
 
 ## Dokumenti koje vas molimo da pripremite

@@ -154,4 +154,26 @@ describe('start-seller wizard', () => {
       /[0-9a-f-]{36}/,
     )
   })
+
+  it('confirms an official-email link only after the click, so link scanners confirm nothing', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).includes('/confirmations/')
+        ? json(200, { purpose: 'Pristupnica', confirmed: true })
+        : json(401, { status: 401 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderAt('/confirmations/abc?purpose=Pristupnica')
+    const button = await screen.findByRole('button', { name: 'Potvrđujem' })
+    const before = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes('/confirmations/'),
+    ).length
+    await userEvent.click(button)
+
+    expect(before).toBe(0)
+    expect(await screen.findByText('Hvala, potvrđeno.')).toBeInTheDocument()
+    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain(
+      '/confirmations/abc?purpose=Pristupnica',
+    )
+  })
 })

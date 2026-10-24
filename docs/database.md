@@ -30,7 +30,8 @@ CREATE TABLE orgs.organizations (
   mb  char(8),                       -- known after the APR prefill
   claimed_at datetimeoffset(3),            -- set by a valid SEF key (sellers) or at invitation (factors), ADR-020
   official_email nvarchar(200),               -- from APR, recorded by compliance
-  onboarding_status nvarchar(200) NOT NULL,
+  official_email_source_document_id uniqueidentifier, official_email_recorded_by uniqueidentifier, official_email_recorded_at datetimeoffset(3),
+  onboarding_status nvarchar(200) NOT NULL,   -- Draft | Submitted | UnderReview | Approved | Rejected | Suspended | ClaimClosed
   risk_rating nvarchar(200),
   created_at datetimeoffset(3) NOT NULL, version int NOT NULL DEFAULT 0
 );
@@ -61,15 +62,26 @@ CREATE TABLE orgs.pristupnice (
   signed_document_id uniqueidentifier, method nvarchar(200),            -- Qes | ScannedConfirmedByEmail
   signer_name nvarchar(200), matched_representative_id uniqueidentifier, poa_document_id uniqueidentifier,
   status nvarchar(200) NOT NULL,                            -- Generated | Uploaded | EmailConfirmed | Accepted | Rejected
-  decided_by uniqueidentifier, decided_at datetimeoffset(3), version int NOT NULL DEFAULT 0
+  notes nvarchar(1000), decided_by uniqueidentifier, decided_at datetimeoffset(3),
+  created_at datetimeoffset(3) NOT NULL, version int NOT NULL DEFAULT 0
 );
 CREATE TABLE orgs.confirmation_tokens (
   id uniqueidentifier PRIMARY KEY, org_id uniqueidentifier NOT NULL REFERENCES orgs.organizations(id),
   purpose nvarchar(200) NOT NULL,                           -- Pristupnica | PayoutAccountChange | SefKeyChange | MfaReset
   subject_id uniqueidentifier, token_hash char(64) NOT NULL UNIQUE,
-  expires_at datetimeoffset(3) NOT NULL, used_at datetimeoffset(3)
+  expires_at datetimeoffset(3) NOT NULL, used_at datetimeoffset(3), version int NOT NULL DEFAULT 0
 );
--- auth.mfa_reset_requests (user_id, org_id, approved_by_kind Email|Owner, approved_at, executed_by, executed_at, status)
+-- In orgs, not auth: the approval needs the organization (official email, other Owners); Identity only executes the reset (task 007a).
+CREATE TABLE orgs.mfa_reset_requests (
+  id uniqueidentifier PRIMARY KEY, user_id uniqueidentifier NOT NULL, org_id uniqueidentifier NOT NULL REFERENCES orgs.organizations(id),
+  approval_kind varchar(10) NOT NULL,                       -- Email | Owner
+  status varchar(20) NOT NULL,                              -- Requested | Approved | FirstExecution | Executed
+  approved_by uniqueidentifier, approved_at datetimeoffset(3),
+  first_officer uniqueidentifier, executed_by uniqueidentifier, executed_at datetimeoffset(3),
+  created_at datetimeoffset(3) NOT NULL, version int NOT NULL DEFAULT 0,
+  CONSTRAINT ck_mfa_reset_four_eyes CHECK (executed_by IS NULL OR first_officer IS NULL OR executed_by <> first_officer)
+);
+-- auth.users.step_up_blocked_until datetimeoffset(3): no step-up until then after an MFA reset (security.md §1).
 
 -- compliance
 CREATE TABLE compliance.factor_authorizations (

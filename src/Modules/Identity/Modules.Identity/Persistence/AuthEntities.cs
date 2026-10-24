@@ -7,6 +7,9 @@ namespace Modules.Identity.Persistence;
 public sealed class AuthUser : IdentityUser<Guid>
 {
     public AuthUser() => Id = SequentialGuid.NewGuid();
+
+    /// <summary>After an MFA reset, step-up is refused until then (security.md §1, task 007a).</summary>
+    public DateTimeOffset? StepUpBlockedUntil { get; set; }
 }
 
 /// <summary>

@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Platform.Integration.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
@@ -14,6 +18,8 @@
     <ProjectReference Include="../../../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
     <ProjectReference Include="../../Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
     <ProjectReference Include="../../Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../../Compliance/Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
+    <ProjectReference Include="../../Documents/Modules.Documents.Contracts/Modules.Documents.Contracts.csproj" />
     <ProjectReference Include="../../../Integrations/Integrations.Sef/Integrations.Sef.csproj" />
   </ItemGroup>
 

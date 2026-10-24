@@ -38,6 +38,12 @@ public sealed class OrgsDbContext : ModuleDbContext
 
     internal DbSet<SefConnection> SefConnections => Set<SefConnection>();
 
+    internal DbSet<Pristupnica> Pristupnice => Set<Pristupnica>();
+
+    internal DbSet<ConfirmationToken> ConfirmationTokens => Set<ConfirmationToken>();
+
+    internal DbSet<MfaResetRequest> MfaResetRequests => Set<MfaResetRequest>();
+
     protected override string Schema => SchemaName;
 
     private Guid? CurrentOrganizationId => _request?.OrganizationId;
@@ -123,7 +129,136 @@ public sealed class OrgsDbContext : ModuleDbContext
             connection.HasOne<Organization>().WithMany().HasForeignKey(c => c.OrgId);
             connection.HasQueryFilter(c => c.OrgId == CurrentOrganizationId);
         });
+
+        modelBuilder.Entity<Pristupnica>(pristupnica =>
+        {
+            pristupnica.ToTable("pristupnice");
+            pristupnica.HasKey(p => p.Id);
+            pristupnica.Property(p => p.Id).ValueGeneratedNever();
+            pristupnica.Property(p => p.GeneratedSha256).HasMaxLength(64).IsFixedLength().IsUnicode(false);
+            pristupnica.Property(p => p.Method).HasMaxLength(30).IsUnicode(false);
+            pristupnica.Property(p => p.Status).HasMaxLength(20).IsUnicode(false);
+            pristupnica.Property(p => p.SignerName).HasMaxLength(200);
+            pristupnica.Property(p => p.Notes).HasMaxLength(1000);
+            pristupnica.HasOne<Organization>().WithMany().HasForeignKey(p => p.OrgId).OnDelete(DeleteBehavior.Restrict);
+            pristupnica.HasIndex(p => new { p.OrgId, p.CreatedAt });
+        });
+
+        modelBuilder.Entity<ConfirmationToken>(token =>
+        {
+            token.ToTable("confirmation_tokens");
+            token.HasKey(t => t.Id);
+            token.Property(t => t.Id).ValueGeneratedNever();
+            token.Property(t => t.Purpose).HasMaxLength(30).IsUnicode(false);
+            token.Property(t => t.TokenHash).HasMaxLength(64).IsFixedLength().IsUnicode(false);
+            token.HasIndex(t => t.TokenHash).IsUnique();
+            token.HasOne<Organization>().WithMany().HasForeignKey(t => t.OrgId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<MfaResetRequest>(reset =>
+        {
+            reset.ToTable("mfa_reset_requests", table => table.HasCheckConstraint("ck_mfa_reset_four_eyes", "[executed_by] IS NULL OR [first_officer] IS NULL OR [executed_by] <> [first_officer]"));
+            reset.HasKey(r => r.Id);
+            reset.Property(r => r.Id).ValueGeneratedNever();
+            reset.Property(r => r.ApprovalKind).HasMaxLength(10).IsUnicode(false);
+            reset.Property(r => r.Status).HasMaxLength(20).IsUnicode(false);
+            reset.HasOne<Organization>().WithMany().HasForeignKey(r => r.OrgId).OnDelete(DeleteBehavior.Restrict);
+            reset.HasIndex(r => new { r.UserId, r.Status });
+        });
     }
+}
+
+/// <summary>
+/// The signed accession (pristupnica, ADR-020): generated from the organization's data, uploaded signed (QES, or a scan
+/// confirmed through the official email), and accepted or rejected by compliance (task 007a).
+/// </summary>
+internal sealed class Pristupnica
+{
+    public Guid Id { get; init; }
+
+    public Guid OrgId { get; init; }
+
+    public Guid GeneratedDocumentId { get; init; }
+
+    public required string GeneratedSha256 { get; init; }
+
+    public Guid? SignedDocumentId { get; set; }
+
+    /// <summary><c>Qes</c> or <c>ScannedConfirmedByEmail</c>.</summary>
+    public string? Method { get; set; }
+
+    /// <summary><c>Generated</c>, <c>Uploaded</c>, <c>EmailConfirmed</c>, <c>Accepted</c> or <c>Rejected</c>.</summary>
+    public required string Status { get; set; }
+
+    public string? SignerName { get; set; }
+
+    public Guid? MatchedRepresentativeId { get; set; }
+
+    public Guid? PowerOfAttorneyDocumentId { get; set; }
+
+    public string? Notes { get; set; }
+
+    public Guid? DecidedBy { get; set; }
+
+    public DateTimeOffset? DecidedAt { get; set; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public int Version { get; set; }
+}
+
+/// <summary>A single-use link sent to the official email (task 007a); only the SHA-256 of the token is stored.</summary>
+internal sealed class ConfirmationToken
+{
+    public Guid Id { get; init; }
+
+    public Guid OrgId { get; init; }
+
+    /// <summary><c>Pristupnica</c>, <c>PayoutAccountChange</c>, <c>SefKeyChange</c> or <c>MfaReset</c>.</summary>
+    public required string Purpose { get; init; }
+
+    public Guid? SubjectId { get; init; }
+
+    public required string TokenHash { get; init; }
+
+    public DateTimeOffset ExpiresAt { get; init; }
+
+    public DateTimeOffset? UsedAt { get; set; }
+
+    public int Version { get; set; }
+}
+
+/// <summary>
+/// An MFA reset without recovery codes (security.md §1): requested by the user, approved through the official email
+/// (seller) or by another Owner (factor), then executed by compliance (two officers when only the email approved).
+/// </summary>
+internal sealed class MfaResetRequest
+{
+    public Guid Id { get; init; }
+
+    public Guid UserId { get; init; }
+
+    public Guid OrgId { get; init; }
+
+    /// <summary><c>Email</c> or <c>Owner</c>.</summary>
+    public required string ApprovalKind { get; init; }
+
+    /// <summary><c>Requested</c>, <c>Approved</c>, <c>FirstExecution</c> or <c>Executed</c>.</summary>
+    public required string Status { get; set; }
+
+    public Guid? ApprovedBy { get; set; }
+
+    public DateTimeOffset? ApprovedAt { get; set; }
+
+    public Guid? FirstOfficer { get; set; }
+
+    public Guid? ExecutedBy { get; set; }
+
+    public DateTimeOffset? ExecutedAt { get; set; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public int Version { get; set; }
 }
 
 internal sealed class OrgsDbContextDesignTimeFactory : IDesignTimeDbContextFactory<OrgsDbContext>

@@ -26,6 +26,7 @@ builder.Services
     .AddNotificationsModule()
     .AddAuditModule()
     .AddDocumentsModule()
-    .AddAuditJobs();
+    .AddAuditJobs()
+    .AddOrganizationsJobs();
 
 builder.Build().Run();

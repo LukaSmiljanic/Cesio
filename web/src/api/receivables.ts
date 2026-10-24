@@ -32,7 +32,8 @@ export interface ImportResult {
 }
 
 export interface SefConnection {
-  status: 'Connected' | 'Invalid' | null
+  /** PendingConfirmation: a key change waits for the official email (task 007a). */
+  status: 'Connected' | 'Invalid' | 'PendingConfirmation' | null
   validatedAt: string | null
   supplierPib: string | null
 }

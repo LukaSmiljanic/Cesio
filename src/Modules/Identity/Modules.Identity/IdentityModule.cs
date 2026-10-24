@@ -70,7 +70,9 @@ public static class IdentityModule
                 .RequireAuthenticatedUser()
                 .RequireClaim(CesioClaims.AuthenticationMethod, CesioClaims.Mfa)
                 .Build())
-            .AddPolicy(AuthEndpoints.PendingPolicy, policy => policy.AddAuthenticationSchemes(AuthSchemes.Pending).RequireAuthenticatedUser());
+            .AddPolicy(AuthEndpoints.PendingPolicy, policy => policy.AddAuthenticationSchemes(AuthSchemes.Pending).RequireAuthenticatedUser())
+            .AddPolicy(AuthPolicies.PendingMfaVerify, policy => policy.AddAuthenticationSchemes(AuthSchemes.Pending).RequireAuthenticatedUser()
+                .RequireClaim(AuthSchemes.StageClaim, AuthSchemes.VerifyStage));
 
         services.AddAntiforgery(options =>
         {
@@ -97,6 +99,7 @@ public static class IdentityModule
         services.AddScoped<IUserDirectory, UserDirectory>();
         services.AddScoped<PlatformRoleStore>();
         services.AddScoped<IPlatformRoles>(provider => provider.GetRequiredService<PlatformRoleStore>());
+        services.AddScoped<IMfaReset, MfaReset>();
         return services;
     }
 

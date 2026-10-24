@@ -136,7 +136,12 @@ internal sealed class SessionStore(AuthDbContext auth, TimeProvider timeProvider
 
         if (session.MfaStepUpAt is { } stepUpAt)
         {
-            context.HttpContext.Items[CesioClaims.MfaStepUpAtItem] = stepUpAt;
+            // After an MFA reset the account cannot step up for a while (security.md §1), whatever the session says.
+            var blockedUntil = await auth.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.StepUpBlockedUntil).SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+            if (blockedUntil is null || blockedUntil <= now)
+            {
+                context.HttpContext.Items[CesioClaims.MfaStepUpAtItem] = stepUpAt;
+            }
         }
     }
 

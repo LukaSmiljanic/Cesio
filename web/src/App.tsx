@@ -14,6 +14,12 @@ import {
 import { DealPage, DealsPage } from './pages/DealPages'
 import { AdminFeesPage, FeesPage } from './pages/FeePages'
 import { KybCasePage, KybQueuePage } from './pages/KybPages'
+import {
+  AdminMfaResetsPage,
+  AdminPristupnicePage,
+  ConfirmationPage,
+  MfaResetRequestPage,
+} from './pages/OnboardingPages'
 import { MarketplaceListingPage, MarketplacePage, SellerListingsPage } from './pages/ListingPages'
 import { ListingOffersPage, MyOffersPage } from './pages/OfferPages'
 import { ImportPage, ReceivablesPage } from './pages/ReceivablePages'
@@ -47,6 +53,8 @@ export function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/mfa/enrol" element={<MfaEnrolPage />} />
       <Route path="/mfa/verify" element={<MfaVerifyPage />} />
+      <Route path="/mfa/reset" element={<MfaResetRequestPage />} />
+      <Route path="/confirmations/:token" element={<ConfirmationPage />} />
       <Route path="/sessions" element={<RequireSession>{() => <SessionsPage />}</RequireSession>} />
       <Route
         path="/organizations/new"
@@ -94,6 +102,14 @@ export function AppRoutes() {
       <Route
         path="/admin/kyb/:id"
         element={<RequireSession>{() => <KybCasePage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/pristupnice"
+        element={<RequireSession>{() => <AdminPristupnicePage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/mfa-resets"
+        element={<RequireSession>{() => <AdminMfaResetsPage />}</RequireSession>}
       />
       <Route
         path="/admin/fees"

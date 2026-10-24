@@ -2,7 +2,7 @@ import { api } from './client'
 
 export type OrganizationType = 'Seller' | 'Factor'
 export type OnboardingStatus =
-  'Draft' | 'Submitted' | 'UnderReview' | 'Approved' | 'Rejected' | 'Suspended'
+  'Draft' | 'Submitted' | 'UnderReview' | 'Approved' | 'Rejected' | 'Suspended' | 'ClaimClosed'
 
 export interface MyOrganization {
   id: string

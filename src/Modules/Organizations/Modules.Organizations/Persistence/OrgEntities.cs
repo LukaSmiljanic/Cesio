@@ -22,7 +22,15 @@ internal sealed class Organization
     /// <summary>Set by a valid SEF key for sellers (task 007a) or at invitation for factors.</summary>
     public DateTimeOffset? ClaimedAt { get; set; }
 
+    /// <summary>The company's email in APR, recorded by compliance (task 007a); confirmations of sensitive changes go there.</summary>
     public string? OfficialEmail { get; set; }
+
+    /// <summary>The APR snapshot the official email was taken from.</summary>
+    public Guid? OfficialEmailSourceDocumentId { get; set; }
+
+    public Guid? OfficialEmailRecordedBy { get; set; }
+
+    public DateTimeOffset? OfficialEmailRecordedAt { get; set; }
 
     public OnboardingStatus OnboardingStatus { get; set; }
 
