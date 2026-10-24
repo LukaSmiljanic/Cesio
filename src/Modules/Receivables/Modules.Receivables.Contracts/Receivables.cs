@@ -107,3 +107,16 @@ public sealed record ReceivableSefStatusChanged(Guid ReceivableId, Guid SellerOr
 {
     public static string EventType => "Receivables.ReceivableSefStatusChanged";
 }
+
+/// <summary>Read-only figures for the dashboards (task 022); computed from the rows, never stored.</summary>
+public interface IReceivableStats
+{
+    /// <summary>Receivables per state, of one seller or (null) of the platform.</summary>
+    Task<IReadOnlyDictionary<ReceivableState, int>> CountByStateAsync(Guid? sellerOrgId, CancellationToken cancellationToken);
+
+    /// <summary>Receivables waiting for a manual review.</summary>
+    Task<int> ReviewQueueAsync(CancellationToken cancellationToken);
+
+    /// <summary>Receivables imported since <paramref name="since"/> (the start of the funnel).</summary>
+    Task<int> ImportedSinceAsync(DateTimeOffset since, CancellationToken cancellationToken);
+}

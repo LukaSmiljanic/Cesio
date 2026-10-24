@@ -225,6 +225,67 @@ namespace Shared.Infrastructure.Persistence.Platform.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Shared.Infrastructure.Persistence.Platform.ParameterProposal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("approved_at");
+
+                    b.Property<Guid?>("ApprovedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("approved_by");
+
+                    b.Property<string>("ParamKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("param_key");
+
+                    b.Property<DateTimeOffset>("ProposedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("proposed_at");
+
+                    b.Property<Guid>("ProposedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("proposed_by");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("value");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_parameter_proposals");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("ix_parameter_proposals_status");
+
+                    b.ToTable("parameter_proposals", "platform", t =>
+                        {
+                            t.HasCheckConstraint("ck_parameter_proposal_four_eyes", "[approved_by] IS NULL OR [approved_by] <> [proposed_by]");
+
+                            t.HasCheckConstraint("ck_parameter_proposal_value_json", "ISJSON([value], VALUE) = 1");
+                        });
+                });
+
             modelBuilder.Entity("Shared.Infrastructure.Persistence.Platform.ProcessedEvent", b =>
                 {
                     b.Property<Guid>("EventId")

@@ -19,6 +19,8 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
 
     internal DbSet<JobRun> JobRuns => Set<JobRun>();
 
+    internal DbSet<ParameterProposal> ParameterProposals => Set<ParameterProposal>();
+
     protected override string Schema => SchemaName;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
@@ -70,6 +72,17 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
             parameter.HasKey(p => new { p.ParamKey, p.Version });
             parameter.Property(p => p.ParamKey).HasMaxLength(200);
             parameter.HasJsonCheck("value", scalar: true);
+        });
+
+        modelBuilder.Entity<ParameterProposal>(proposal =>
+        {
+            proposal.ToTable("parameter_proposals", table => table.HasCheckConstraint("ck_parameter_proposal_four_eyes", "[approved_by] IS NULL OR [approved_by] <> [proposed_by]"));
+            proposal.HasKey(p => p.Id);
+            proposal.Property(p => p.Id).ValueGeneratedNever();
+            proposal.Property(p => p.ParamKey).HasMaxLength(200);
+            proposal.Property(p => p.Status).HasMaxLength(20).IsUnicode(false);
+            proposal.HasJsonCheck("value", scalar: true);
+            proposal.HasIndex(p => p.Status);
         });
     }
 }

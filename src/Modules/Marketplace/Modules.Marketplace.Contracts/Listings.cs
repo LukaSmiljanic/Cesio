@@ -106,3 +106,20 @@ public interface IListingMatches
     /// <summary>The factor organizations that set an appetite, may see the listing, and whose amount and tenor ranges it fits.</summary>
     Task<IReadOnlyList<Guid>> FactorsMatchingAsync(Guid listingId, CancellationToken cancellationToken);
 }
+
+/// <param name="BestNetProceeds">The best Active offer's purchase price minus the seller's fee share, or null without offers.</param>
+public sealed record OpenListingStat(Guid ListingId, Guid ReceivableId, DateTimeOffset ClosesAt, int OfferCount, Money? BestNetProceeds);
+
+public sealed record FactorOfferStat(int Active, int Accepted, int Total);
+
+public sealed record MarketplaceFunnel(int Listed, int WithOffers, int Accepted);
+
+/// <summary>Read-only figures for the dashboards (task 022). A factor's figures cover only its own offers.</summary>
+public interface IMarketplaceStats
+{
+    Task<IReadOnlyList<OpenListingStat>> OpenListingsAsync(Guid sellerOrgId, CancellationToken cancellationToken);
+
+    Task<FactorOfferStat> FactorOffersAsync(Guid factorOrgId, CancellationToken cancellationToken);
+
+    Task<MarketplaceFunnel> FunnelAsync(DateTimeOffset since, CancellationToken cancellationToken);
+}

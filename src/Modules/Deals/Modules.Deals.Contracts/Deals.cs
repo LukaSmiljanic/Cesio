@@ -84,3 +84,24 @@ public interface IDealQuery
     /// <summary>The factors that have a deal with the seller that is not yet closed, cancelled or terminated.</summary>
     Task<IReadOnlyList<Guid>> FactorsWithOpenDealsAsync(Guid sellerOrgId, CancellationToken cancellationToken);
 }
+
+public sealed record MaturityBucket(string Bucket, int Count, IReadOnlyList<Shared.Kernel.Money> FaceValue);
+
+/// <param name="AverageDiscountRate">Discount ÷ face value over the funded deals (indicative cost), or null.</param>
+public sealed record OrganizationDealStats(
+    int Open, IReadOnlyList<Shared.Kernel.Money> FundedThisMonth, IReadOnlyList<Shared.Kernel.Money> FundedThisYear,
+    decimal? AverageDiscountRate, int OverdueOutcomes, IReadOnlyList<MaturityBucket> Portfolio);
+
+public sealed record StuckDeals(DealState State, int Count);
+
+/// <param name="Gmv">Purchase prices of the deals funded this month; <paramref name="PlatformFees"/> their platform fees (take rate = fees ÷ GMV).</param>
+public sealed record PlatformDealStats(IReadOnlyList<StuckDeals> Stuck, int FundedThisMonth, IReadOnlyList<Shared.Kernel.Money> Gmv, IReadOnlyList<Shared.Kernel.Money> PlatformFees);
+
+/// <summary>Read-only figures for the dashboards (task 022), computed from the deal rows.</summary>
+public interface IDealStats
+{
+    Task<OrganizationDealStats> ForOrganizationAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    /// <summary>Deals that have stayed in a step longer than <paramref name="stuckDays"/> days, and this month's funded volume.</summary>
+    Task<PlatformDealStats> PlatformAsync(int stuckDays, CancellationToken cancellationToken);
+}

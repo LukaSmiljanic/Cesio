@@ -37,6 +37,7 @@ internal sealed class DealService(
     IBusinessParameters parameters,
     UnitOfWork unitOfWork,
     IAuditWriter audit,
+    IAccessLog accessLog,
     IOutbox outbox,
     IRequestContext request,
     TimeProvider timeProvider)
@@ -191,6 +192,26 @@ internal sealed class DealService(
             .Where(d => d.SellerOrgId == OrganizationId || d.FactorOrgId == OrganizationId)
             .OrderByDescending(d => d.AcceptedAt).Take(200).ToListAsync(cancellationToken);
         return Results.Ok(mine.Select(View));
+    }
+
+    /// <summary>
+    /// <c>GET /deals/export</c> (task 022): the party's deals as CSV (its own view: the fee share it pays, not the other
+    /// party's); access-logged.
+    /// </summary>
+    public async Task<IResult> ExportAsync(CancellationToken cancellationToken)
+    {
+        var mine = await deals.Deals.AsNoTracking()
+            .Where(d => d.SellerOrgId == OrganizationId || d.FactorOrgId == OrganizationId)
+            .OrderByDescending(d => d.AcceptedAt).Take(10_000).ToListAsync(cancellationToken);
+        var csv = new System.Text.StringBuilder("reference;role;state;acceptedAt;faceValue;purchasePrice;currency;recourse\r\n");
+        foreach (var d in mine)
+        {
+            csv.Append(System.Globalization.CultureInfo.InvariantCulture,
+                $"{Shared.Infrastructure.CsvCell.Text(d.Reference)};{(d.SellerOrgId == OrganizationId ? "Seller" : "Factor")};{d.State};{d.AcceptedAt:O};{d.FaceValue.Amount:0.00};{d.PurchasePriceAmount:0.00};{d.FaceValue.Currency.Code};{d.RecourseType}\r\n");
+        }
+
+        await unitOfWork.ExecuteInTransactionAsync(ct => accessLog.RecordAsync(new AccessLogEntry("Deals.Exported", "Organization", OrganizationId, OrganizationId), ct), cancellationToken);
+        return Results.File(System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", "deals.csv");
     }
 
     /// <summary>The deal with the state of its steps and whose turn it is (tasks 014, 015).</summary>

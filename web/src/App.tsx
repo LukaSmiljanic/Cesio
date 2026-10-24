@@ -14,6 +14,12 @@ import {
 import { DealPage, DealsPage } from './pages/DealPages'
 import { AdminFeesPage, FeesPage } from './pages/FeePages'
 import { AdminBankAccountsPage } from './pages/BankAccountPages'
+import {
+  AdminAuditPage,
+  AdminDashboardPage,
+  AdminParametersPage,
+  DashboardPage,
+} from './pages/DashboardPages'
 import { AdminDisputesPage } from './pages/DisputePages'
 import { AdminJobsPage } from './pages/JobPages'
 import { NotificationPreferencesPage, NotificationsPage } from './pages/NotificationPages'
@@ -119,6 +125,26 @@ export function AppRoutes() {
       <Route
         path="/admin/factor-authorizations"
         element={<RequireSession>{() => <AdminFactorAuthorizationsPage />}</RequireSession>}
+      />
+      <Route
+        path="/dashboard/seller"
+        element={<RequireSession>{() => <DashboardPage type="Seller" />}</RequireSession>}
+      />
+      <Route
+        path="/dashboard/factor"
+        element={<RequireSession>{() => <DashboardPage type="Factor" />}</RequireSession>}
+      />
+      <Route
+        path="/admin"
+        element={<RequireSession>{() => <AdminDashboardPage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/parameters"
+        element={<RequireSession>{() => <AdminParametersPage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/audit"
+        element={<RequireSession>{() => <AdminAuditPage />}</RequireSession>}
       />
       <Route
         path="/admin/disputes"

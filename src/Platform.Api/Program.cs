@@ -67,6 +67,9 @@ app.MapDealEndpoints();
 app.MapComplianceEndpoints();
 app.MapNotificationEndpoints();
 app.MapJobEndpoints();
+app.MapDashboardEndpoints();
+app.MapParameterEndpoints();
+app.MapAuditEndpoints();
 
 app.Run();
 

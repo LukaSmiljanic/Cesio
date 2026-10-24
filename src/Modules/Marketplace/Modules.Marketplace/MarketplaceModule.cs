@@ -37,6 +37,7 @@ public static class MarketplaceModule
         services.AddScoped<IListingMatches>(provider => provider.GetRequiredService<FactorAppetiteService>());
         services.AddScoped<IDocumentAccessPolicy, ListingDocumentPolicy>();
         services.AddScoped<MarketplaceJobs>();
+        services.AddScoped<IMarketplaceStats, MarketplaceStats>();
         services.AddIntegrationEventConsumer<FactorAuthorizationRevoked, MarketplaceJobs>(MarketplaceJobs.RevokedConsumerName);
         services.AddIntegrationEventConsumer<FactorAuthorizationExpired, MarketplaceJobs>(MarketplaceJobs.ExpiredConsumerName);
         services.AddIntegrationEventConsumer<ReceivableBecameIneligible, MarketplaceJobs>(MarketplaceJobs.IneligibleConsumerName);

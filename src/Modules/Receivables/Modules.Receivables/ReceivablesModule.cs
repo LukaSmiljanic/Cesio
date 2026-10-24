@@ -22,6 +22,7 @@ public static class ReceivablesModule
         services.AddScoped<VerificationService>();
         services.AddScoped<SefStatusPoller>();
         services.AddScoped<ReceivableJobs>();
+        services.AddScoped<IReceivableStats, ReceivableStats>();
         services.AddJob("receivables-maturity-ineligibility", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<ReceivableJobs>().MarkMaturityIneligibleAsync(ct));
         services.AddJob("receivables-sef-monitoring", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<ReceivableJobs>().MonitorSefAsync(ct));
         services.AddJob("receivables-pending-verification-retry", TimeSpan.FromMinutes(15), (provider, ct) => provider.GetRequiredService<VerificationService>().RetryPendingAsync(ct));
@@ -53,6 +54,7 @@ public static class ReceivablesModule
         group.MapPost("/import-from-sef", (ImportFromSefRequest body, ImportService service, CancellationToken ct) => service.ImportAsync(body, ct))
             .RequireIdempotency();
         group.MapGet("", (ImportService service, CancellationToken ct) => service.ListAsync(ct));
+        group.MapGet("/export", (ImportService service, CancellationToken ct) => service.ExportAsync(ct));
         group.MapGet("/{id:guid}", (Guid id, ImportService service, CancellationToken ct) => service.GetAsync(id, ct));
         group.MapGet("/declaration", (VerificationService service, CancellationToken ct) => service.CurrentDeclarationAsync(ct));
         group.MapPut("/{id:guid}/declaration", (Guid id, DeclarationRequest body, VerificationService service, CancellationToken ct) =>

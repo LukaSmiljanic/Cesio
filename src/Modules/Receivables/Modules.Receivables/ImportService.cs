@@ -12,6 +12,7 @@ using Modules.Documents.Contracts;
 using Modules.Organizations.Contracts;
 using Modules.Receivables.Contracts;
 using Modules.Receivables.Persistence;
+using Shared.Infrastructure;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
 using Shared.Infrastructure.Secrets;
@@ -37,6 +38,7 @@ internal sealed partial class ImportService(
     IDocumentWriter documents,
     UnitOfWork unitOfWork,
     IAuditWriter audit,
+    IAccessLog accessLog,
     IRequestContext request,
     TimeProvider timeProvider,
     ILogger<ImportService> logger)
@@ -90,6 +92,24 @@ internal sealed partial class ImportService(
 
     public async Task<IResult> ListAsync(CancellationToken cancellationToken) =>
         Results.Ok(await ViewsAsync(receivables.Receivables.AsNoTracking().OrderByDescending(r => r.CreatedAt).Take(200), cancellationToken));
+
+    /// <summary>
+    /// <c>GET /receivables/export</c> (task 022): the organization's receivables as CSV (UTF-8 with BOM, ';' separated,
+    /// invariant decimals); text cells from SEF are neutralised against spreadsheet formulas. The download is access-logged.
+    /// </summary>
+    public async Task<IResult> ExportAsync(CancellationToken cancellationToken)
+    {
+        var views = await ViewsAsync(receivables.Receivables.AsNoTracking().OrderByDescending(r => r.CreatedAt).Take(10_000), cancellationToken);
+        var csv = new System.Text.StringBuilder("receivableId;state;invoiceNumber;issueDate;dueDate;maturityDate;debtorPib;debtorName;faceValue;currency;sefStatus\r\n");
+        foreach (var v in views)
+        {
+            csv.Append(System.Globalization.CultureInfo.InvariantCulture,
+                $"{v.Id};{v.State};{CsvCell.Text(v.Invoice.Number)};{v.Invoice.IssueDate:yyyy-MM-dd};{v.Invoice.DueDate:yyyy-MM-dd};{v.MaturityDate:yyyy-MM-dd};{v.Debtor.Pib};{CsvCell.Text(v.Debtor.LegalName)};{v.FaceValue.Amount:0.00};{v.FaceValue.Currency.Code};{CsvCell.Text(v.Invoice.SefStatus)}\r\n");
+        }
+
+        await unitOfWork.ExecuteInTransactionAsync(ct => accessLog.RecordAsync(new AccessLogEntry("Receivables.Exported", "Organization", request.OrganizationId!.Value, request.OrganizationId), ct), cancellationToken);
+        return Results.File(System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", "receivables.csv");
+    }
 
     public async Task<IResult> GetAsync(Guid id, CancellationToken cancellationToken) =>
         (await ViewsAsync(receivables.Receivables.AsNoTracking().Where(r => r.Id == id), cancellationToken)) is [var view]

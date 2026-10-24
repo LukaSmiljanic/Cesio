@@ -30,6 +30,7 @@ public static class DealsModule
         services.AddScoped<DealStepService>();
         services.AddScoped<DealJobs>();
         services.AddScoped<DisputeService>();
+        services.AddScoped<Contracts.IDealStats, DealStats>();
         services.AddIntegrationEventConsumer<Modules.Receivables.Contracts.ReceivableSefStatusChanged, DealJobs>(DealJobs.SefConsumerName);
         services.AddIntegrationEventConsumer<Modules.Compliance.Contracts.FactorAuthorizationRevoked, DealJobs>(DealJobs.RevokedConsumerName);
         services.AddIntegrationEventConsumer<Modules.Compliance.Contracts.FactorAuthorizationExpired, DealJobs>(DealJobs.ExpiredConsumerName);
@@ -63,6 +64,7 @@ public static class DealsModule
             service.AcceptAsync(id, body, IfMatch(http), StepUpAt(http), ct))
             .RequireIdempotency().RequireStepUp();
         api.MapGet("/deals", (DealService service, CancellationToken ct) => service.ListAsync(ct));
+        api.MapGet("/deals/export", (DealService service, CancellationToken ct) => service.ExportAsync(ct));
         api.MapGet("/deals/{id:guid}", (Guid id, DealService service, CancellationToken ct) => service.GetAsync(id, ct));
         api.MapGet("/deals/{id:guid}/timeline", (Guid id, DealService service, CancellationToken ct) => service.TimelineAsync(id, ct));
         api.MapGet("/deals/{id:guid}/kyb-package", (Guid id, DealStepService service, CancellationToken ct) => service.KybPackageAsync(id, ct));

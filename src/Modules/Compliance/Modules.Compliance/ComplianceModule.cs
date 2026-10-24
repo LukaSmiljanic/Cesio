@@ -23,6 +23,7 @@ public static class ComplianceModule
         services.AddScoped<HoldService>();
         services.AddScoped<IHoldQuery>(provider => provider.GetRequiredService<HoldService>());
         services.AddScoped<IHoldWriter>(provider => provider.GetRequiredService<HoldService>());
+        services.AddScoped<IComplianceStats, ComplianceStats>();
         services.AddScoped<ScreeningService>();
         services.AddScoped<IScreeningService>(provider => provider.GetRequiredService<ScreeningService>());
         services.AddScoped<KybService>();

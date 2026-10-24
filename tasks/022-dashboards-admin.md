@@ -18,6 +18,8 @@ Role-specific dashboards for sellers, factors and staff, and a consolidated admi
 # Business Rules
 Metrics are computed from read queries; no denormalised financial totals become a source of truth.
 
+Implementation notes (2026-10-24, simplest options): each module exposes read-only figures through its contracts (`IReceivableStats`, `IMarketplaceStats`, `IDealStats`, `IFeeStats`, `IComplianceStats`, `IOrganizationStats`, `INotificationStats`, `OutboxMonitor`), and the API host composes the dashboards; amounts are summed per currency and never across currencies; "deals needing action" counts the party's open deals before Funded; the indicative cost is discount ÷ face value over its funded deals; a deal is "stuck" after 5 days without a state change; the funnel is per calendar month (UTC); the parameters editor is for PlatformAdmin and Finance, every change is a new version (step-up, audited), and keys starting with `fees.` or ending in `FaceValue` / `Amount` are proposed and approved by a second person (`platform.parameter_proposals`); audit search and export are for ComplianceOfficer and the new Auditor role, both access-logged, without IP or user agent (LQ-38); CSV exports: `GET /deals/export` (the party's view), `GET /receivables/export` (the seller), access-logged and formula-safe. No new indexes and no reporting principal were needed. Not built: Entra ID staff SSO (it needs the OpenID Connect package, a new dependency that waits for the product owner's approval) and masked PII for a Support role (no Support role exists yet).
+
 # Technical Requirements
 Read-only SQL queries (Dapper or EF no-tracking) against the primary DB in the MVP; indexes added as needed (document them in database.md).
 
@@ -34,7 +36,7 @@ Dashboards respect tenant isolation (tests); Support role sees masked PII; audit
 Dashboard numbers vs. seeded scenarios; cross-tenant isolation; parameter change requires step-up and creates a new version.
 
 # Acceptance Criteria
-- [ ] All three dashboards show correct figures for a seeded data set.
+- [x] All three dashboards show correct figures for a seeded data set.
 - [ ] Staff log in via Entra ID in staging.
 
 # Out of Scope

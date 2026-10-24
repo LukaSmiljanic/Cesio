@@ -64,3 +64,9 @@ public sealed record OrganizationNotificationRequested(Guid OrganizationId, stri
     /// <summary>The idempotency id of a deduplicated reminder.</summary>
     public static Guid KeyId(string dedupeKey) => new(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(dedupeKey))[..16]);
 }
+
+/// <summary>Email health for the admin dashboard (task 022).</summary>
+public interface INotificationStats
+{
+    Task<int> FailedEmailsSinceAsync(DateTimeOffset since, CancellationToken cancellationToken);
+}

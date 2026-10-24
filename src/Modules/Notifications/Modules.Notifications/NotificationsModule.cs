@@ -25,6 +25,7 @@ public static class NotificationsModule
         services.AddModuleDbContext<NotificationsDbContext>(NotificationsDbContext.SchemaName, migrationOrder: 9);
         services.AddScoped<NotificationService>();
         services.AddScoped<EmailDispatcher>();
+        services.AddScoped<INotificationStats, NotificationStats>();
         services.AddJob("notifications-email", TimeSpan.FromMinutes(1), (provider, ct) => provider.GetRequiredService<EmailDispatcher>().SendPendingAsync(ct));
         services.AddJob("notifications-digest", TimeSpan.FromHours(1), (provider, ct) => provider.GetRequiredService<EmailDispatcher>().SendDigestsAsync(ct));
         services.AddIntegrationEventConsumer<DealCreated, NotificationConsumers>(NotificationConsumers.Name(DealCreated.EventType));

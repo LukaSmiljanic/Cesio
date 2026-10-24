@@ -137,3 +137,11 @@ public sealed record SefConnectionInvalidated(Guid OrganizationId) : IIntegratio
 {
     public static string EventType => "Organizations.SefConnectionInvalidated";
 }
+
+public sealed record OrganizationQueues(int BankAccountsPending, int PristupnicePending, int MfaResetsOpen, int InvalidSefConnections);
+
+/// <summary>Queue sizes and integration health for the admin dashboard (task 022).</summary>
+public interface IOrganizationStats
+{
+    Task<OrganizationQueues> QueuesAsync(CancellationToken cancellationToken);
+}

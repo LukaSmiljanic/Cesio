@@ -27,6 +27,8 @@ public static class PersistenceSetup
         services.AddModuleDbContext<PlatformDbContext>(PlatformDbContext.SchemaName, migrationOrder: 0);
         services.AddOutbox();
         services.AddScoped<IBusinessParameters, SqlBusinessParameters>();
+        services.AddScoped<IBusinessParameterStore, SqlBusinessParameterStore>();
+        services.AddScoped<Outbox.OutboxMonitor>();
         return services;
     }
 

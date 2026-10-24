@@ -89,3 +89,11 @@ public interface IKybQuery
     /// <summary>The latest decided risk rating and screening outcome, for the KYB package summary (not the raw hits).</summary>
     Task<(string? RiskRating, string ScreeningSummary)> SummaryAsync(Guid organizationId, CancellationToken cancellationToken);
 }
+
+public sealed record ComplianceQueues(int KybInReview, int AuthorizationsPending, int ActiveHolds);
+
+/// <summary>Queue sizes for the admin dashboard (task 022).</summary>
+public interface IComplianceStats
+{
+    Task<ComplianceQueues> QueuesAsync(CancellationToken cancellationToken);
+}

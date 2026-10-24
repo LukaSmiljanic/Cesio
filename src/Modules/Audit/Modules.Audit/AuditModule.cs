@@ -14,6 +14,7 @@ public static class AuditModule
         services.AddScoped<IAuditWriter, SqlAuditWriter>();
         services.AddScoped<IAccessLog, SqlAccessLog>();
         services.AddScoped<AuditChainVerifier>();
+        services.AddScoped<AuditSearch>();
         return services;
     }
 

@@ -23,6 +23,7 @@ public static class FeesModule
         services.AddScoped<FeeScheduleService>();
         services.AddScoped<IFeeScheduleQuery>(provider => provider.GetRequiredService<FeeScheduleService>());
         services.AddScoped<FeeChargeService>();
+        services.AddScoped<IFeeStats, FeeStats>();
         services.AddIntegrationEventConsumer<DealFunded, FeeChargeConsumer>(FeeChargeConsumer.ConsumerName);
         return services;
     }

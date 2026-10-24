@@ -65,3 +65,10 @@ public interface IFeeScheduleQuery
 
     Task<FeeSchedule?> GetAsync(int version, CancellationToken cancellationToken);
 }
+
+/// <summary>Read-only fee figures for the dashboards (task 022).</summary>
+public interface IFeeStats
+{
+    /// <summary>The payer's charges not yet paid (Due or Invoiced, not reversed), net plus VAT, one sum per currency.</summary>
+    Task<IReadOnlyList<Shared.Kernel.Money>> OutstandingAsync(Guid payerOrgId, CancellationToken cancellationToken);
+}

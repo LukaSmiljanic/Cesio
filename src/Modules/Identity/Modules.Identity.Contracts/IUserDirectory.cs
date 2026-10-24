@@ -20,6 +20,9 @@ public static class PlatformRoles
 
     /// <summary>Platform configuration such as the signature trust store (task 016); no compliance decisions (security.md).</summary>
     public const string PlatformAdmin = "PlatformAdmin";
+
+    /// <summary>Reads the audit log (task 022); no other rights.</summary>
+    public const string Auditor = "Auditor";
 }
 
 public interface IPlatformRoles

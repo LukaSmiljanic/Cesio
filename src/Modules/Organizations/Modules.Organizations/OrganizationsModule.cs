@@ -42,6 +42,7 @@ public static class OrganizationsModule
             http.User.FindFirst(CesioClaims.UserId)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromHours(1) })));
         services.AddScoped<BankAccountService>();
+        services.AddScoped<IOrganizationStats, OrganizationStats>();
         services.AddScoped<IBankAccountQuery>(provider => provider.GetRequiredService<BankAccountService>());
         // Payout account additions per user (task 009 security considerations).
         services.Configure<RateLimiterOptions>(options => options.AddPolicy(BankAccountRateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(

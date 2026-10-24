@@ -24,6 +24,8 @@ Threat model: confidential commercial data (who sells to whom, at what price), m
 
 ## 3. Authorization (RBAC + resource-based)
 
+Platform staff roles (claims until the staff realm): ComplianceOfficer, Operations, Finance, PlatformAdmin and Auditor role (task 022: reads and exports the audit log, nothing else).
+
 ### Organization roles (MVP, ADR-020)
 Every member is **Owner**. **Signatory** is a flag on a member. Seller organizations have one account in the MVP.
 

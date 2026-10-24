@@ -320,6 +320,12 @@ CREATE TABLE marketplace.factor_appetite (org_id uniqueidentifier PRIMARY KEY, m
   currency char(3) NOT NULL CHECK (currency IN ('RSD','EUR')), min_tenor_days int, max_tenor_days int, digest_enabled bit NOT NULL, updated_at datetimeoffset(3) NOT NULL, version int NOT NULL,
   CONSTRAINT ck_factor_appetite_range CHECK ((min_amount IS NULL OR min_amount >= 0) AND (max_amount IS NULL OR max_amount >= 0) AND (min_amount IS NULL OR max_amount IS NULL OR min_amount <= max_amount)));
 
+-- platform (task 022): money-related parameter changes wait for a second person
+CREATE TABLE platform.parameter_proposals (id uniqueidentifier PRIMARY KEY, param_key nvarchar(200) NOT NULL, value nvarchar(max) NOT NULL /* JSON */,
+  proposed_by uniqueidentifier NOT NULL, proposed_at datetimeoffset(3) NOT NULL, status varchar(20) NOT NULL /* Pending | Approved */,
+  approved_by uniqueidentifier, approved_at datetimeoffset(3), version int NOT NULL,
+  CONSTRAINT ck_parameter_proposal_four_eyes CHECK (approved_by IS NULL OR approved_by <> proposed_by));
+
 -- platform (task 020)
 CREATE TABLE platform.job_runs (id uniqueidentifier PRIMARY KEY, name varchar(100) NOT NULL, started_at datetimeoffset(3) NOT NULL,
   finished_at datetimeoffset(3), status varchar(20) NOT NULL, items int NOT NULL, error nvarchar(200), triggered_by uniqueidentifier);   -- Succeeded | Failed; the exception type only
