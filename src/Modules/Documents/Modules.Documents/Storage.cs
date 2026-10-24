@@ -13,6 +13,11 @@ public interface IDocumentStore
     Task ReleaseAsync(string key, CancellationToken cancellationToken);
 
     Task<Stream> OpenCleanAsync(string key, CancellationToken cancellationToken);
+
+    /// <summary>The quarantined blobs created before <paramref name="before"/> (task 020 orphan cleanup).</summary>
+    IAsyncEnumerable<string> QuarantinedBeforeAsync(DateTimeOffset before, CancellationToken cancellationToken);
+
+    Task DeleteQuarantinedAsync(string key, CancellationToken cancellationToken);
 }
 
 /// <summary>Scans a file before it can be downloaded (task 006). Returns Clean, Infected or Pending (no verdict yet).</summary>
@@ -49,6 +54,21 @@ internal sealed class BlobDocumentStore(IConfiguration configuration) : IDocumen
 
     public async Task<Stream> OpenCleanAsync(string key, CancellationToken cancellationToken) =>
         await (await ContainerAsync(CleanContainer, cancellationToken)).GetBlobClient(key).OpenReadAsync(cancellationToken: cancellationToken);
+
+    public async IAsyncEnumerable<string> QuarantinedBeforeAsync(DateTimeOffset before, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var container = await ContainerAsync(QuarantineContainer, cancellationToken);
+        await foreach (var blob in container.GetBlobsAsync(cancellationToken: cancellationToken))
+        {
+            if (blob.Properties.CreatedOn is { } created && created < before)
+            {
+                yield return blob.Name;
+            }
+        }
+    }
+
+    public async Task DeleteQuarantinedAsync(string key, CancellationToken cancellationToken) =>
+        await (await ContainerAsync(QuarantineContainer, cancellationToken)).DeleteBlobIfExistsAsync(key, cancellationToken: cancellationToken);
 
     /// <summary>Containers are created private (no public access) on first use.</summary>
     private async Task<BlobContainerClient> ContainerAsync(string name, CancellationToken cancellationToken)

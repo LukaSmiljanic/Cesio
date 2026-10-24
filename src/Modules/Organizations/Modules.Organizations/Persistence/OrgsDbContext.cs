@@ -44,6 +44,10 @@ public sealed class OrgsDbContext : ModuleDbContext
 
     internal DbSet<MfaResetRequest> MfaResetRequests => Set<MfaResetRequest>();
 
+    internal DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+
+    internal DbSet<BankCode> BankCodes => Set<BankCode>();
+
     protected override string Schema => SchemaName;
 
     private Guid? CurrentOrganizationId => _request?.OrganizationId;
@@ -151,6 +155,8 @@ public sealed class OrgsDbContext : ModuleDbContext
             token.Property(t => t.Id).ValueGeneratedNever();
             token.Property(t => t.Purpose).HasMaxLength(30).IsUnicode(false);
             token.Property(t => t.TokenHash).HasMaxLength(64).IsFixedLength().IsUnicode(false);
+            token.Property(t => t.Fingerprint).HasMaxLength(64).IsUnicode(false);
+            token.HasIndex(t => new { t.Purpose, t.SubjectId });
             token.HasIndex(t => t.TokenHash).IsUnique();
             token.HasOne<Organization>().WithMany().HasForeignKey(t => t.OrgId).OnDelete(DeleteBehavior.Restrict);
         });
@@ -164,6 +170,42 @@ public sealed class OrgsDbContext : ModuleDbContext
             reset.Property(r => r.Status).HasMaxLength(20).IsUnicode(false);
             reset.HasOne<Organization>().WithMany().HasForeignKey(r => r.OrgId).OnDelete(DeleteBehavior.Restrict);
             reset.HasIndex(r => new { r.UserId, r.Status });
+        });
+
+        modelBuilder.Entity<BankAccount>(account =>
+        {
+            account.ToTable("bank_accounts", table =>
+            {
+                table.HasCheckConstraint("ck_bank_account_usable_after_verification", "[usable_from] IS NULL OR [verified_at] IS NOT NULL");
+                table.HasCheckConstraint("ck_bank_account_currency", "[currency] IN ('RSD','EUR')");
+            });
+            account.HasKey(a => a.Id);
+            account.Property(a => a.Id).ValueGeneratedNever();
+            account.Property(a => a.AccountNumber).HasMaxLength(18).IsFixedLength().IsUnicode(false);
+            account.Property(a => a.Currency).HasMaxLength(3).IsFixedLength().IsUnicode(false);
+            account.Property(a => a.BankName).HasMaxLength(200);
+            account.Property(a => a.Status).HasMaxLength(30).IsUnicode(false);
+            account.Property(a => a.RejectionReason).HasMaxLength(1000);
+            account.HasOne<Organization>().WithMany().HasForeignKey(a => a.OrgId).OnDelete(DeleteBehavior.Restrict);
+            // A rejected or deactivated record does not block registering the number again (reactivation = a new verification).
+            account.HasIndex(a => new { a.OrgId, a.AccountNumber, a.Currency }).IsUnique().HasFilter("[status] IN ('ConfirmationPending','Pending','Verified')");
+            account.HasIndex(a => a.AccountNumber);
+            account.HasQueryFilter(a => a.OrgId == CurrentOrganizationId);
+        });
+
+        modelBuilder.Entity<BankCode>(code =>
+        {
+            code.ToTable("bank_codes");
+            code.HasKey(c => c.Code);
+            code.Property(c => c.Code).HasMaxLength(3).IsFixedLength().IsUnicode(false);
+            code.Property(c => c.Name).HasMaxLength(200);
+            code.HasData(
+                new BankCode { Code = "160", Name = "Banca Intesa" },
+                new BankCode { Code = "170", Name = "UniCredit Bank Srbija" },
+                new BankCode { Code = "205", Name = "NLB Komercijalna banka" },
+                new BankCode { Code = "265", Name = "Raiffeisen banka" },
+                new BankCode { Code = "325", Name = "OTP banka Srbija" },
+                new BankCode { Code = "340", Name = "Erste Bank" });
         });
     }
 }
@@ -221,6 +263,9 @@ internal sealed class ConfirmationToken
 
     public required string TokenHash { get; init; }
 
+    /// <summary>What the link confirms (the signed document, the SHA-256 of the new SEF key); a later change of the subject voids the link.</summary>
+    public string? Fingerprint { get; init; }
+
     public DateTimeOffset ExpiresAt { get; init; }
 
     public DateTimeOffset? UsedAt { get; set; }
@@ -259,6 +304,59 @@ internal sealed class MfaResetRequest
     public DateTimeOffset CreatedAt { get; init; }
 
     public int Version { get; set; }
+}
+
+/// <summary>
+/// A payout account (task 009, security.md §2, INV-F2): Pending until compliance verifies it against the NBS account
+/// register; usable for funding from <see cref="UsableFrom"/> (verification + cool-down).
+/// </summary>
+internal sealed class BankAccount
+{
+    public Guid Id { get; init; }
+
+    public Guid OrgId { get; init; }
+
+    public required string AccountNumber { get; init; }
+
+    public required string Currency { get; init; }
+
+    public required string BankName { get; init; }
+
+    /// <summary><c>ConfirmationPending</c> (official email), <c>Pending</c>, <c>Verified</c>, <c>Rejected</c> or <c>Deactivated</c>.</summary>
+    public required string Status { get; set; }
+
+    /// <summary>The NBS account register snapshot (mandatory for verification).</summary>
+    public Guid? EvidenceDocumentId { get; set; }
+
+    /// <summary>An optional bank letter.</summary>
+    public Guid? SupplementDocumentId { get; set; }
+
+    /// <summary>The same number is registered by another organization: an alert, and verification is blocked until cleared.</summary>
+    public bool DuplicateFlag { get; set; }
+
+    public Guid? VerifiedBy { get; set; }
+
+    public DateTimeOffset? VerifiedAt { get; set; }
+
+    public DateTimeOffset? UsableFrom { get; set; }
+
+    public DateTimeOffset? DeactivatedAt { get; set; }
+
+    public string? RejectionReason { get; set; }
+
+    public Guid CreatedBy { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public int Version { get; set; }
+}
+
+/// <summary>The bank of a Serbian account number by its 3-digit code (seeded, editable by staff).</summary>
+internal sealed class BankCode
+{
+    public required string Code { get; init; }
+
+    public required string Name { get; set; }
 }
 
 internal sealed class OrgsDbContextDesignTimeFactory : IDesignTimeDbContextFactory<OrgsDbContext>

@@ -1,3 +1,5 @@
+using Shared.Kernel;
+
 namespace Modules.Receivables.Contracts;
 
 /// <summary>Receivable lifecycle (product-spec.md §7.1). Holds are an overlay, not states (ADR-014).</summary>
@@ -92,4 +94,16 @@ public interface IReceivableWriter
     /// </summary>
     /// <exception cref="Shared.Kernel.DomainConflictException"><c>conflict_state</c> when the receivable is not in <paramref name="from"/>.</exception>
     Task MoveForDealAsync(Guid receivableId, Guid dealId, ReceivableState from, ReceivableState to, CancellationToken cancellationToken);
+}
+
+/// <summary>A receivable became Ineligible by a job (task 020): maturity too close, or its SEF invoice was withdrawn before assignment.</summary>
+public sealed record ReceivableBecameIneligible(Guid ReceivableId, Guid SellerOrgId, ReceivableState PreviousState, string Reason) : IIntegrationEvent
+{
+    public static string EventType => "Receivables.ReceivableBecameIneligible";
+}
+
+/// <summary>SEF shows the invoice cancelled, reversed, deleted or rejected (task 020); <paramref name="State"/> is the receivable's state then.</summary>
+public sealed record ReceivableSefStatusChanged(Guid ReceivableId, Guid SellerOrgId, string SefStatus, ReceivableState State) : IIntegrationEvent
+{
+    public static string EventType => "Receivables.ReceivableSefStatusChanged";
 }

@@ -29,6 +29,12 @@ internal sealed partial class DealStepService
             return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", "The deal has ended.");
         }
 
+        // INV-A2: personal data of the beneficial owners only to a factor that is still authorized and not on hold.
+        if (!await authorizations.IsFactorAuthorizedAsync(deal.FactorOrgId, cancellationToken) || await holds.HasActiveHoldAsync(HoldSubject.Deal, deal.Id, cancellationToken))
+        {
+            return Problems.Error(StatusCodes.Status403Forbidden, "factor_not_authorized", "The KYB package is available only to an authorized factor without a hold.");
+        }
+
         if (!await kyb.HasSharingConsentAsync(deal.SellerOrgId, cancellationToken))
         {
             return Problems.Error(StatusCodes.Status409Conflict, "kyb_consent_missing", "The seller has not consented to sharing its KYB package.");

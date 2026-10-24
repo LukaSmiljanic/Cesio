@@ -17,10 +17,23 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
 
     internal DbSet<BusinessParameter> BusinessParameters => Set<BusinessParameter>();
 
+    internal DbSet<JobRun> JobRuns => Set<JobRun>();
+
     protected override string Schema => SchemaName;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<JobRun>(run =>
+        {
+            run.ToTable("job_runs");
+            run.HasKey(r => r.Id);
+            run.Property(r => r.Id).ValueGeneratedNever();
+            run.Property(r => r.Name).HasMaxLength(100).IsUnicode(false);
+            run.Property(r => r.Status).HasMaxLength(20).IsUnicode(false);
+            run.Property(r => r.Error).HasMaxLength(200);
+            run.HasIndex(r => new { r.Name, r.StartedAt });
+        });
+
         modelBuilder.Entity<OutboxMessage>(outbox =>
         {
             outbox.ToTable("outbox");

@@ -7,6 +7,7 @@ using Modules.Compliance.Persistence;
 using Modules.Identity.Contracts;
 using Modules.Organizations.Contracts;
 using Shared.Infrastructure.Idempotency;
+using Shared.Infrastructure.Jobs;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
@@ -21,22 +22,21 @@ public static class ComplianceModule
         services.AddModuleDbContext<ComplianceDbContext>(ComplianceDbContext.SchemaName, migrationOrder: 4);
         services.AddScoped<HoldService>();
         services.AddScoped<IHoldQuery>(provider => provider.GetRequiredService<HoldService>());
+        services.AddScoped<IHoldWriter>(provider => provider.GetRequiredService<HoldService>());
         services.AddScoped<ScreeningService>();
         services.AddScoped<IScreeningService>(provider => provider.GetRequiredService<ScreeningService>());
         services.AddScoped<KybService>();
         services.AddScoped<IKybQuery>(provider => provider.GetRequiredService<KybService>());
         services.AddIntegrationEventConsumer<OrganizationSubmitted, KybService>(KybService.ConsumerName);
         services.AddScoped<FactorAuthorizationService>();
+        services.AddJob("compliance-factor-authorization-expiry", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<FactorAuthorizationService>().ExpireDueAsync(ct));
+        services.AddJob("compliance-factor-authorization-reminders", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<FactorAuthorizationService>().RemindReverificationAsync(ct));
+        services.AddJob("compliance-kyb-periodic-review", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<KybService>().OpenPeriodicReviewsAsync(ct));
+        services.AddJob("compliance-sanctions-rescreen", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<KybService>().RescreenApprovedAsync(ct));
         services.AddScoped<IAuthorizationQuery, FactorAuthorizationQuery>();
         return services;
     }
 
-    /// <summary>The daily jobs of the module; the worker calls it.</summary>
-    public static IServiceCollection AddComplianceJobs(this IServiceCollection services)
-    {
-        services.AddHostedService<FactorAuthorizationExpiryJob>();
-        return services;
-    }
 
     /// <summary>The organization's KYB (task 007) and the compliance staff endpoints: KYB cases, screening lists and holds.</summary>
     public static IEndpointRouteBuilder MapComplianceEndpoints(this IEndpointRouteBuilder app)
@@ -75,7 +75,7 @@ public static class ComplianceModule
         admin.MapPost("/factor-authorizations/{id:guid}/revoke", (Guid id, ReasonRequest body, FactorAuthorizationService service, CancellationToken ct) =>
             service.RevokeAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
         admin.MapGet("/holds", (HoldService service, CancellationToken ct) => service.ListAsync(ct));
-        admin.MapPost("/holds", (PlaceHoldRequest body, HoldService service, CancellationToken ct) => service.PlaceAsync(body, ct)).RequireIdempotency();
+        admin.MapPost("/holds", (PlaceHoldRequest body, HoldService service, CancellationToken ct) => service.PlaceAsync(body, ct)).RequireIdempotency().RequireStepUp();
         admin.MapPost("/holds/{id:guid}/lift", (Guid id, HoldService service, CancellationToken ct) => service.LiftAsync(id, ct)).RequireIdempotency().RequireStepUp();
         return app;
     }

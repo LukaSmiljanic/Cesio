@@ -328,6 +328,7 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
             Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
         }
 
+        await _database.ExecuteAsync(TestIds.VerifiedAccountSql(org));
         var key = $"k-{Guid.NewGuid():N}";
         Sef.AddInvoice(key, FakeSefClient.Ubl(pib, BuyerPib, $"PROOF-{Guid.NewGuid():N}"[..20], 10m, 2m));
         await client.StepUpAsync();

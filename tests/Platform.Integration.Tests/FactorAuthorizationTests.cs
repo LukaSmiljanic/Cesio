@@ -152,13 +152,15 @@ public sealed class FactorAuthorizationTests(SqlServerContainer server, AzuriteC
         await other.StepUpAsync();
         var factor = _owners[org];
         var renewed = (await ApiClient.ReadAsync(await factor.PostAsync($"/api/v1/organizations/{org}/factor-authorizations", new { kind = "Bank", issuingAuthority = "NationalBankOfSerbia" }))).GetProperty("id").GetGuid();
-        var rejectedOne = (await ApiClient.ReadAsync(await factor.PostAsync($"/api/v1/organizations/{org}/factor-authorizations", new { kind = "Bank", issuingAuthority = "NationalBankOfSerbia" }))).GetProperty("id").GetGuid();
+        var pending = await ApiClient.ErrorCodeAsync(await factor.PostAsync($"/api/v1/organizations/{org}/factor-authorizations", new { kind = "Bank", issuingAuthority = "NationalBankOfSerbia" }));
         await ApproveTwiceAsync(officer, other, renewed);
+        var rejectedOne = (await ApiClient.ReadAsync(await factor.PostAsync($"/api/v1/organizations/{org}/factor-authorizations", new { kind = "Bank", issuingAuthority = "NationalBankOfSerbia" }))).GetProperty("id").GetGuid();
 
         var rejected = await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/factor-authorizations/{rejectedOne}/reject", new { reason = "Duplikat" }));
         var mine = (await ApiClient.ReadAsync(await factor.GetAsync($"/api/v1/organizations/{org}/factor-authorizations"))).EnumerateArray().ToList();
 
         Assert.Equal("Expired", await _database.ScalarAsync<string>($"SELECT status FROM compliance.factor_authorizations WHERE id = '{firstId}'"));
+        Assert.Equal("authorization_pending", pending);
         Assert.Equal("Rejected", rejected.GetProperty("status").GetString());
         Assert.Single(mine, a => a.GetProperty("status").GetString() == "Verified");
         Assert.True(await AuthorizedAsync(org));

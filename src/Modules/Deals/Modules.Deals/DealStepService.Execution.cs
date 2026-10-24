@@ -159,7 +159,9 @@ internal sealed partial class DealStepService
                 "Give a positive amount in the deal's currency, the payment reference (at most 100 characters) and a value date at most one business day ahead.");
         }
 
-        var account = (await bankAccounts.UsableForFundingAsync(deal.SellerOrgId, cancellationToken)).SingleOrDefault(a => a.Id == body.PayeeBankAccountId);
+        var account = await bankAccounts.IsUsableForFundingAsync(deal.SellerOrgId, body.PayeeBankAccountId, timeProvider.GetUtcNow(), cancellationToken)
+            ? (await bankAccounts.UsableForFundingAsync(deal.SellerOrgId, cancellationToken)).SingleOrDefault(a => a.Id == body.PayeeBankAccountId)
+            : null;
         if (account is null || account.Currency != amount.Currency)
         {
             return Problems.Error(StatusCodes.Status422UnprocessableEntity, "account_not_usable", "Pay to a Verified payout account of the seller that is out of its cool-down (INV-F2).");

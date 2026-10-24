@@ -24,6 +24,64 @@ namespace Modules.Marketplace.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Modules.Marketplace.Persistence.FactorAppetite", b =>
+                {
+                    b.Property<Guid>("OrgId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<bool>("DigestEnabled")
+                        .HasColumnType("bit")
+                        .HasColumnName("digest_enabled");
+
+                    b.Property<decimal?>("MaxAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)")
+                        .HasColumnName("max_amount");
+
+                    b.Property<int?>("MaxTenorDays")
+                        .HasColumnType("int")
+                        .HasColumnName("max_tenor_days");
+
+                    b.Property<decimal?>("MinAmount")
+                        .HasPrecision(19, 4)
+                        .HasColumnType("decimal(19,4)")
+                        .HasColumnName("min_amount");
+
+                    b.Property<int?>("MinTenorDays")
+                        .HasColumnType("int")
+                        .HasColumnName("min_tenor_days");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("OrgId")
+                        .HasName("pk_factor_appetite");
+
+                    b.ToTable("factor_appetite", "marketplace", t =>
+                        {
+                            t.HasCheckConstraint("ck_factor_appetite_currency", "[currency] IN ('RSD','EUR')");
+
+                            t.HasCheckConstraint("ck_factor_appetite_range", "([min_amount] IS NULL OR [min_amount] >= 0) AND ([max_amount] IS NULL OR [max_amount] >= 0) AND ([min_amount] IS NULL OR [max_amount] IS NULL OR [min_amount] <= [max_amount])");
+                        });
+                });
+
             modelBuilder.Entity("Modules.Marketplace.Persistence.Listing", b =>
                 {
                     b.Property<Guid>("Id")

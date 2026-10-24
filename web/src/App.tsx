@@ -13,6 +13,9 @@ import {
 } from './pages/OrganizationPages'
 import { DealPage, DealsPage } from './pages/DealPages'
 import { AdminFeesPage, FeesPage } from './pages/FeePages'
+import { AdminBankAccountsPage } from './pages/BankAccountPages'
+import { AdminJobsPage } from './pages/JobPages'
+import { NotificationPreferencesPage, NotificationsPage } from './pages/NotificationPages'
 import { AdminFactorAuthorizationsPage } from './pages/FactorAuthorizationPages'
 import { KybCasePage, KybQueuePage } from './pages/KybPages'
 import {
@@ -95,6 +98,14 @@ export function AppRoutes() {
       />
       <Route path="/offers" element={<RequireSession>{() => <MyOffersPage />}</RequireSession>} />
       <Route path="/deals" element={<RequireSession>{() => <DealsPage />}</RequireSession>} />
+      <Route
+        path="/notifications"
+        element={<RequireSession>{() => <NotificationsPage />}</RequireSession>}
+      />
+      <Route
+        path="/notification-preferences"
+        element={<RequireSession>{() => <NotificationPreferencesPage />}</RequireSession>}
+      />
       <Route path="/fees" element={<RequireSession>{() => <FeesPage />}</RequireSession>} />
       <Route
         path="/admin/kyb"
@@ -107,6 +118,14 @@ export function AppRoutes() {
       <Route
         path="/admin/factor-authorizations"
         element={<RequireSession>{() => <AdminFactorAuthorizationsPage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/jobs"
+        element={<RequireSession>{() => <AdminJobsPage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/bank-accounts"
+        element={<RequireSession>{() => <AdminBankAccountsPage />}</RequireSession>}
       />
       <Route
         path="/admin/pristupnice"

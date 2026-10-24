@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Modules.Audit.Contracts;
 using Modules.Organizations.Persistence;
@@ -41,8 +42,17 @@ internal sealed class ConfirmationTokens(
     /// Adds the token and its audit event to the caller's transaction; the caller sends the returned message once it
     /// committed, so a rolled-back change sends nothing.
     /// </summary>
-    public async Task<EmailMessage> IssueAsync(Organization organization, string purpose, Guid subjectId, string what, CancellationToken cancellationToken)
+    public async Task<EmailMessage> IssueAsync(Organization organization, string purpose, Guid subjectId, string what, CancellationToken cancellationToken, string? fingerprint = null)
     {
+        // A new request voids the earlier links for the same subject: only the latest one can be confirmed.
+        var now = timeProvider.GetUtcNow();
+        foreach (var earlier in await orgs.ConfirmationTokens.IgnoreQueryFilters()
+                     .Where(t => t.Purpose == purpose && t.SubjectId == subjectId && t.UsedAt == null && t.ExpiresAt > now)
+                     .ToListAsync(cancellationToken))
+        {
+            earlier.UsedAt = now;
+        }
+
         var address = organization.OfficialEmail ?? throw new InvalidOperationException("The organization has no official email.");
         var raw = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         var hours = await parameters.GetAsync(TokenHoursParameter, 72, cancellationToken);
@@ -53,7 +63,8 @@ internal sealed class ConfirmationTokens(
             Purpose = purpose,
             SubjectId = subjectId,
             TokenHash = Hash(raw),
-            ExpiresAt = timeProvider.GetUtcNow().AddHours(hours),
+            Fingerprint = fingerprint,
+            ExpiresAt = now.AddHours(hours),
         };
         orgs.ConfirmationTokens.Add(token);
         await orgs.SaveChangesAsync(cancellationToken);

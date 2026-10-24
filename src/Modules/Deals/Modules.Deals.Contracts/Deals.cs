@@ -77,3 +77,10 @@ public sealed record DealTerminated(Guid DealId, Guid ReceivableId, string Reaso
 {
     public static string EventType => "Deals.DealTerminated";
 }
+
+/// <summary>Read access to deals for other modules (task 019).</summary>
+public interface IDealQuery
+{
+    /// <summary>The factors that have a deal with the seller that is not yet closed, cancelled or terminated.</summary>
+    Task<IReadOnlyList<Guid>> FactorsWithOpenDealsAsync(Guid sellerOrgId, CancellationToken cancellationToken);
+}

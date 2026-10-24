@@ -23,10 +23,26 @@ public sealed class MarketplaceDbContext(DbContextOptions<MarketplaceDbContext> 
 
     internal DbSet<Offer> Offers => Set<Offer>();
 
+    internal DbSet<FactorAppetite> FactorAppetites => Set<FactorAppetite>();
+
     protected override string Schema => SchemaName;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<FactorAppetite>(appetite =>
+        {
+            appetite.ToTable("factor_appetite", table =>
+            {
+                table.HasCheckConstraint("ck_factor_appetite_currency", "[currency] IN ('RSD','EUR')");
+                table.HasCheckConstraint("ck_factor_appetite_range",
+                    "([min_amount] IS NULL OR [min_amount] >= 0) AND ([max_amount] IS NULL OR [max_amount] >= 0) AND ([min_amount] IS NULL OR [max_amount] IS NULL OR [min_amount] <= [max_amount])");
+            });
+            appetite.HasKey(a => a.OrgId);
+            appetite.Property(a => a.MinAmount).HasPrecision(19, 4);
+            appetite.Property(a => a.MaxAmount).HasPrecision(19, 4);
+            appetite.Property(a => a.Currency).HasMaxLength(3).IsFixedLength().IsUnicode(false);
+        });
+
         modelBuilder.Entity<Listing>(listing =>
         {
             listing.ToTable("listings", table =>
@@ -191,4 +207,26 @@ internal sealed class MarketplaceDbContextDesignTimeFactory : IDesignTimeDbConte
 {
     public MarketplaceDbContext CreateDbContext(string[] args) =>
         PersistenceSetup.CreateForDesignTime<MarketplaceDbContext>(MarketplaceDbContext.SchemaName);
+}
+
+/// <summary>A factor's appetite filters for the new-listing digest (task 019); amounts in <see cref="Currency"/> (RSD).</summary>
+internal sealed class FactorAppetite
+{
+    public Guid OrgId { get; init; }
+
+    public decimal? MinAmount { get; set; }
+
+    public decimal? MaxAmount { get; set; }
+
+    public string Currency { get; init; } = Shared.Kernel.Currency.Rsd.Code;
+
+    public int? MinTenorDays { get; set; }
+
+    public int? MaxTenorDays { get; set; }
+
+    public bool DigestEnabled { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+
+    public int Version { get; set; }
 }

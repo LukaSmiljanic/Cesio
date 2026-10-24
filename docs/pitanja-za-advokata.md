@@ -309,7 +309,7 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 **Pitanje:** Koje su obaveze obaveštavanja o povredi podataka (Povereniku i licima, rokovi)? Da li smo operator IKT sistema od posebnog značaja po Zakonu o informacionoj bezbednosti (npr. kao deo infrastrukture finansijskog tržišta), sa obavezom akta o bezbednosti i prijave incidenata?
 
 ### 57. Kolačići, analitika i email poruke (LQ-66 · P1)
-**Šta želimo:** analitiku korišćenja aplikacije, povremena obaveštenja korisnicima o novim funkcijama i marketinške poruke.
+**Šta želimo:** analitiku korišćenja aplikacije, povremena obaveštenja korisnicima o novim funkcijama i marketinške poruke. Faktori mogu da uključe i satni pregled novih oglasa po svojim filterima (opciono obaveštenje koje mogu da isključe).
 **Pitanje:** Šta od toga zahteva pristanak i u kom obliku (Zakon o elektronskim komunikacijama, ZZPL)? Smemo li slati obaveštenja o proizvodu i marketinške poruke na lične poslovne adrese korisnika bez prethodnog pristanka?
 
 ### 58. Smemo li koristiti zbirne podatke o poslovima? (LQ-67 · P2)
@@ -317,7 +317,7 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 **Pitanje:** Smemo li koristiti zbirne ili anonimizovane podatke u te svrhe? Šta moraju da sadrže Uslovi korišćenja, i kako se to odnosi na poslovnu tajnu (pitanje 31) i zaštitu konkurencije (pitanje 35)?
 
 ### 59. Koliko dugo moramo da čuvamo podatke? (LQ-47 · P0)
-**Šta želimo:** da čuvamo sve što zakon traži i ne duže od toga.
+**Šta želimo:** da čuvamo sve što zakon traži i ne duže od toga, uključujući i zapise o poslatim obaveštenjima (adresa primaoca, vrsta događaja, referenca posla, status slanja).
 **Pitanje:** Koji su rokovi čuvanja za: poslove i ugovore, podatke o proveri firmi, audit zapise, fakture i naše fakture za naknade (po Zakonu o računovodstvu, Zakonu o elektronskom fakturisanju i AML propisima)?
 
 ### 60. Šta ako korisnik traži brisanje podataka? (LQ-48 · P1)
@@ -381,6 +381,18 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 ### 73. Snimak registra kao dokaz i period ponovne provere faktora (LQ-79 · P1)
 **Šta želimo:** službenik proverava faktora u registru APR (društva za faktoring) ili na spisku NBS (banke), čuva snimak tog izvora i rešenje, a dva službenika odobravaju; provera se ponavlja na 90 dana za društva za faktoring i na 30 dana za banke.
 **Pitanje:** Smemo li da čuvamo te snimke i rešenja kao dokaz i koliko dugo? Odgovaramo li ako se faktoru saglasnost ukine između dve provere? Koji period ponovne provere je dovoljan?
+
+### 74. Čuvanje dokaza o računu za isplatu (LQ-80 · P1)
+**Šta želimo:** račun za isplatu proverava službenik u registru računa NBS i čuva taj izvod (ili potvrdu banke) kao dokaz da račun pripada firmi.
+**Pitanje:** Koliko dugo čuvamo te dokumente i zapis o deaktiviranom računu, i na kom pravnom osnovu?
+
+### 75. Otkrivanje broja računa faktoru (LQ-81 · P1)
+**Šta želimo:** faktor vidi pun broj računa prodavca tek kada treba da isplati posao (pristup se evidentira); svi ostali vide maskiran broj.
+**Pitanje:** Koji je pravni osnov za to i treba li prodavca obavestiti u Uslovima korišćenja?
+
+### 76. Isti račun kod dve firme (LQ-82 · P1)
+**Šta želimo:** kada isti broj računa prijave dve firme, automatski blokiramo proveru i upozoravamo službenika, bez objašnjenja firmama.
+**Pitanje:** Smemo li tako da postupimo, moramo li sumnju nekome da prijavimo i šta smemo da kažemo firmama?
 
 ---
 

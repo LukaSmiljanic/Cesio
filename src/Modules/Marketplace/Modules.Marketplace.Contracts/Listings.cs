@@ -99,3 +99,10 @@ public sealed record OfferSuperseded(Guid OfferId, Guid ListingId, Guid FactorOr
 {
     public static string EventType => "Marketplace.OfferSuperseded";
 }
+
+/// <summary>Which factors a new listing should be announced to (task 019 digest).</summary>
+public interface IListingMatches
+{
+    /// <summary>The factor organizations that set an appetite, may see the listing, and whose amount and tenor ranges it fits.</summary>
+    Task<IReadOnlyList<Guid>> FactorsMatchingAsync(Guid listingId, CancellationToken cancellationToken);
+}

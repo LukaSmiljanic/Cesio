@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Modules.Audit.Contracts;
 using Modules.Compliance.Contracts;
 using Modules.Documents.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Organizations.Contracts;
 using Modules.Organizations.Persistence;
 using Shared.Infrastructure;
@@ -54,6 +55,7 @@ internal sealed class PristupnicaService(
     IAccessLog accessLog,
     IRequestContext request,
     IDocumentWriter documentWriter,
+    Shared.Infrastructure.Outbox.IOutbox outbox,
     IDocumentQuery documents,
     IKybQuery kyb,
     IPristupnicaRenderer renderer,
@@ -154,7 +156,7 @@ internal sealed class PristupnicaService(
                     PreviousState: previous, NewState: PristupnicaStatus.Uploaded, Reason: method, EvidenceDocumentIds: [document.Id]), ct);
                 if (method == PristupnicaMethod.Scanned && organization.OfficialEmail is not null)
                 {
-                    confirmation = await confirmations.IssueAsync(organization, ConfirmationPurposes.Pristupnica, pristupnica.Id, "potvrda potpisane pristupnice", ct);
+                    confirmation = await confirmations.IssueAsync(organization, ConfirmationPurposes.Pristupnica, pristupnica.Id, "potvrda potpisane pristupnice", ct, pristupnica.SignedDocumentId?.ToString("N"));
                 }
             },
             cancellationToken);
@@ -167,9 +169,11 @@ internal sealed class PristupnicaService(
     }
 
     /// <summary>The official email confirmed the scanned copy (a <c>Pristupnica</c> confirmation token); runs in the caller's transaction.</summary>
-    public async Task<bool> ConfirmByEmailAsync(Guid pristupnicaId, CancellationToken cancellationToken)
+    public async Task<bool> ConfirmByEmailAsync(Guid pristupnicaId, string? fingerprint, CancellationToken cancellationToken)
     {
-        if (await orgs.Pristupnice.SingleOrDefaultAsync(p => p.Id == pristupnicaId, cancellationToken) is not { Status: PristupnicaStatus.Uploaded, Method: PristupnicaMethod.Scanned } pristupnica)
+        // The link confirms the document it was sent for; a re-upload after it was sent voids it.
+        if (await orgs.Pristupnice.SingleOrDefaultAsync(p => p.Id == pristupnicaId, cancellationToken) is not { Status: PristupnicaStatus.Uploaded, Method: PristupnicaMethod.Scanned } pristupnica
+            || pristupnica.SignedDocumentId?.ToString("N") != fingerprint)
         {
             return false;
         }
@@ -339,9 +343,10 @@ internal sealed class PristupnicaService(
             return NotFound();
         }
 
-        if (body.SourceDocumentId is { } sourceId && (await documents.GetAsync(sourceId, cancellationToken))?.OwnerOrgId != organization.Id)
+        // The official email is the root of trust for confirmations: it is recorded only with its APR source document.
+        if (body.SourceDocumentId is not { } sourceId || (await documents.GetAsync(sourceId, cancellationToken))?.OwnerOrgId != organization.Id)
         {
-            return Problems.Validation("sourceDocumentId", "wrong_document", "The source document must belong to this organization.");
+            return Problems.Validation("sourceDocumentId", "wrong_document", "Attach the APR excerpt of this organization as the source document.");
         }
 
         var previous = organization.OfficialEmail;
@@ -352,6 +357,7 @@ internal sealed class PristupnicaService(
         var waiting = await orgs.Pristupnice.Where(p => p.OrgId == organization.Id && p.Status == PristupnicaStatus.Uploaded && p.Method == PristupnicaMethod.Scanned)
             .OrderByDescending(p => p.CreatedAt).FirstOrDefaultAsync(cancellationToken);
         EmailMessage? confirmation = null;
+        EmailMessage? oldAddressNotice = null;
         await unitOfWork.ExecuteInTransactionAsync(
             async ct =>
             {
@@ -359,9 +365,23 @@ internal sealed class PristupnicaService(
                 await audit.WriteAsync(new AuditEntry("Organization.OfficialEmailRecorded", "Organization", organization.Id, organization.Id,
                     Changes: new Dictionary<string, string?> { ["officialEmail"] = $"{Masking.Email(previous)} → {Masking.Email(address)}" },
                     EvidenceDocumentIds: body.SourceDocumentId is { } source ? [source] : null), ct);
+                if (previous is not null && !string.Equals(previous, address, StringComparison.OrdinalIgnoreCase))
+                {
+                    // A changed address voids the links sent to the old one; the old address and the Owners are told.
+                    foreach (var open in await orgs.ConfirmationTokens.Where(t => t.OrgId == organization.Id && t.UsedAt == null).ToListAsync(ct))
+                    {
+                        open.UsedAt = timeProvider.GetUtcNow();
+                    }
+
+                    await orgs.SaveChangesAsync(ct);
+                    await outbox.AddAsync(new OrganizationNotificationRequested(organization.Id, NotificationTypes.Security, $"/organizations/{organization.Id}", null), ct);
+                    oldAddressNotice = new EmailMessage(previous, "Cesio: službeni email firme je promenjen",
+                        "Službeni email vaše firme na platformi Cesio je promenjen na osnovu izvoda iz APR-a. Ako to nije tačno, odmah se javite podršci Cesio.");
+                }
+
                 if (waiting is not null)
                 {
-                    confirmation = await confirmations.IssueAsync(organization, ConfirmationPurposes.Pristupnica, waiting.Id, "potvrda potpisane pristupnice", ct);
+                    confirmation = await confirmations.IssueAsync(organization, ConfirmationPurposes.Pristupnica, waiting.Id, "potvrda potpisane pristupnice", ct, waiting.SignedDocumentId?.ToString("N"));
                 }
             },
             cancellationToken);
@@ -370,7 +390,41 @@ internal sealed class PristupnicaService(
             await confirmations.SendAsync(confirmation, cancellationToken);
         }
 
+        if (oldAddressNotice is not null)
+        {
+            await confirmations.SendAsync(oldAddressNotice, cancellationToken);
+        }
+
         return Results.Ok(new { id = organization.Id, officialEmailRecorded = true, confirmationSent = confirmation is not null });
+    }
+
+    /// <summary>
+    /// <c>POST /admin/organizations/{id}/evidence</c>: an officer stores an APR excerpt or another source document as the
+    /// organization's KYB evidence (e.g. the source of the official email).
+    /// </summary>
+    public async Task<IResult> UploadEvidenceAsync(Guid organizationId, IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (!await orgs.Organizations.IgnoreQueryFilters().AnyAsync(o => o.Id == organizationId, cancellationToken))
+        {
+            return NotFound();
+        }
+
+        if (file is null || file.Length is 0 or > 10 * 1024 * 1024)
+        {
+            return Problems.Validation("file", "file_required", "Upload the document (PDF or image, at most 10 MB).");
+        }
+
+        byte[] content;
+        await using (var stream = file.OpenReadStream())
+        using (var buffer = new MemoryStream())
+        {
+            await stream.CopyToAsync(buffer, cancellationToken);
+            content = buffer.ToArray();
+        }
+
+        return await documentWriter.StoreAsync(organizationId, DocumentPurpose.KybEvidence, Path.GetFileName(file.FileName), content, cancellationToken) is { } stored
+            ? Results.Created($"/api/v1/documents/{stored.Id}", new { documentId = stored.Id })
+            : Problems.Error(StatusCodes.Status422UnprocessableEntity, "unsupported_file_type", "The document must be a PDF or an image.");
     }
 
     private Task<Pristupnica?> LatestAsync(Guid organizationId, CancellationToken cancellationToken) =>

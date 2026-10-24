@@ -115,6 +115,58 @@ namespace Shared.Infrastructure.Persistence.Platform.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Shared.Infrastructure.Persistence.Platform.JobRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Error")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("error");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("finished_at");
+
+                    b.Property<int>("Items")
+                        .HasColumnType("int")
+                        .HasColumnName("items");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("TriggeredBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("triggered_by");
+
+                    b.HasKey("Id")
+                        .HasName("pk_job_runs");
+
+                    b.HasIndex("Name", "StartedAt")
+                        .HasDatabaseName("ix_job_runs_name_started_at");
+
+                    b.ToTable("job_runs", "platform");
+                });
+
             modelBuilder.Entity("Shared.Infrastructure.Persistence.Platform.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")

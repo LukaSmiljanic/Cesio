@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Modules.Audit.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Fees.Contracts;
 using Modules.Marketplace.Contracts;
 using Modules.Marketplace.Persistence;
@@ -154,7 +155,9 @@ internal sealed class OfferService(
             return NotFound();
         }
 
-        return await TransitionAsync(offer, OfferState.Withdrawn, "Offer.Withdrawn", reason: null, cancellationToken);
+        var sellerOrgId = await marketplace.Listings.AsNoTracking().Where(l => l.Id == offer.ListingId).Select(l => l.SellerOrgId).SingleAsync(cancellationToken);
+        return await TransitionAsync(offer, OfferState.Withdrawn, "Offer.Withdrawn", reason: null, cancellationToken,
+            ct => outbox.AddAsync(new OrganizationNotificationRequested(sellerOrgId, NotificationTypes.OfferWithdrawn, $"/listings/{offer.ListingId}/offers", null), ct));
     }
 
     public async Task<IResult> RejectAsync(Guid id, RejectOfferRequest body, CancellationToken cancellationToken)
@@ -255,7 +258,7 @@ internal sealed class OfferService(
             : null;
     }
 
-    private async Task<IResult> TransitionAsync(Offer offer, OfferState to, string action, string? reason, CancellationToken cancellationToken)
+    private async Task<IResult> TransitionAsync(Offer offer, OfferState to, string action, string? reason, CancellationToken cancellationToken, Func<CancellationToken, Task>? more = null)
     {
         if (offer.State != OfferState.Active)
         {
@@ -271,6 +274,10 @@ internal sealed class OfferService(
                     await marketplace.SaveChangesAsync(ct);
                     await audit.WriteAsync(new AuditEntry(action, "Offer", offer.Id, OrganizationId,
                         PreviousState: nameof(OfferState.Active), NewState: to.ToString(), Reason: reason, Related: [new AuditReference("Listing", offer.ListingId)]), ct);
+                    if (more is not null)
+                    {
+                        await more(ct);
+                    }
                 },
                 cancellationToken);
         }

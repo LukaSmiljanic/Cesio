@@ -23,6 +23,9 @@ public sealed class BusinessDayCalendar
         return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(timeProvider.GetUtcNow(), Belgrade).DateTime);
     }
 
+    /// <summary>The Belgrade business date of an instant.</summary>
+    public static DateOnly DateOf(DateTimeOffset instant) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Belgrade).DateTime);
+
     public bool IsBusinessDay(DateOnly date) =>
         date.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && !_nonWorkingDays.Contains(date);
 

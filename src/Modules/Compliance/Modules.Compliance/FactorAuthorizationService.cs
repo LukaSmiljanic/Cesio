@@ -5,6 +5,7 @@ using Modules.Audit.Contracts;
 using Modules.Compliance.Contracts;
 using Modules.Compliance.Persistence;
 using Modules.Documents.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Organizations.Contracts;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
@@ -118,6 +119,12 @@ internal sealed class FactorAuthorizationService(
             return Problems.Error(StatusCodes.Status422UnprocessableEntity, "wrong_document", "The approval document must be a clean document of your organization.");
         }
 
+        if (await compliance.FactorAuthorizations.AnyAsync(a => a.OrgId == orgId
+                && (a.Status == FactorAuthorizationStatus.Submitted || a.Status == FactorAuthorizationStatus.PendingSecondApproval), cancellationToken))
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "authorization_pending", "An authorization of your organization is already waiting for compliance.");
+        }
+
         var authorization = new FactorAuthorization
         {
             Id = SequentialGuid.NewGuid(),
@@ -210,7 +217,7 @@ internal sealed class FactorAuthorizationService(
                     "Give the verification method (OfficialRegisterLookup or AuthorityConfirmationLetter), the source snapshot and notes of at most 1000 characters.");
             }
 
-            if ((await documents.GetAsync(snapshotId, cancellationToken))?.OwnerOrgId != authorization.OrgId)
+            if (await documents.GetAsync(snapshotId, cancellationToken) is not { ScanStatus: ScanStatus.Clean, Purpose: DocumentPurpose.KybEvidence } snapshot || snapshot.OwnerOrgId != authorization.OrgId)
             {
                 return Problems.Error(StatusCodes.Status422UnprocessableEntity, "wrong_document", "Upload the snapshot for this authorization first.");
             }
@@ -250,7 +257,8 @@ internal sealed class FactorAuthorizationService(
             old.DecisionReason = "superseded";
         }
 
-        // The old one leaves Verified in a first save, so the new one never meets it in ux_factor_auth_active.
+        // Two saves in order: the old authorization leaves Verified first (`more` runs before the main save with the
+        // new one still in its previous status), so the two never meet in ux_factor_auth_active.
         authorization.Status = previous;
         return await SaveAsync(authorization, "FactorAuthorization.Verified", previous, null, async ct =>
         {
@@ -273,6 +281,43 @@ internal sealed class FactorAuthorizationService(
     /// <summary><c>POST /admin/factor-authorizations/{id}/revoke</c> (step-up): immediate; INV-A2 consequences follow the event.</summary>
     public async Task<IResult> RevokeAsync(Guid id, ReasonRequest body, CancellationToken cancellationToken) =>
         await DecideAsync(id, body, [FactorAuthorizationStatus.Verified], FactorAuthorizationStatus.Revoked, cancellationToken);
+
+    /// <summary>
+    /// Daily (task 020): reminders to the factor 14 and 7 days (factoring company) or 7 and 2 days (bank) before
+    /// <c>reverifyBy</c> (product-spec §8), and a re-check alert to compliance 14 / 7 days before (compliance.md §4).
+    /// </summary>
+    public async Task<int> RemindReverificationAsync(CancellationToken cancellationToken)
+    {
+        var today = BusinessDayCalendar.Today(timeProvider);
+        var verified = await compliance.FactorAuthorizations.AsNoTracking()
+            .Where(a => a.Status == FactorAuthorizationStatus.Verified && a.ReverifyBy != null && a.ReverifyBy <= today.AddDays(14))
+            .ToListAsync(cancellationToken);
+        var count = 0;
+        foreach (var authorization in verified)
+        {
+            var left = authorization.ReverifyBy!.Value.DayNumber - today.DayNumber;
+            int[] thresholds = authorization.Kind == "Bank" ? [7, 2] : [14, 7];
+            await unitOfWork.ExecuteInTransactionAsync(
+                async ct =>
+                {
+                    // The smallest threshold reached: a first run five days before sends one reminder, not two.
+                    if (thresholds.Where(t => left <= t).DefaultIfEmpty().Min() is var threshold and > 0)
+                    {
+                        await outbox.AddAsync(new OrganizationNotificationRequested(authorization.OrgId, NotificationTypes.Reminder, $"/organizations/{authorization.OrgId}", null,
+                            $"authorization-reverify:{authorization.Id}:{threshold}"), ct);
+                    }
+
+                    if (left == thresholds[0])
+                    {
+                        await audit.WriteAsync(new AuditEntry("Compliance.Alert", "FactorAuthorization", authorization.Id, authorization.OrgId, Reason: "reverification_due"), ct);
+                    }
+                },
+                cancellationToken);
+            count++;
+        }
+
+        return count;
+    }
 
     /// <summary>The daily expiry (compliance.md §4 item 4): Verified authorizations past <c>reverifyBy</c> become Expired.</summary>
     /// <returns>How many expired.</returns>

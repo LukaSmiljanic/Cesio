@@ -4,6 +4,7 @@ import { authApi } from '../api/auth'
 import { organizationsApi } from '../api/organizations'
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage } from '../components/ui'
+import { NotificationBell } from './NotificationPages'
 import { ProvisioningView } from '../components/ProvisioningView'
 import { OrganizationSwitcher } from './OrganizationPages'
 
@@ -69,7 +70,9 @@ export function HomePage({ email }: { email: string }) {
 
   return (
     <Card title="Cesio">
-      <p className="mb-4 text-sm">Prijavljeni ste kao {email}.</p>
+      <p className="mb-4 text-sm">
+        Prijavljeni ste kao {email}. <NotificationBell />
+      </p>
       <MyOrganizations />
       <div className="flex flex-wrap gap-2">
         <Link

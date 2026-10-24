@@ -27,4 +27,9 @@
     <ProjectReference Include="../../src/Integrations/Integrations.Sef/Integrations.Sef.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Each test class creates a database; more than four at once overloads the SQL Server container (migration timeouts). -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

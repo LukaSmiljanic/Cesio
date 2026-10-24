@@ -51,10 +51,22 @@ CREATE TABLE orgs.bank_accounts (
   org_id uniqueidentifier NOT NULL REFERENCES orgs.organizations(id),
   account_number char(18) NOT NULL,
   currency char(3) NOT NULL,
-  verification_status nvarchar(200) NOT NULL,
-  evidence_document_id uniqueidentifier,
-  UNIQUE (org_id, account_number, currency)
+  bank_name nvarchar(200) NOT NULL,                 -- from orgs.bank_codes when added
+  status varchar(30) NOT NULL,                      -- ConfirmationPending | Pending | Verified | Rejected | Deactivated (task 009)
+  evidence_document_id uniqueidentifier,            -- NBS account register snapshot (mandatory to verify)
+  supplement_document_id uniqueidentifier,          -- optional bank letter
+  duplicate_flag bit NOT NULL,                      -- set on a new record whose number another organization has (alert, its verification blocked; staff only)
+  verified_by uniqueidentifier, verified_at datetimeoffset(3),
+  usable_from datetimeoffset(3),                    -- verified_at + bankAccounts.coolDownHours (72)
+  deactivated_at datetimeoffset(3), rejection_reason nvarchar(1000),
+  created_by uniqueidentifier NOT NULL, created_at datetimeoffset(3) NOT NULL, version int NOT NULL DEFAULT 0,
+  CONSTRAINT ck_bank_account_currency CHECK (currency IN ('RSD','EUR')),   -- the schema allows EUR; the MVP API accepts RSD only
+  CONSTRAINT ck_bank_account_usable_after_verification CHECK (usable_from IS NULL OR verified_at IS NOT NULL)
 );
+CREATE UNIQUE INDEX ix_bank_accounts_org_id_account_number_currency ON orgs.bank_accounts(org_id, account_number, currency)
+  WHERE status IN ('ConfirmationPending','Pending','Verified');   -- a rejected or deactivated number can be registered again (reactivation = new verification)
+CREATE INDEX ix_bank_accounts_account_number ON orgs.bank_accounts(account_number);
+CREATE TABLE orgs.bank_codes (code char(3) PRIMARY KEY, name nvarchar(200) NOT NULL);   -- seeded, editable by staff
 
 CREATE TABLE orgs.pristupnice (
   id uniqueidentifier PRIMARY KEY, org_id uniqueidentifier NOT NULL REFERENCES orgs.organizations(id),
@@ -69,6 +81,7 @@ CREATE TABLE orgs.confirmation_tokens (
   id uniqueidentifier PRIMARY KEY, org_id uniqueidentifier NOT NULL REFERENCES orgs.organizations(id),
   purpose nvarchar(200) NOT NULL,                           -- Pristupnica | PayoutAccountChange | SefKeyChange | MfaReset
   subject_id uniqueidentifier, token_hash char(64) NOT NULL UNIQUE,
+  fingerprint varchar(64),                                  -- what the link confirms (signed document, SHA-256 of the new SEF key)
   expires_at datetimeoffset(3) NOT NULL, used_at datetimeoffset(3), version int NOT NULL DEFAULT 0
 );
 -- In orgs, not auth: the approval needs the organization (official email, other Owners); Identity only executes the reset (task 007a).
@@ -276,10 +289,33 @@ CREATE UNIQUE INDEX ux_fee_charge_reversal_once ON fees.fee_charges(reverses_id)
 CREATE UNIQUE INDEX ux_fee_charge_once ON fees.fee_charges(deal_id, payer_org_id) WHERE kind = 'Charge';
 -- task 018: the deal snapshot (deal_reference, invoice_number, face_value, funded_at) serves the statements; a reversal copies the charge's amounts
 -- and snapshot, has no due_at of its own, and is approved by a second Finance user (approved_by).
+-- approved_at is set once (trigger); Effective reversals from before the column got approved_at = created_at.
 -- Status: a charge Due → Invoiced → Paid; a reversal PendingApproval → Effective; one reversal per charge. Amounts are never negative: a reversal
 -- states the amount it takes back. Triggers allow only status, external_invoice_ref, approved_by, approved_at and version to change, and no deletes.
 CREATE TABLE fees.fee_payments (id uniqueidentifier PRIMARY KEY, charge_id uniqueidentifier NOT NULL UNIQUE REFERENCES fees.fee_charges(id),
   paid_on date NOT NULL, reference nvarchar(200) NOT NULL, recorded_by uniqueidentifier NOT NULL, recorded_at datetimeoffset(3) NOT NULL); -- append-only
+
+-- notifications (task 019)
+CREATE TABLE notifications.notifications (
+  id uniqueidentifier PRIMARY KEY, event_id uniqueidentifier NOT NULL,
+  recipient_key nvarchar(300) NOT NULL,             -- the user id, or 'email:' + the official email (security events)
+  recipient_user_id uniqueidentifier, org_id uniqueidentifier NOT NULL,
+  type varchar(40) NOT NULL, link nvarchar(400) NOT NULL, reference nvarchar(100),   -- an app path and a deal reference, never amounts or names
+  email nvarchar(256), email_status varchar(20) NOT NULL,   -- Pending | Digest | Sent | Failed | Skipped
+  email_attempts int NOT NULL, next_email_at datetimeoffset(3), last_error nvarchar(400),
+  created_at datetimeoffset(3) NOT NULL, read_at datetimeoffset(3), version int NOT NULL,
+  UNIQUE (event_id, recipient_key, type)            -- idempotent consumers
+);
+CREATE TABLE notifications.preferences (user_id uniqueidentifier, type varchar(40), channel varchar(10), enabled bit NOT NULL,
+  PRIMARY KEY (user_id, type, channel));            -- opt-outs of optional types only
+CREATE TABLE notifications.user_settings (user_id uniqueidentifier PRIMARY KEY, language char(2) NOT NULL, version int NOT NULL);
+CREATE TABLE marketplace.factor_appetite (org_id uniqueidentifier PRIMARY KEY, min_amount decimal(19,4), max_amount decimal(19,4),
+  currency char(3) NOT NULL CHECK (currency IN ('RSD','EUR')), min_tenor_days int, max_tenor_days int, digest_enabled bit NOT NULL, updated_at datetimeoffset(3) NOT NULL, version int NOT NULL,
+  CONSTRAINT ck_factor_appetite_range CHECK ((min_amount IS NULL OR min_amount >= 0) AND (max_amount IS NULL OR max_amount >= 0) AND (min_amount IS NULL OR max_amount IS NULL OR min_amount <= max_amount)));
+
+-- platform (task 020)
+CREATE TABLE platform.job_runs (id uniqueidentifier PRIMARY KEY, name varchar(100) NOT NULL, started_at datetimeoffset(3) NOT NULL,
+  finished_at datetimeoffset(3), status varchar(20) NOT NULL, items int NOT NULL, error nvarchar(200), triggered_by uniqueidentifier);   -- Succeeded | Failed; the exception type only
 
 -- platform
 CREATE TABLE platform.idempotency_keys (

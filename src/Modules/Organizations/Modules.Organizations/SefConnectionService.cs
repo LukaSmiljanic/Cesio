@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Modules.Audit.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Identity.Contracts;
 using Modules.Organizations.Contracts;
 using Modules.Organizations.Persistence;
@@ -36,6 +37,8 @@ internal sealed class SefConnectionService(
     private static readonly int ProofWindowDays = 90;
 
     private static readonly TimeSpan ClaimLockTimeout = TimeSpan.FromSeconds(30);
+
+    private static string KeyFingerprint(string apiKey) => ConfirmationTokens.Hash(apiKey);
 
     public static string SecretName(Guid organizationId) => $"sef-key-{organizationId:N}";
 
@@ -167,9 +170,10 @@ internal sealed class SefConnectionService(
 
     /// <summary>The confirmation link was used: the pending key replaces the stored one. Runs in the caller's transaction.</summary>
     /// <returns>False when no pending key exists (already applied, or replaced by a newer request).</returns>
-    public async Task<bool> ApplyPendingKeyAsync(Guid organizationId, CancellationToken cancellationToken)
+    public async Task<bool> ApplyPendingKeyAsync(Guid organizationId, string? fingerprint, CancellationToken cancellationToken)
     {
-        if (await secrets.GetAsync(PendingSecretName(organizationId), cancellationToken) is not { } apiKey)
+        // The link applies the key it was sent for; a newer request replaced the pending key and voided this link.
+        if (await secrets.GetAsync(PendingSecretName(organizationId), cancellationToken) is not { } apiKey || KeyFingerprint(apiKey) != fingerprint)
         {
             return false;
         }
@@ -186,6 +190,7 @@ internal sealed class SefConnectionService(
         await audit.WriteAsync(new AuditEntry("Organization.SefKeyRotated", "Organization", organizationId, organizationId,
             PreviousState: previous.ToString(), NewState: nameof(SefConnectionStatus.Connected), Reason: "official_email_confirmed"), cancellationToken);
         await outbox.AddAsync(new SefConnectionValidated(organizationId, connection.SupplierPib ?? string.Empty), cancellationToken);
+        await outbox.AddAsync(new OrganizationNotificationRequested(organizationId, NotificationTypes.Security, $"/organizations/{organizationId}", null), cancellationToken);
         return true;
     }
 
@@ -271,7 +276,8 @@ internal sealed class SefConnectionService(
             async ct =>
             {
                 await audit.WriteAsync(new AuditEntry("Organization.SefKeyChangeRequested", "Organization", organization.Id, organization.Id), ct);
-                confirmation = await confirmations.IssueAsync(organization, ConfirmationPurposes.SefKeyChange, organization.Id, "promena SEF API ključa", ct);
+                confirmation = await confirmations.IssueAsync(organization, ConfirmationPurposes.SefKeyChange, organization.Id, "promena SEF API ključa", ct, KeyFingerprint(apiKey));
+                await outbox.AddAsync(new OrganizationNotificationRequested(organization.Id, NotificationTypes.Security, $"/organizations/{organization.Id}", null), ct);
             },
             cancellationToken);
         await confirmations.SendAsync(confirmation!, cancellationToken);

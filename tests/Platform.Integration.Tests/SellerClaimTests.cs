@@ -129,12 +129,12 @@ public sealed class SellerClaimTests(SqlServerContainer server, AzuriteContainer
 
         var tooEarly = await ApiClient.ErrorCodeAsync(await officer.PostAsync($"/api/v1/admin/pristupnice/{id}/decision", Accept()));
         var notSignatory = (await ApiClient.ReadAsync(await seller.Client.GetAsync("/api/v1/me/organizations"))).EnumerateArray().Single().GetProperty("isSignatory").GetBoolean();
-        var recorded = await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/organizations/{seller.Org}/official-email", new { email = seller.OfficialEmail }));
+        var recorded = await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/organizations/{seller.Org}/official-email", new { email = seller.OfficialEmail, sourceDocumentId = await AprExcerptAsync(officer, seller.Org) }));
         var token = TokenFrom(seller.OfficialEmail);
-        var wrongPurpose = await ApiClient.ErrorCodeAsync(await seller.Client.GetAsync($"/api/v1/confirmations/{token}?purpose=MfaReset"));
+        var wrongPurpose = await ApiClient.ErrorCodeAsync(await seller.Client.PostAsync($"/api/v1/confirmations/{token}", new { purpose = "MfaReset" }));
         using var anonymous = _app.NewClient();
-        var confirmed = await ApiClient.ReadAsync(await anonymous.GetAsync($"/api/v1/confirmations/{token}?purpose=Pristupnica"));
-        using var reused = await anonymous.GetAsync($"/api/v1/confirmations/{token}?purpose=Pristupnica");
+        var confirmed = await ApiClient.ReadAsync(await anonymous.PostAsync($"/api/v1/confirmations/{token}", new { purpose = "Pristupnica" }));
+        using var reused = await anonymous.PostAsync($"/api/v1/confirmations/{token}", new { purpose = "Pristupnica" });
         var accepted = await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/pristupnice/{id}/decision", Accept()));
         var signatory = (await ApiClient.ReadAsync(await seller.Client.GetAsync("/api/v1/me/organizations"))).EnumerateArray().Single().GetProperty("isSignatory").GetBoolean();
         using var download = await officer.GetAsync($"/api/v1/admin/pristupnice/{id}/content?which=signed");
@@ -172,8 +172,8 @@ public sealed class SellerClaimTests(SqlServerContainer server, AzuriteContainer
         await _database.ExecuteAsync("UPDATE orgs.confirmation_tokens SET expires_at = DATEADD(second, -1, SYSDATETIMEOFFSET())");
         using var anonymous = _app.NewClient();
 
-        using var expired = await anonymous.GetAsync($"/api/v1/confirmations/{token}?purpose=Pristupnica");
-        using var unknown = await anonymous.GetAsync($"/api/v1/confirmations/not-a-token?purpose=Pristupnica");
+        using var expired = await anonymous.PostAsync($"/api/v1/confirmations/{token}", new { purpose = "Pristupnica" });
+        using var unknown = await anonymous.PostAsync("/api/v1/confirmations/not-a-token", new { purpose = "Pristupnica" });
 
         Assert.Equal(HttpStatusCode.Gone, expired.StatusCode);
         Assert.Equal(HttpStatusCode.Gone, unknown.StatusCode);
@@ -186,6 +186,7 @@ public sealed class SellerClaimTests(SqlServerContainer server, AzuriteContainer
     {
         var seller = await ClaimedSellerAsync();
         var representative = await RepresentativeAsync(seller);
+        await _database.ExecuteAsync(TestIds.VerifiedAccountSql(seller.Org));
         await SubmitAsync(seller);
         using var officer = await StaffAsync("ComplianceOfficer");
         await officer.StepUpAsync();
@@ -201,7 +202,7 @@ public sealed class SellerClaimTests(SqlServerContainer server, AzuriteContainer
         var id = (await ApiClient.ReadAsync(await seller.Client.GetAsync($"/api/v1/organizations/{seller.Org}/pristupnica"))).GetProperty("id").GetGuid();
         var signed = await UploadAsync(seller, "Pristupnica");
         await ApiClient.ReadAsync(await seller.Client.PostAsync($"/api/v1/organizations/{seller.Org}/pristupnica", new { documentId = signed, method = "Qes" }));
-        await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/organizations/{seller.Org}/official-email", new { email = seller.OfficialEmail }));
+        await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/organizations/{seller.Org}/official-email", new { email = seller.OfficialEmail, sourceDocumentId = await AprExcerptAsync(officer, seller.Org) }));
         await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/pristupnice/{id}/decision",
             new { decision = "Accepted", signerName = "Ana Anić", matchedRepresentativeId = representative, notes = "QES proveren ručno" }));
         var approved = await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/kyb-cases/{caseId}/decision", Approve()));
@@ -229,7 +230,7 @@ public sealed class SellerClaimTests(SqlServerContainer server, AzuriteContainer
         using var pending = await seller.Client.SendAsync(HttpMethod.Put, $"/api/v1/organizations/{seller.Org}/sef-connection", new { apiKey = newKey });
         var rotatedBefore = await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM audit.audit_events WHERE entity_id = '{seller.Org}' AND action = 'Organization.SefKeyRotated'");
         using var anonymous = _app.NewClient();
-        var confirmed = await ApiClient.ReadAsync(await anonymous.GetAsync($"/api/v1/confirmations/{TokenFrom(seller.OfficialEmail)}?purpose=SefKeyChange"));
+        var confirmed = await ApiClient.ReadAsync(await anonymous.PostAsync($"/api/v1/confirmations/{TokenFrom(seller.OfficialEmail)}", new { purpose = "SefKeyChange" }));
         await using var scope = _app.Services.CreateAsyncScope();
         var stored = await scope.ServiceProvider.GetRequiredService<Shared.Infrastructure.Secrets.ISecretStore>()
             .GetAsync(SefConnectionService.SecretName(seller.Org), TestContext.Current.CancellationToken);
@@ -263,7 +264,7 @@ public sealed class SellerClaimTests(SqlServerContainer server, AzuriteContainer
 
         var notApproved = await ApiClient.ErrorCodeAsync(await officer.PostAsync($"/api/v1/admin/mfa-resets/{id}/execute"));
         using var anonymous = _app.NewClient();
-        await ApiClient.ReadAsync(await anonymous.GetAsync($"/api/v1/confirmations/{TokenFrom(seller.OfficialEmail)}?purpose=MfaReset"));
+        await ApiClient.ReadAsync(await anonymous.PostAsync($"/api/v1/confirmations/{TokenFrom(seller.OfficialEmail)}", new { purpose = "MfaReset" }));
         using var support = await operations.PostAsync($"/api/v1/admin/mfa-resets/{id}/execute");
         var first = await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/mfa-resets/{id}/execute"));
         var sameOfficer = await ApiClient.ErrorCodeAsync(await officer.PostAsync($"/api/v1/admin/mfa-resets/{id}/execute"));
@@ -403,7 +404,7 @@ public sealed class SellerClaimTests(SqlServerContainer server, AzuriteContainer
     {
         using var officer = await StaffAsync("ComplianceOfficer");
         await officer.StepUpAsync();
-        await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/organizations/{seller.Org}/official-email", new { email = seller.OfficialEmail }));
+        await ApiClient.ReadAsync(await officer.PostAsync($"/api/v1/admin/organizations/{seller.Org}/official-email", new { email = seller.OfficialEmail, sourceDocumentId = await AprExcerptAsync(officer, seller.Org) }));
     }
 
     private async Task SubmitAsync(Seller seller)
@@ -455,6 +456,18 @@ public sealed class SellerClaimTests(SqlServerContainer server, AzuriteContainer
         var match = System.Text.RegularExpressions.Regex.Match(body, @"/confirmations/([A-Za-z0-9_-]+)\?");
         Assert.True(match.Success, body);
         return match.Groups[1].Value;
+    }
+
+    private static async Task<Guid> AprExcerptAsync(ApiClient officer, Guid org)
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(Encoding.ASCII.GetBytes($"%PDF-1.7\nAPR izvod {Guid.NewGuid()}\n%%EOF\n"));
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+        form.Add(file, "file", "apr.pdf");
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/admin/organizations/{org}/evidence") { Content = form };
+        request.Headers.Add(IdentityModule.AntiforgeryHeader, await officer.AntiforgeryTokenAsync());
+        request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        return (await ApiClient.ReadAsync(await officer.Http.SendAsync(request, TestContext.Current.CancellationToken))).GetProperty("documentId").GetGuid();
     }
 
     private async Task<string?> StatusAsync(Seller seller) =>

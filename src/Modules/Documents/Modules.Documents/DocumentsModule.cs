@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Modules.Documents.Contracts;
 using Modules.Documents.Persistence;
 using Shared.Infrastructure.Idempotency;
+using Shared.Infrastructure.Jobs;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
 
@@ -43,10 +44,13 @@ public static class DocumentsModule
                 : throw new InvalidOperationException($"The fake malware scanner must not run in the '{environment}' environment.");
         });
         services.AddScoped<DocumentService>();
+        services.AddScoped<OrphanBlobCleanup>();
+        services.AddJob("documents-orphan-blob-cleanup", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<OrphanBlobCleanup>().DeleteOrphansAsync(ct));
         services.AddScoped<IDocumentQuery, DocumentQuery>();
-        // Uploads and downloads per user and organization (security.md §6): a factor cannot scrape listing documents.
+        // Uploads and downloads per user (security.md §6): a factor cannot scrape listing documents. Not per organization
+        // header: a client could change it on every request to get a fresh quota.
         services.Configure<RateLimiterOptions>(options => options.AddPolicy(RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
-            $"{http.User.FindFirst(CesioClaims.UserId)?.Value ?? http.Connection.RemoteIpAddress?.ToString()}|{http.Request.Headers[OrganizationScopedMetadata.Header]}",
+            http.User.FindFirst(CesioClaims.UserId)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = RequestsPerMinute, Window = TimeSpan.FromMinutes(1) })));
         services.AddScoped<IDocumentWriter>(provider => provider.GetRequiredService<DocumentService>());
         return services;

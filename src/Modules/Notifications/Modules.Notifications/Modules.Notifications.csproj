@@ -1,12 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Platform.Integration.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Modules.Notifications.Contracts/Modules.Notifications.Contracts.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Kernel/Shared.Kernel.csproj" />
+    <ProjectReference Include="../../Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />
+    <ProjectReference Include="../../Organizations/Modules.Organizations.Contracts/Modules.Organizations.Contracts.csproj" />
+    <ProjectReference Include="../../Compliance/Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
+    <ProjectReference Include="../../Marketplace/Modules.Marketplace.Contracts/Modules.Marketplace.Contracts.csproj" />
+    <ProjectReference Include="../../Deals/Modules.Deals.Contracts/Modules.Deals.Contracts.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
   </ItemGroup>
 

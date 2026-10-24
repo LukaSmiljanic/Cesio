@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Modules.Audit.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Identity.Contracts;
 using Modules.Organizations.Contracts;
 using Modules.Organizations.Persistence;
@@ -403,8 +404,12 @@ internal sealed class OrganizationService(
         }
 
         return await SaveAsync(
-            async ct => await audit.WriteAsync(new AuditEntry("Member.Added", "Organization", organization.Id, organization.Id,
-                Related: [new AuditReference("Membership", membership.Id), new AuditReference("Invitation", invitation.Id)]), ct),
+            async ct =>
+            {
+                await audit.WriteAsync(new AuditEntry("Member.Added", "Organization", organization.Id, organization.Id,
+                    Related: [new AuditReference("Membership", membership.Id), new AuditReference("Invitation", invitation.Id)]), ct);
+                await outbox.AddAsync(new OrganizationNotificationRequested(organization.Id, NotificationTypes.Security, $"/organizations/{organization.Id}/members", null), ct);
+            },
             () => Results.Ok(new { organizationId = organization.Id }),
             cancellationToken);
     }
@@ -461,9 +466,13 @@ internal sealed class OrganizationService(
         membership.LegalRepresentativeId = body.LegalRepresentativeId;
         membership.PowerOfAttorneyDocumentId = body.PowerOfAttorneyDocumentId;
         return await SaveAsync(
-            async ct => await audit.WriteAsync(new AuditEntry("Member.SignatoryChanged", "Organization", organization.Id, organization.Id,
-                Changes: new Dictionary<string, string?> { ["isSignatory"] = $"{previous} → {body.IsSignatory}" },
-                Related: [new AuditReference("Membership", membership.Id)]), ct),
+            async ct =>
+            {
+                await audit.WriteAsync(new AuditEntry("Member.SignatoryChanged", "Organization", organization.Id, organization.Id,
+                    Changes: new Dictionary<string, string?> { ["isSignatory"] = $"{previous} → {body.IsSignatory}" },
+                    Related: [new AuditReference("Membership", membership.Id)]), ct);
+                await outbox.AddAsync(new OrganizationNotificationRequested(organization.Id, NotificationTypes.Security, $"/organizations/{organization.Id}/members", null), ct);
+            },
             () => Results.Ok(new { id = membership.Id, isSignatory = membership.IsSignatory, version = membership.Version }),
             cancellationToken);
     }

@@ -5,7 +5,9 @@ import { organizationsApi, type Member, type Organization } from '../api/organiz
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 import { useActiveOrganization } from '../organizations/activeOrganization'
+import { BankAccountsSection } from './BankAccountPages'
 import { FactorAuthorizationSection } from './FactorAuthorizationPages'
+import { FactorAppetiteSection } from './NotificationPages'
 import { KybSection } from './KybPages'
 import { MfaResetApprovals, PristupnicaSection, SellerChecklist } from './OnboardingPages'
 import { SefConnectionSection } from './ReceivablePages'
@@ -248,9 +250,11 @@ export function OrganizationPage() {
         <DetailsForm key={o.version} organization={o} />
         <Representatives organization={o} />
         {o.type === 'Seller' && <SefConnectionSection organizationId={o.id} />}
+        <BankAccountsSection organizationId={o.id} />
         {o.type === 'Seller' && o.claimed && <PristupnicaSection organizationId={o.id} />}
         <KybSection organizationId={o.id} />
         {o.type === 'Factor' && <FactorAuthorizationSection organizationId={o.id} />}
+        {o.type === 'Factor' && <FactorAppetiteSection organizationId={o.id} />}
         {o.status === 'Draft' && (
           <section className="space-y-2">
             <h2 className="font-medium">Uslovi korišćenja</h2>

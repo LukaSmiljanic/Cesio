@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Shared.Infrastructure.Email;
 using Shared.Infrastructure.Idempotency;
+using Shared.Infrastructure.Jobs;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
@@ -35,6 +36,7 @@ public static class HostSetup
         services.AddSecrets();
         services.AddHostedService<OutboxDispatcherService>();
         services.AddHostedService<IdempotencyCleanupJob>();
+        services.AddJobScheduler();
         return services;
     }
 }

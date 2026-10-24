@@ -71,3 +71,26 @@ internal sealed class BusinessParameter
 
     public Guid CreatedBy { get; init; }
 }
+
+/// <summary>One run of a scheduled job (task 020): when, the outcome, and how many items it processed.</summary>
+internal sealed class JobRun
+{
+    public Guid Id { get; init; }
+
+    public required string Name { get; init; }
+
+    public DateTimeOffset StartedAt { get; init; }
+
+    public DateTimeOffset? FinishedAt { get; init; }
+
+    /// <summary><c>Succeeded</c> or <c>Failed</c> (a run skipped for the lock is not recorded).</summary>
+    public required string Status { get; init; }
+
+    public int Items { get; init; }
+
+    /// <summary>The exception type only (no messages: they may carry personal data).</summary>
+    public string? Error { get; init; }
+
+    /// <summary>The Operations user of a manual run; null for a scheduled one.</summary>
+    public Guid? TriggeredBy { get; init; }
+}

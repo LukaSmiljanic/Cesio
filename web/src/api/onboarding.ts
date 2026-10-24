@@ -61,8 +61,9 @@ export const onboardingApi = {
   },
   confirm: (token: string, purpose: string) =>
     api<{ purpose: string; confirmed: boolean }>(
-      'GET',
-      `/confirmations/${encodeURIComponent(token)}?purpose=${encodeURIComponent(purpose)}`,
+      'POST',
+      `/confirmations/${encodeURIComponent(token)}`,
+      { purpose },
     ),
   requestMfaReset: () =>
     api<{ id: string; approvalKind: 'Email' | 'Owner'; status: string }>(
@@ -79,11 +80,23 @@ export const onboardingApi = {
     download(`/admin/pristupnice/${id}/content?which=${which}`, `pristupnica-${which}.pdf`),
   decide: (id: string, decision: PristupnicaDecision) =>
     api<{ id: string; status: string }>('POST', `/admin/pristupnice/${id}/decision`, decision),
-  recordOfficialEmail: (orgId: string, email: string) =>
-    api<{ confirmationSent: boolean }>('POST', `/admin/organizations/${orgId}/official-email`, {
-      email,
-      sourceDocumentId: null,
-    }),
+  recordOfficialEmail: async (orgId: string, email: string, aprExcerpt: File) => {
+    const form = new FormData()
+    form.append('file', aprExcerpt)
+    const source = await api<{ documentId: string }>(
+      'POST',
+      `/admin/organizations/${orgId}/evidence`,
+      form,
+    )
+    return api<{ confirmationSent: boolean }>(
+      'POST',
+      `/admin/organizations/${orgId}/official-email`,
+      {
+        email,
+        sourceDocumentId: source.documentId,
+      },
+    )
+  },
   adminResets: () => api<{ items: MfaResetRow[] }>('GET', '/admin/mfa-resets'),
   executeReset: (id: string) =>
     api<{ id: string; status: string }>('POST', `/admin/mfa-resets/${id}/execute`),

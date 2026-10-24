@@ -23,6 +23,167 @@ namespace Modules.Organizations.Persistence.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("Modules.Organizations.Persistence.BankAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AccountNumber")
+                        .IsRequired()
+                        .HasMaxLength(18)
+                        .IsUnicode(false)
+                        .HasColumnType("char(18)")
+                        .HasColumnName("account_number")
+                        .IsFixedLength();
+
+                    b.Property<string>("BankName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("bank_name");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("created_by");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("char(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<DateTimeOffset?>("DeactivatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("deactivated_at");
+
+                    b.Property<bool>("DuplicateFlag")
+                        .HasColumnType("bit")
+                        .HasColumnName("duplicate_flag");
+
+                    b.Property<Guid?>("EvidenceDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("evidence_document_id");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("SupplementDocumentId")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("supplement_document_id");
+
+                    b.Property<DateTimeOffset?>("UsableFrom")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("usable_from");
+
+                    b.Property<DateTimeOffset?>("VerifiedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("verified_at");
+
+                    b.Property<Guid?>("VerifiedBy")
+                        .HasColumnType("uniqueidentifier")
+                        .HasColumnName("verified_by");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_bank_accounts");
+
+                    b.HasIndex("AccountNumber")
+                        .HasDatabaseName("ix_bank_accounts_account_number");
+
+                    b.HasIndex("OrgId", "AccountNumber", "Currency")
+                        .IsUnique()
+                        .HasDatabaseName("ix_bank_accounts_org_id_account_number_currency")
+                        .HasFilter("[status] IN ('ConfirmationPending','Pending','Verified')");
+
+                    b.ToTable("bank_accounts", "orgs", t =>
+                        {
+                            t.HasCheckConstraint("ck_bank_account_currency", "[currency] IN ('RSD','EUR')");
+
+                            t.HasCheckConstraint("ck_bank_account_usable_after_verification", "[usable_from] IS NULL OR [verified_at] IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("Modules.Organizations.Persistence.BankCode", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(3)
+                        .IsUnicode(false)
+                        .HasColumnType("char(3)")
+                        .HasColumnName("code")
+                        .IsFixedLength();
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Code")
+                        .HasName("pk_bank_codes");
+
+                    b.ToTable("bank_codes", "orgs");
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "160",
+                            Name = "Banca Intesa"
+                        },
+                        new
+                        {
+                            Code = "170",
+                            Name = "UniCredit Bank Srbija"
+                        },
+                        new
+                        {
+                            Code = "205",
+                            Name = "NLB Komercijalna banka"
+                        },
+                        new
+                        {
+                            Code = "265",
+                            Name = "Raiffeisen banka"
+                        },
+                        new
+                        {
+                            Code = "325",
+                            Name = "OTP banka Srbija"
+                        },
+                        new
+                        {
+                            Code = "340",
+                            Name = "Erste Bank"
+                        });
+                });
+
             modelBuilder.Entity("Modules.Organizations.Persistence.ConfirmationToken", b =>
                 {
                     b.Property<Guid>("Id")
@@ -33,6 +194,12 @@ namespace Modules.Organizations.Persistence.Migrations
                         .HasPrecision(3)
                         .HasColumnType("datetimeoffset(3)")
                         .HasColumnName("expires_at");
+
+                    b.Property<string>("Fingerprint")
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("fingerprint");
 
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uniqueidentifier")
@@ -76,6 +243,9 @@ namespace Modules.Organizations.Persistence.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique()
                         .HasDatabaseName("ix_confirmation_tokens_token_hash");
+
+                    b.HasIndex("Purpose", "SubjectId")
+                        .HasDatabaseName("ix_confirmation_tokens_purpose_subject_id");
 
                     b.ToTable("confirmation_tokens", "orgs");
                 });
@@ -623,6 +793,16 @@ namespace Modules.Organizations.Persistence.Migrations
                         .HasDatabaseName("ix_terms_acceptances_org_id");
 
                     b.ToTable("terms_acceptances", "orgs");
+                });
+
+            modelBuilder.Entity("Modules.Organizations.Persistence.BankAccount", b =>
+                {
+                    b.HasOne("Modules.Organizations.Persistence.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("OrgId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_bank_accounts_organizations_org_id");
                 });
 
             modelBuilder.Entity("Modules.Organizations.Persistence.ConfirmationToken", b =>

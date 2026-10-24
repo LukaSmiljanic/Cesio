@@ -44,3 +44,7 @@ Smoke tests after deploy (health, login page, DB connectivity); IaC what-if in t
 
 # Out of Scope
 Multi-region DR, Kubernetes, CDN optimisation.
+
+# Follow-ups from the phase 4 review (2026-10-24)
+- Configure forwarded headers (`UseForwardedHeaders` with the known proxies): the per-IP rate limits of `/auth/*` and `/confirmations` would otherwise share one quota behind the proxy.
+- Require `Auth:PublicBaseUrl` outside Development (links in emails and confirmations).

@@ -9,7 +9,9 @@ using Modules.Documents.Contracts;
 using Modules.Identity.Contracts;
 using Modules.Marketplace.Contracts;
 using Modules.Marketplace.Persistence;
+using Modules.Receivables.Contracts;
 using Shared.Infrastructure.Idempotency;
+using Shared.Infrastructure.Jobs;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
@@ -31,9 +33,15 @@ public static class MarketplaceModule
         services.AddScoped<ListingService>();
         services.AddScoped<OfferService>();
         services.AddScoped<IListingWriter, ListingWriter>();
+        services.AddScoped<FactorAppetiteService>();
+        services.AddScoped<IListingMatches>(provider => provider.GetRequiredService<FactorAppetiteService>());
         services.AddScoped<IDocumentAccessPolicy, ListingDocumentPolicy>();
-        services.AddIntegrationEventConsumer<FactorAuthorizationRevoked, FactorAuthorizationEndedConsumer>(FactorAuthorizationEndedConsumer.RevokedConsumerName);
-        services.AddIntegrationEventConsumer<FactorAuthorizationExpired, FactorAuthorizationEndedConsumer>(FactorAuthorizationEndedConsumer.ExpiredConsumerName);
+        services.AddScoped<MarketplaceJobs>();
+        services.AddIntegrationEventConsumer<FactorAuthorizationRevoked, MarketplaceJobs>(MarketplaceJobs.RevokedConsumerName);
+        services.AddIntegrationEventConsumer<FactorAuthorizationExpired, MarketplaceJobs>(MarketplaceJobs.ExpiredConsumerName);
+        services.AddIntegrationEventConsumer<ReceivableBecameIneligible, MarketplaceJobs>(MarketplaceJobs.IneligibleConsumerName);
+        services.AddJob("marketplace-listing-expiry", TimeSpan.FromMinutes(5), (provider, ct) => provider.GetRequiredService<MarketplaceJobs>().ExpireListingsAsync(ct));
+        services.AddJob("marketplace-offer-expiry", TimeSpan.FromMinutes(5), (provider, ct) => provider.GetRequiredService<MarketplaceJobs>().ExpireOffersAsync(ct));
         services.Configure<RateLimiterOptions>(options => options.AddPolicy(RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
             http.User.FindFirst(CesioClaims.UserId)?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions { PermitLimit = RequestsPerMinute, Window = TimeSpan.FromMinutes(1) })));
@@ -50,6 +58,10 @@ public static class MarketplaceModule
         seller.MapGet("/listings/{id:guid}", (Guid id, ListingService service, CancellationToken ct) => service.GetMineAsync(id, ct));
         seller.MapPost("/listings/{id:guid}/withdraw", (Guid id, ListingService service, CancellationToken ct) => service.WithdrawAsync(id, ct))
             .RequireIdempotency();
+
+        var appetite = app.MapGroup("/api/v1/organizations/{id:guid}/factor-appetite").RequireAuthorization().RequireOrganization("id");
+        appetite.MapGet("", (Guid id, FactorAppetiteService service, CancellationToken ct) => service.GetAsync(id, ct));
+        appetite.MapPut("", (Guid id, FactorAppetiteRequest body, FactorAppetiteService service, CancellationToken ct) => service.SetAsync(id, body, ct)).RequireIdempotency();
 
         var factor = app.MapGroup("/api/v1/marketplace").RequireAuthorization().RequireOrganization().RequireRateLimiting(RateLimitPolicy);
         factor.MapGet("/listings", ([AsParameters] FeedQuery query, ListingService service, CancellationToken ct) => service.FeedAsync(query, ct));

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Modules.Notifications;
 using Modules.Audit;
 using Modules.Documents;
 using Modules.Identity;
@@ -47,7 +48,14 @@ public sealed class TestDatabase(SqlServerContainer server) : IAsyncLifetime
         await sample.GetService<IRelationalDatabaseCreator>().CreateTablesAsync(TestContext.Current.CancellationToken);
     }
 
-    public async ValueTask DisposeAsync() => await Services.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await Services.DisposeAsync();
+        if (ConnectionString.Length > 0)
+        {
+            await server.DropDatabaseAsync(ConnectionString);
+        }
+    }
 
     /// <summary>The service registrations of the hosts, on this database; <paramref name="configure"/> adds the request context.</summary>
     public ServiceProvider BuildServices(Action<IServiceCollection> configure, IDictionary<string, string?>? settings = null)
@@ -69,7 +77,7 @@ public sealed class TestDatabase(SqlServerContainer server) : IAsyncLifetime
     public void AddServices(IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
-        services.AddPersistence().AddAuditModule().AddIdentityModule().AddOrganizationsModule().AddComplianceModule().AddDocumentsModule().AddReceivablesModule().AddMarketplaceModule().AddFeesModule().AddDealsModule();
+        services.AddPersistence().AddAuditModule().AddIdentityModule().AddOrganizationsModule().AddComplianceModule().AddDocumentsModule().AddReceivablesModule().AddMarketplaceModule().AddFeesModule().AddDealsModule().AddNotificationsModule();
         // Not through AddModuleDbContext: the sample schema has no migrations; InitializeAsync creates its tables.
         services.AddDbContext<SampleDbContext>((provider, options) => options.UseSqlServer(provider.GetRequiredService<UnitOfWork>().Connection));
         services.AddScoped<SubmitSampleOrder>();

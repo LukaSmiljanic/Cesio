@@ -21,6 +21,13 @@ public interface IHoldQuery
     Task<bool> HasActiveHoldAsync(HoldSubject subject, Guid subjectId, CancellationToken cancellationToken);
 }
 
+/// <summary>Holds placed by the system (task 020): a storno after assignment, a factor whose authorization ended. Runs in the caller's transaction.</summary>
+public interface IHoldWriter
+{
+    /// <summary>Places a hold unless the subject already has an active one of that kind; audited with the reason.</summary>
+    Task PlaceSystemHoldAsync(HoldSubject subject, Guid subjectId, HoldKind kind, string reason, Guid? organizationId, CancellationToken cancellationToken);
+}
+
 /// <summary>INV-A2: whether a factor organization has a Verified, non-expired FactorAuthorization (task 008).</summary>
 public interface IAuthorizationQuery
 {

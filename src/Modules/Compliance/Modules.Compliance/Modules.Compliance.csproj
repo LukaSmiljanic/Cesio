@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="../Modules.Compliance.Contracts/Modules.Compliance.Contracts.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Kernel/Shared.Kernel.csproj" />
+    <ProjectReference Include="../../Notifications/Modules.Notifications.Contracts/Modules.Notifications.Contracts.csproj" />
     <ProjectReference Include="../../../Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
     <ProjectReference Include="../../Audit/Modules.Audit.Contracts/Modules.Audit.Contracts.csproj" />
     <ProjectReference Include="../../Identity/Modules.Identity.Contracts/Modules.Identity.Contracts.csproj" />

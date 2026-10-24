@@ -159,7 +159,9 @@ describe('start-seller wizard', () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
       String(input).includes('/confirmations/')
         ? json(200, { purpose: 'Pristupnica', confirmed: true })
-        : json(401, { status: 401 }),
+        : String(input).endsWith('/auth/antiforgery')
+          ? json(200, { token: 'af' })
+          : json(401, { status: 401 }),
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -172,8 +174,10 @@ describe('start-seller wizard', () => {
 
     expect(before).toBe(0)
     expect(await screen.findByText('Hvala, potvrđeno.')).toBeInTheDocument()
-    expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain(
-      '/confirmations/abc?purpose=Pristupnica',
+    const confirmation = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes('/confirmations/'),
     )
+    expect(String(confirmation?.[0])).toContain('/confirmations/abc')
+    expect((confirmation?.[1] as RequestInit).method).toBe('POST')
   })
 })

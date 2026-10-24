@@ -60,6 +60,12 @@ public static class OrganizationEndpoints
         organization.MapPut("/sef-connection", (SefConnectionRequest body, SefConnectionService service, CancellationToken ct) => service.ConnectAsync(body, ct))
             .RequireIdempotency().RequireStepUp().RequireRateLimiting(OrganizationsModule.ClaimRateLimitPolicy);
 
+        organization.MapGet("/bank-accounts", (BankAccountService service, CancellationToken ct) => service.ListAsync(ct));
+        organization.MapPost("/bank-accounts", (BankAccountRequest body, BankAccountService service, CancellationToken ct) => service.AddAsync(body, ct))
+            .RequireIdempotency().RequireStepUp().RequireRateLimiting(OrganizationsModule.BankAccountRateLimitPolicy);
+        organization.MapPost("/bank-accounts/{accountId:guid}/deactivate", (Guid accountId, BankAccountService service, CancellationToken ct) =>
+            service.DeactivateAsync(accountId, ct)).RequireIdempotency().RequireStepUp();
+
         organization.MapGet("/pristupnica", (PristupnicaService service, CancellationToken ct) => service.GetAsync(ct));
         organization.MapPost("/pristupnica", (PristupnicaUploadRequest body, PristupnicaService service, CancellationToken ct) => service.UploadAsync(body, ct))
             .RequireIdempotency();
@@ -75,12 +81,15 @@ public static class OrganizationEndpoints
         // Before an organization context: the user passed the password but cannot pass MFA (security.md §1).
         app.MapPost("/api/v1/auth/mfa-reset-requests", (MfaResetRequestBody body, MfaResetService service, CancellationToken ct) => service.RequestAsync(body, ct))
             .RequireAuthorization(AuthPolicies.PendingMfaVerify).RequireRateLimiting(AuthPolicies.RateLimit);
-        app.MapGet("/api/v1/confirmations/{token}", (string token, string? purpose, ConfirmationService service, CancellationToken ct) =>
-            service.ConfirmAsync(token, purpose, ct)).AllowAnonymous().RequireRateLimiting(AuthPolicies.RateLimit);
+        // Public and without an Idempotency-Key (there is no user to scope a key by): the token is single use, so a repeat is a 410.
+        app.MapPost("/api/v1/confirmations/{token}", (string token, ConfirmationRequest body, ConfirmationService service, CancellationToken ct) =>
+            service.ConfirmAsync(token, body.Purpose, ct)).AllowAnonymous().RequireRateLimiting(AuthPolicies.RateLimit);
 
         var admin = app.MapGroup("/api/v1/admin").RequireAuthorization().AddEndpointFilter(RequireComplianceOfficer);
         admin.MapPost("/factor-organizations", (StaffFactorOrganizationRequest body, OrganizationService service, CancellationToken ct) =>
             service.CreateFactorForStaffAsync(body, ct)).RequireIdempotency().RequireStepUp();
+        admin.MapPost("/organizations/{id:guid}/evidence", async (Guid id, HttpRequest httpRequest, PristupnicaService service, CancellationToken ct) =>
+            await service.UploadEvidenceAsync(id, httpRequest.HasFormContentType ? (await httpRequest.ReadFormAsync(ct)).Files["file"] : null, ct)).RequireIdempotency();
         admin.MapPost("/organizations/{id:guid}/official-email", (Guid id, OfficialEmailRequest body, PristupnicaService service, CancellationToken ct) =>
             service.RecordOfficialEmailAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
         admin.MapGet("/pristupnice", (string? status, PristupnicaService service, CancellationToken ct) => service.QueueAsync(status, ct));
@@ -88,6 +97,18 @@ public static class OrganizationEndpoints
             service.ContentAsync(id, which, response, ct));
         admin.MapPost("/pristupnice/{id:guid}/decision", (Guid id, PristupnicaDecisionRequest body, PristupnicaService service, CancellationToken ct) =>
             service.DecideAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
+        admin.MapGet("/bank-accounts", (string? status, BankAccountService service, CancellationToken ct) => service.QueueAsync(status, ct));
+        admin.MapPost("/bank-accounts/{id:guid}/evidence", async (Guid id, HttpRequest httpRequest, BankAccountService service, CancellationToken ct) =>
+            await service.UploadEvidenceAsync(id, httpRequest.HasFormContentType ? (await httpRequest.ReadFormAsync(ct)).Files["file"] : null, ct)).RequireIdempotency();
+        admin.MapPost("/bank-accounts/{id:guid}/verify", (Guid id, BankAccountVerification body, BankAccountService service, CancellationToken ct) =>
+            service.VerifyAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
+        admin.MapPost("/bank-accounts/{id:guid}/reject", (Guid id, BankAccountReason body, BankAccountService service, CancellationToken ct) =>
+            service.RejectAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
+        admin.MapPost("/bank-accounts/{id:guid}/clear-duplicate", (Guid id, BankAccountReason body, BankAccountService service, CancellationToken ct) =>
+            service.ClearDuplicateAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
+        admin.MapGet("/bank-codes", (BankAccountService service, CancellationToken ct) => service.BankCodesAsync(ct));
+        admin.MapPut("/bank-codes/{code}", (string code, BankCodeRequest body, BankAccountService service, CancellationToken ct) =>
+            service.SetBankCodeAsync(code, body, ct)).RequireIdempotency().RequireStepUp();
         admin.MapGet("/mfa-resets", (MfaResetService service, CancellationToken ct) => service.QueueAsync(ct));
         admin.MapPost("/mfa-resets/{id:guid}/execute", (Guid id, MfaResetService service, CancellationToken ct) => service.ExecuteAsync(id, ct))
             .RequireIdempotency().RequireStepUp();
@@ -95,7 +116,7 @@ public static class OrganizationEndpoints
         return app;
     }
 
-    /// <summary>Staff endpoints of tasks 007a and 008 are for Compliance Officers only; anyone else gets 404 (security.md §3).</summary>
+    /// <summary>Staff endpoints of tasks 007a, 008 and 009 are for Compliance Officers only; anyone else gets 404 (security.md §3).</summary>
     private static async ValueTask<object?> RequireComplianceOfficer(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;

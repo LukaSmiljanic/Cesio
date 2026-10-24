@@ -67,8 +67,18 @@ internal sealed class OrganizationQuery(OrgsDbContext orgs) : IOrganizationQuery
         var organization = await orgs.Organizations.IgnoreQueryFilters().AsNoTracking().SingleAsync(o => o.Id == organizationId, cancellationToken);
         return organization.OrgType != OrganizationType.Seller
             || (organization.ClaimedAt is not null
-                && await orgs.Pristupnice.AsNoTracking().AnyAsync(p => p.OrgId == organizationId && p.Status == "Accepted", cancellationToken));
+                && await orgs.Pristupnice.AsNoTracking().AnyAsync(p => p.OrgId == organizationId && p.Status == "Accepted", cancellationToken)
+                && await orgs.BankAccounts.IgnoreQueryFilters().AsNoTracking().AnyAsync(a => a.OrgId == organizationId && a.Status == BankAccountStatus.Verified, cancellationToken));
     }
+
+    public async Task<IReadOnlyList<Guid>> ActiveMemberIdsAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        await orgs.Memberships.IgnoreQueryFilters().AsNoTracking()
+            .Where(m => m.OrgId == organizationId && m.Status == MembershipStatus.Active)
+            .Select(m => m.UserId)
+            .ToListAsync(cancellationToken);
+
+    public Task<string?> OfficialEmailAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        orgs.Organizations.IgnoreQueryFilters().AsNoTracking().Where(o => o.Id == organizationId).Select(o => o.OfficialEmail).SingleOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<string>> AuthorizedSignerNamesAsync(Guid organizationId, DateOnly on, CancellationToken cancellationToken) =>
         await orgs.LegalRepresentatives.IgnoreQueryFilters().AsNoTracking()

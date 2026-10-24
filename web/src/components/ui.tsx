@@ -131,6 +131,12 @@ const messages: Record<string, string> = {
   decision_not_applicable: 'Banka nema rešenje o faktoringu; ostavite ta polja prazna.',
   invalid_factor_organization: 'Unesite ispravan PIB, poslovno ime i email prvog korisnika.',
   unsupported_file_type: 'Dozvoljeni su PDF i slike.',
+  invalid_account_number: 'Broj računa nije ispravan (šifra banke, broj računa i kontrolni broj).',
+  unsupported_currency: 'Računi za isplatu su u dinarima (RSD).',
+  duplicate_account: 'Isti račun je prijavila druga firma; prvo razrešite upozorenje.',
+  reason_required: 'Unesite razlog.',
+  notification_mandatory: 'Ovo obaveštenje ne može da se isključi.',
+  authorization_pending: 'Već postoji ovlašćenje koje čeka proveru.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

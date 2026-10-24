@@ -49,10 +49,31 @@ public interface IOrganizationOnboarding
 /// <summary>A payout account a factor may pay the purchase price to: Verified and out of cool-down (INV-F2).</summary>
 public sealed record FundingAccount(Guid Id, Guid OrganizationId, Shared.Kernel.SerbianBankAccountNumber AccountNumber, string BankName, Shared.Kernel.Currency Currency);
 
-/// <summary>The seller's payout accounts usable for funding (task 017; the accounts themselves come with task 009).</summary>
+/// <summary>The seller's payout accounts usable for funding (tasks 009 and 017).</summary>
 public interface IBankAccountQuery
 {
     Task<IReadOnlyList<FundingAccount>> UsableForFundingAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    /// <summary>INV-F2: the account is the organization's, Verified, not deactivated and out of its cool-down at <paramref name="at"/>.</summary>
+    Task<bool> IsUsableForFundingAsync(Guid organizationId, Guid accountId, DateTimeOffset at, CancellationToken cancellationToken);
+}
+
+/// <summary>A payout account was added (task 009); Notifications tells the security recipients and the factors of in-flight deals (task 019).</summary>
+public sealed record BankAccountAdded(Guid OrganizationId, Guid BankAccountId) : IIntegrationEvent
+{
+    public static string EventType => "Organizations.BankAccountAdded";
+}
+
+/// <summary>A payout account was verified (task 009).</summary>
+public sealed record BankAccountVerified(Guid OrganizationId, Guid BankAccountId, DateTimeOffset UsableFrom) : IIntegrationEvent
+{
+    public static string EventType => "Organizations.BankAccountVerified";
+}
+
+/// <summary>A payout account was deactivated (task 009).</summary>
+public sealed record BankAccountDeactivated(Guid OrganizationId, Guid BankAccountId) : IIntegrationEvent
+{
+    public static string EventType => "Organizations.BankAccountDeactivated";
 }
 
 /// <summary>Read access to organizations for other modules (task 005 technical requirements).</summary>
@@ -71,8 +92,14 @@ public interface IOrganizationQuery
     /// </summary>
     Task<IReadOnlyList<string>> AuthorizedSignerNamesAsync(Guid organizationId, DateOnly on, CancellationToken cancellationToken);
 
-    /// <summary>ADR-020 for sellers (task 007a): claimed by a valid SEF key and its pristupnica accepted. Always true for factors.</summary>
+    /// <summary>ADR-020 for sellers (tasks 007a, 009): claimed by a valid SEF key, its pristupnica accepted and a Verified payout account. Always true for factors.</summary>
     Task<bool> SellerOnboardingCompleteAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    /// <summary>The users with an active membership now (notification recipients, task 019).</summary>
+    Task<IReadOnlyList<Guid>> ActiveMemberIdsAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    /// <summary>The official email from APR, part of the security recipients (security.md §2), or null.</summary>
+    Task<string?> OfficialEmailAsync(Guid organizationId, CancellationToken cancellationToken);
 }
 
 /// <summary>Published through the outbox when an organization is submitted for review (KYB starts in task 007).</summary>

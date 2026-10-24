@@ -3,11 +3,13 @@ using Integrations.Sef;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Modules.Audit.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Compliance.Contracts;
 using Modules.Documents.Contracts;
 using Modules.Organizations.Contracts;
 using Modules.Receivables.Contracts;
 using Modules.Receivables.Persistence;
+using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Persistence.Platform;
 using Shared.Infrastructure.Requests;
@@ -38,6 +40,7 @@ internal sealed class VerificationService(
     IBusinessParameters parameters,
     UnitOfWork unitOfWork,
     IAuditWriter audit,
+    IOutbox outbox,
     IRequestContext request,
     TimeProvider timeProvider)
 {
@@ -307,6 +310,7 @@ internal sealed class VerificationService(
                     await AuditChecksAsync(receivable, rows, ct);
                     await audit.WriteAsync(new AuditEntry("Receivable.Verified", "Receivable", id, receivable.SellerOrgId,
                         PreviousState: nameof(ReceivableState.PendingVerification), NewState: nameof(ReceivableState.Verified), Reason: body.Comment), ct);
+                    await NotifyResultAsync(receivable, ct);
                 },
                 cancellationToken)
                 ? Results.Ok(new { state = receivable.State })
@@ -318,9 +322,13 @@ internal sealed class VerificationService(
         receivable.RejectionReason = reasonCode;
         return await CommitAsync(
             receivable.SellerOrgId,
-            ct => audit.WriteAsync(new AuditEntry("Receivable.Rejected", "Receivable", id, receivable.SellerOrgId,
-                PreviousState: nameof(ReceivableState.PendingVerification), NewState: nameof(ReceivableState.Rejected),
-                Reason: $"{reasonCode}: {body.Comment}"), ct),
+            async ct =>
+            {
+                await audit.WriteAsync(new AuditEntry("Receivable.Rejected", "Receivable", id, receivable.SellerOrgId,
+                    PreviousState: nameof(ReceivableState.PendingVerification), NewState: nameof(ReceivableState.Rejected),
+                    Reason: $"{reasonCode}: {body.Comment}"), ct);
+                await NotifyResultAsync(receivable, ct);
+            },
             cancellationToken)
             ? Results.Ok(new { state = receivable.State })
             : ChangedConcurrently();
@@ -338,10 +346,40 @@ internal sealed class VerificationService(
         return string.Equals(code, FraudReason, StringComparison.OrdinalIgnoreCase) ? FraudReason : code;
     }
 
+    /// <summary>
+    /// The retry job (task 020): receivables still PendingVerification without a manual review, because SEF could not be
+    /// asked when they were submitted, are verified again; at most 100 per run.
+    /// </summary>
+    public async Task<int> RetryPendingAsync(CancellationToken cancellationToken)
+    {
+        var cutoff = timeProvider.GetUtcNow().AddMinutes(-15);
+        var stuck = await receivables.Receivables.IgnoreQueryFilters()
+            .Where(r => r.State == ReceivableState.PendingVerification && !r.ReviewRequired && r.CreatedAt <= cutoff)
+            .OrderBy(r => r.CreatedAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+        var done = 0;
+        foreach (var receivable in stuck)
+        {
+            try
+            {
+                await VerifyAsync(receivable, cancellationToken);
+                done++;
+            }
+            catch (Exception exception) when (exception is DbUpdateException or Integrations.Sef.SefUnavailableException or DomainConflictException)
+            {
+                // One item must not stop the batch; it is retried at the next run.
+                receivables.ChangeTracker.Clear();
+            }
+        }
+
+        return done;
+    }
+
     /// <summary>Runs every check and decides: any Fail → Rejected; any Warn or a large amount → manual queue; else Verified.</summary>
     private async Task VerifyAsync(Receivable receivable, CancellationToken cancellationToken)
     {
-        var invoice = await receivables.Invoices.SingleAsync(i => i.Id == receivable.InvoiceId, cancellationToken);
+        var invoice = await receivables.Invoices.IgnoreQueryFilters().SingleAsync(i => i.Id == receivable.InvoiceId, cancellationToken);
         var sefStatus = await FreshSefStatusAsync(receivable.SellerOrgId, invoice, cancellationToken);
         if (sefStatus is null)
         {
@@ -370,6 +408,10 @@ internal sealed class VerificationService(
                     failed.Count > 0 ? "Receivable.Rejected" : manual ? "Receivable.SentToManualReview" : "Receivable.Verified",
                     "Receivable", receivable.Id, receivable.SellerOrgId,
                     PreviousState: nameof(ReceivableState.PendingVerification), NewState: receivable.State.ToString(), Reason: receivable.RejectionReason), ct);
+                if (!manual)
+                {
+                    await NotifyResultAsync(receivable, ct);
+                }
             },
             cancellationToken);
     }
@@ -496,4 +538,8 @@ internal sealed class VerificationService(
 
     private static IResult ChangedConcurrently() =>
         Problems.Error(StatusCodes.Status409Conflict, "conflict_state", "Another request changed the receivable first. Reload it and try again.");
+
+    /// <summary>The seller hears about a verification result (task 019).</summary>
+    private Task NotifyResultAsync(Receivable receivable, CancellationToken cancellationToken) =>
+        outbox.AddAsync(new OrganizationNotificationRequested(receivable.SellerOrgId, NotificationTypes.ReceivableVerification, $"/receivables/{receivable.Id}", null), cancellationToken);
 }

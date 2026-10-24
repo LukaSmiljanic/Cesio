@@ -6,10 +6,11 @@ using Shared.Infrastructure.Persistence;
 
 namespace Modules.Organizations;
 
+public sealed record ConfirmationRequest(string? Purpose);
+
 /// <summary>
-/// <c>GET /confirmations/{token}?purpose=</c> (public, rate limited): the official email confirms a pending change.
+/// <c>POST /confirmations/{token}</c> <c>{ purpose }</c> (public, rate limited, no Idempotency-Key: the token is single use; the SPA page posts it after the user's click): the official email confirms a pending change.
 /// Unknown, used or expired → 410; a purpose other than the token's → 400.
-/// PayoutAccountChange tokens are issued by task 009; until then nothing is pending for them.
 /// </summary>
 internal sealed class ConfirmationService(
     OrgsDbContext orgs,
@@ -18,6 +19,7 @@ internal sealed class ConfirmationService(
     PristupnicaService pristupnice,
     MfaResetService mfaResets,
     SefConnectionService sefConnections,
+    BankAccountService bankAccounts,
     TimeProvider timeProvider)
 {
     public async Task<IResult> ConfirmAsync(string token, string? purpose, CancellationToken cancellationToken)
@@ -36,8 +38,14 @@ internal sealed class ConfirmationService(
 
         if (confirmation.ExpiresAt <= now)
         {
+            // Recorded once: the token is used up, so a repeated click is a plain 410 without another audit event.
+            confirmation.UsedAt = now;
             await unitOfWork.ExecuteInTransactionAsync(
-                ct => audit.WriteAsync(new AuditEntry("Confirmation.Expired", "ConfirmationToken", confirmation.Id, confirmation.OrgId, Reason: confirmation.Purpose), ct),
+                async ct =>
+                {
+                    await orgs.SaveChangesAsync(ct);
+                    await audit.WriteAsync(new AuditEntry("Confirmation.Expired", "ConfirmationToken", confirmation.Id, confirmation.OrgId, Reason: confirmation.Purpose), ct);
+                },
                 cancellationToken);
             return Gone();
         }
@@ -57,9 +65,10 @@ internal sealed class ConfirmationService(
                     await orgs.SaveChangesAsync(ct);
                     applied = confirmation.Purpose switch
                     {
-                        ConfirmationPurposes.Pristupnica => await pristupnice.ConfirmByEmailAsync(confirmation.SubjectId!.Value, ct),
+                        ConfirmationPurposes.Pristupnica => await pristupnice.ConfirmByEmailAsync(confirmation.SubjectId!.Value, confirmation.Fingerprint, ct),
                         ConfirmationPurposes.MfaReset => await mfaResets.ConfirmByEmailAsync(confirmation.SubjectId!.Value, ct),
-                        ConfirmationPurposes.SefKeyChange => await sefConnections.ApplyPendingKeyAsync(confirmation.OrgId, ct),
+                        ConfirmationPurposes.SefKeyChange => await sefConnections.ApplyPendingKeyAsync(confirmation.OrgId, confirmation.Fingerprint, ct),
+                        ConfirmationPurposes.PayoutAccountChange => await bankAccounts.ConfirmByEmailAsync(confirmation.OrgId, confirmation.SubjectId!.Value, ct),
                         _ => false,
                     };
                     await audit.WriteAsync(new AuditEntry("Confirmation.Used", "ConfirmationToken", confirmation.Id, confirmation.OrgId,

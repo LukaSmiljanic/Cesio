@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Modules.Audit.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Compliance.Contracts;
 using Modules.Compliance.Persistence;
 using Modules.Organizations.Contracts;
@@ -34,6 +35,7 @@ internal sealed class KybService(
     IOrganizationOnboarding onboarding,
     UnitOfWork unitOfWork,
     IAuditWriter audit,
+    IOutbox outbox,
     IRequestContext request,
     TimeProvider timeProvider) : IKybQuery, IIntegrationEventConsumer<OrganizationSubmitted>
 {
@@ -63,6 +65,75 @@ internal sealed class KybService(
         kyb.Status = "InReview";
         await compliance.SaveChangesAsync(cancellationToken);
         await onboarding.MoveAsync(orgId, OnboardingStatus.UnderReview, "kyb_case_opened", cancellationToken);
+    }
+
+    // ----- jobs (task 020) -----
+
+    /// <summary>Daily: an Approved organization past its next review date gets a new case in review; it stays Approved meanwhile.</summary>
+    public async Task<int> OpenPeriodicReviewsAsync(CancellationToken cancellationToken)
+    {
+        var now = timeProvider.GetUtcNow();
+        var due = await compliance.KybCases.AsNoTracking()
+            .Where(k => k.Status == "Approved" && k.NextReviewAt <= now
+                && !compliance.KybCases.Any(newer => newer.OrganizationId == k.OrganizationId && newer.CreatedAt > k.CreatedAt))
+            .Take(100)
+            .ToListAsync(cancellationToken);
+        foreach (var approved in due)
+        {
+            await unitOfWork.ExecuteInTransactionAsync(
+                async ct =>
+                {
+                    var kyb = new KybCase { Id = SequentialGuid.NewGuid(), OrganizationId = approved.OrganizationId, Status = "Open", SharingConsent = approved.SharingConsent, CreatedAt = now };
+                    compliance.KybCases.Add(kyb);
+                    await compliance.SaveChangesAsync(ct);
+                    await audit.WriteAsync(new AuditEntry("KybCase.Opened", "KybCase", kyb.Id, kyb.OrganizationId, NewState: "Open", Reason: "periodic_review",
+                        Related: [new AuditReference("KybCase", approved.Id)]), ct);
+                    await ScreenCaseAsync(kyb, ct);
+                    kyb.Status = "InReview";
+                    await compliance.SaveChangesAsync(ct);
+                },
+                cancellationToken);
+        }
+
+        return due.Count;
+    }
+
+    /// <summary>
+    /// Daily (after the lists are imported): the latest Approved case of every organization is screened again; a new
+    /// potential match raises a compliance alert (an officer resolves it; confirmed matches lead to a hold by hand).
+    /// </summary>
+    public async Task<int> RescreenApprovedAsync(CancellationToken cancellationToken)
+    {
+        var cases = await compliance.KybCases
+            .Where(k => k.Status == "Approved" && !compliance.KybCases.Any(newer => newer.OrganizationId == k.OrganizationId && newer.CreatedAt > k.CreatedAt))
+            .Take(500)
+            .ToListAsync(cancellationToken);
+        var alerts = 0;
+        foreach (var kyb in cases)
+        {
+            var before = await compliance.ScreeningResults.AsNoTracking()
+                .Where(r => r.KybCaseId == kyb.Id && r.Result != "Superseded" && r.EntryName != null)
+                .Select(r => r.SubjectName + "|" + r.EntryName)
+                .ToListAsync(cancellationToken);
+            await unitOfWork.ExecuteInTransactionAsync(
+                async ct =>
+                {
+                    await ScreenCaseAsync(kyb, ct);
+                    await compliance.SaveChangesAsync(ct);
+                    var fresh = await compliance.ScreeningResults.AsNoTracking()
+                        .Where(r => r.KybCaseId == kyb.Id && r.Result == "PotentialMatch")
+                        .Select(r => r.SubjectName + "|" + r.EntryName)
+                        .ToListAsync(ct);
+                    if (fresh.Except(before).Any())
+                    {
+                        alerts++;
+                        await audit.WriteAsync(new AuditEntry("Compliance.Alert", "KybCase", kyb.Id, kyb.OrganizationId, Reason: "new_screening_match"), ct);
+                    }
+                },
+                cancellationToken);
+        }
+
+        return alerts;
     }
 
     // ----- customer -----
@@ -337,7 +408,9 @@ internal sealed class KybService(
 
             kyb.Status = "Approved";
             kyb.NextReviewAt = timeProvider.GetUtcNow().AddMonths(kyb.RiskRating switch { "High" => 12, "Medium" => 24, _ => 36 });
-            return await SaveDecisionAsync(kyb, "KybCase.Approved", reason, OnboardingStatus.Approved, cancellationToken);
+            // A periodic review (task 020) of an organization that stays Approved does not move it again.
+            var alreadyApproved = (await organizations.GetAsync(kyb.OrganizationId, cancellationToken))?.IsApproved == true;
+            return await SaveDecisionAsync(kyb, "KybCase.Approved", reason, alreadyApproved ? null : OnboardingStatus.Approved, cancellationToken);
         }
 
         if (body.Decision == "NeedsInfo" && results.Any(r => r.Result == "ConfirmedMatch"))
@@ -446,6 +519,12 @@ internal sealed class KybService(
                     if (move is { } to)
                     {
                         await onboarding.MoveAsync(kyb.OrganizationId, to, $"kyb_{kyb.Status}", ct);
+                    }
+
+                    // Approved reaches the members through OrganizationApproved; a rejection or a request for information here.
+                    if (kyb.Status is "Rejected" or "NeedsInfo")
+                    {
+                        await outbox.AddAsync(new OrganizationNotificationRequested(kyb.OrganizationId, NotificationTypes.KybDecision, $"/organizations/{kyb.OrganizationId}", null), ct);
                     }
                 },
                 cancellationToken);

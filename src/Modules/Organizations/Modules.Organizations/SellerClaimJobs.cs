@@ -1,12 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Modules.Audit.Contracts;
 using Modules.Organizations.Contracts;
 using Modules.Organizations.Persistence;
 using Shared.Infrastructure.Email;
-using Shared.Infrastructure.Jobs;
 using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Persistence.Platform;
@@ -51,18 +47,6 @@ internal sealed class DraftExpiry(OrgsDbContext orgs, UnitOfWork unitOfWork, IAu
 
         return expired.Count;
     }
-}
-
-/// <summary>Runs <see cref="DraftExpiry"/> once a day in the worker.</summary>
-internal sealed class DraftExpiryJob(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<DraftExpiryJob> logger)
-    : SingletonJob(scopeFactory, configuration, logger)
-{
-    protected override string LockName => "orgs-draft-expiry";
-
-    protected override TimeSpan Interval => TimeSpan.FromDays(1);
-
-    protected override Task RunOnceAsync(IServiceProvider services, CancellationToken cancellationToken) =>
-        services.GetRequiredService<DraftExpiry>().ExpireAsync(cancellationToken);
 }
 
 /// <summary>Task 007a requirement 8: an approved seller's official email learns that the company is registered on Cesio.</summary>

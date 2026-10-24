@@ -28,4 +28,15 @@ public sealed class SqlServerContainer : IAsyncLifetime
 
         return new SqlConnectionStringBuilder(_container.GetConnectionString()) { InitialCatalog = name }.ConnectionString;
     }
+
+    /// <summary>Drops a test database, so a full run does not exhaust the container memory (one database per test).</summary>
+    public async Task DropDatabaseAsync(string connectionString)
+    {
+        var name = new SqlConnectionStringBuilder(connectionString).InitialCatalog;
+        SqlConnection.ClearAllPools();
+        await using var connection = new SqlConnection(_container.GetConnectionString());
+        await connection.OpenAsync();
+        await using var command = new SqlCommand($"ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}];", connection);
+        await command.ExecuteNonQueryAsync();
+    }
 }

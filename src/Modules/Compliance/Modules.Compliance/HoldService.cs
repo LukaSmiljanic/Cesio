@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Modules.Audit.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Compliance.Contracts;
 using Modules.Compliance.Persistence;
+using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
 using Shared.Kernel;
@@ -15,7 +17,7 @@ public sealed record PlaceHoldRequest(HoldSubject? SubjectType, Guid SubjectId, 
 /// Holds (task 007, ADR-014): compliance staff place and lift them; lifting a FraudInvestigation hold takes a second,
 /// different officer. Every placement and lift is audited.
 /// </summary>
-internal sealed class HoldService(ComplianceDbContext compliance, UnitOfWork unitOfWork, IAuditWriter audit, IRequestContext request, TimeProvider timeProvider) : IHoldQuery
+internal sealed class HoldService(ComplianceDbContext compliance, UnitOfWork unitOfWork, IAuditWriter audit, IOutbox outbox, IRequestContext request, TimeProvider timeProvider) : IHoldQuery, IHoldWriter
 {
     private Guid UserId => request.UserId ?? throw new InvalidOperationException("An authenticated user is required.");
 
@@ -51,6 +53,7 @@ internal sealed class HoldService(ComplianceDbContext compliance, UnitOfWork uni
                 await audit.WriteAsync(new AuditEntry("Hold.Placed", "Hold", hold.Id, subject == HoldSubject.Organization ? hold.SubjectId : null,
                     NewState: "Active", Reason: reason, Related: [new AuditReference(subject.ToString(), hold.SubjectId)],
                     Changes: new Dictionary<string, string?> { ["kind"] = kind.ToString() }), ct);
+                await NotifyAsync(hold, ct);
             },
             cancellationToken);
         return Results.Created($"/api/v1/admin/holds/{hold.Id}", View(hold));
@@ -92,10 +95,45 @@ internal sealed class HoldService(ComplianceDbContext compliance, UnitOfWork uni
                 await compliance.SaveChangesAsync(ct);
                 await audit.WriteAsync(new AuditEntry(action, "Hold", hold.Id, hold.SubjectType == HoldSubject.Organization ? hold.SubjectId : null,
                     PreviousState: "Active", NewState: hold.LiftedAt is null ? "Active" : "Lifted", Related: [new AuditReference(hold.SubjectType.ToString(), hold.SubjectId)]), ct);
+                if (hold.LiftedAt is not null)
+                {
+                    await NotifyAsync(hold, ct);
+                }
             },
             cancellationToken);
         return Results.Ok(View(hold));
     }
+
+    public async Task PlaceSystemHoldAsync(HoldSubject subject, Guid subjectId, HoldKind kind, string reason, Guid? organizationId, CancellationToken cancellationToken)
+    {
+        if (await compliance.Holds.AnyAsync(h => h.SubjectType == subject && h.SubjectId == subjectId && h.Kind == kind && h.LiftedAt == null, cancellationToken))
+        {
+            return;
+        }
+
+        var hold = new Hold
+        {
+            Id = SequentialGuid.NewGuid(),
+            SubjectType = subject,
+            SubjectId = subjectId,
+            Kind = kind,
+            Reason = reason,
+            // The system has no user id; the audit event's actor type says System.
+            PlacedBy = Guid.Empty,
+            PlacedAt = timeProvider.GetUtcNow(),
+        };
+        compliance.Holds.Add(hold);
+        await compliance.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync(new AuditEntry("Hold.Placed", "Hold", hold.Id, organizationId, NewState: "Active", Reason: reason,
+            Related: [new AuditReference(subject.ToString(), subjectId)], Changes: new Dictionary<string, string?> { ["kind"] = kind.ToString() }), cancellationToken);
+        await NotifyAsync(hold, cancellationToken);
+    }
+
+    /// <summary>An organization hold is announced to its members (task 019); deal and receivable holds reach them through their screens.</summary>
+    private Task NotifyAsync(Hold hold, CancellationToken cancellationToken) =>
+        hold.SubjectType == HoldSubject.Organization
+            ? outbox.AddAsync(new OrganizationNotificationRequested(hold.SubjectId, NotificationTypes.Hold, $"/organizations/{hold.SubjectId}", null), cancellationToken)
+            : Task.CompletedTask;
 
     private static object View(Hold hold) => new
     {

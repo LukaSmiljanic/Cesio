@@ -65,6 +65,8 @@ app.MapMarketplaceEndpoints();
 app.MapFeeEndpoints();
 app.MapDealEndpoints();
 app.MapComplianceEndpoints();
+app.MapNotificationEndpoints();
+app.MapJobEndpoints();
 
 app.Run();
 

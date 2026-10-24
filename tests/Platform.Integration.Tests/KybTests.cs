@@ -221,6 +221,7 @@ public sealed class KybTests(SqlServerContainer server) : IAsyncLifetime
         // The SEF claim and the accepted pristupnica of task 007a, set directly: SellerClaimTests covers that flow.
         await _database.ExecuteAsync($"UPDATE orgs.organizations SET claimed_at = SYSDATETIMEOFFSET() WHERE id = '{org}'");
         await _database.ExecuteAsync($"INSERT INTO orgs.pristupnice (id, org_id, generated_document_id, generated_sha256, status, method, created_at, version) VALUES (NEWID(), '{org}', NEWID(), REPLICATE('a', 64), 'Accepted', 'Qes', SYSDATETIMEOFFSET(), 0)");
+        await _database.ExecuteAsync(TestIds.VerifiedAccountSql(org));
         await DeliverSubmittedAsync(org);
         return (owner, org);
     }

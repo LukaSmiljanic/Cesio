@@ -9,6 +9,8 @@ using Modules.Deals.Persistence;
 using Modules.Documents.Contracts;
 using Modules.Identity.Contracts;
 using Shared.Infrastructure.Idempotency;
+using Shared.Infrastructure.Jobs;
+using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
 
@@ -24,7 +26,15 @@ public static class DealsModule
     {
         services.AddModuleDbContext<DealsDbContext>(DealsDbContext.SchemaName, migrationOrder: 8);
         services.AddScoped<DealService>();
+        services.AddScoped<Contracts.IDealQuery, DealQuery>();
         services.AddScoped<DealStepService>();
+        services.AddScoped<DealJobs>();
+        services.AddIntegrationEventConsumer<Modules.Receivables.Contracts.ReceivableSefStatusChanged, DealJobs>(DealJobs.SefConsumerName);
+        services.AddIntegrationEventConsumer<Modules.Compliance.Contracts.FactorAuthorizationRevoked, DealJobs>(DealJobs.RevokedConsumerName);
+        services.AddIntegrationEventConsumer<Modules.Compliance.Contracts.FactorAuthorizationExpired, DealJobs>(DealJobs.ExpiredConsumerName);
+        services.AddJob("deals-signature-deadline", TimeSpan.FromMinutes(15), (provider, ct) => provider.GetRequiredService<DealJobs>().SignatureDeadlinesAsync(ct));
+        services.AddJob("deals-funding-follow-up", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<DealJobs>().FundingFollowUpAsync(ct));
+        services.AddJob("deals-outcome-overdue", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<DealJobs>().OutcomeOverdueAsync(ct));
         services.AddScoped<TrustStoreService>();
         services.AddScoped<ICefGateway, CefNotOperationalGateway>();
         services.AddScoped<IDocumentAccessPolicy, DealDocumentPolicy>();

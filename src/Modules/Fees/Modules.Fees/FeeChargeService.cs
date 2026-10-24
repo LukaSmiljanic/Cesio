@@ -3,7 +3,9 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Modules.Audit.Contracts;
+using Modules.Notifications.Contracts;
 using Modules.Fees.Persistence;
+using Shared.Infrastructure.Outbox;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
 using Shared.Kernel;
@@ -25,7 +27,8 @@ public sealed record StatementTotal(Money Net, Money Vat, Money Total);
 /// Fee charges and statements (task 018): the payer sees its own charges and monthly statements; Finance marks charges
 /// invoiced and paid, reverses them with a second person's approval, and exports a month as CSV.
 /// </summary>
-internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork, IAuditWriter audit, IRequestContext request, TimeProvider timeProvider)
+internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork, IAuditWriter audit,
+    IOutbox outbox, IRequestContext request, TimeProvider timeProvider)
 {
     private Guid OrganizationId => request.OrganizationId ?? throw new InvalidOperationException("An organization context is required.");
 
@@ -276,6 +279,11 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
                     await fees.SaveChangesAsync(ct);
                     await audit.WriteAsync(new AuditEntry(action, "FeeCharge", id, charge.PayerOrgId, PreviousState: from, NewState: to,
                         Changes: new Dictionary<string, string?> { ["externalInvoiceRef"] = charge.ExternalInvoiceRef }), ct);
+                    if (to == "Invoiced")
+                    {
+                        // "Fee statement issued" (product-spec §8): the payer learns that its charge was invoiced.
+                        await outbox.AddAsync(new OrganizationNotificationRequested(charge.PayerOrgId, NotificationTypes.FeeStatement, "/fees", null), ct);
+                    }
                 },
                 cancellationToken);
         }

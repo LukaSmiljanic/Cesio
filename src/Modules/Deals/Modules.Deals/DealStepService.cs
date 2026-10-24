@@ -40,6 +40,7 @@ internal sealed partial class DealStepService(
     IAccessLog accessLog,
     IOrganizationQuery organizations,
     IHoldQuery holds,
+    IAuthorizationQuery authorizations,
     IDocumentQuery documents,
     UnitOfWork unitOfWork,
     IAuditWriter audit,
@@ -399,6 +400,19 @@ internal sealed partial class DealStepService(
                 await deals.SaveChangesAsync(ct);
             },
             cancellationToken);
+        return true;
+    }
+
+    /// <summary>A system cancellation before signing (task 020): the SEF invoice was withdrawn while the deal was in progress. In the caller's transaction.</summary>
+    public async Task<bool> CancelBeforeSigningAsync(Deal deal, string reason, CancellationToken cancellationToken)
+    {
+        if (!BeforeSigning.Contains(deal.State))
+        {
+            return false;
+        }
+
+        await CancelCoreAsync(deal, reason, actorUserId: null, cancellationToken);
+        await deals.SaveChangesAsync(cancellationToken);
         return true;
     }
 

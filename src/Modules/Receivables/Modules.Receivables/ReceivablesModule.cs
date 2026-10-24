@@ -6,6 +6,7 @@ using Modules.Identity.Contracts;
 using Modules.Receivables.Contracts;
 using Modules.Receivables.Persistence;
 using Shared.Infrastructure.Idempotency;
+using Shared.Infrastructure.Jobs;
 using Shared.Infrastructure.Persistence;
 using Shared.Infrastructure.Requests;
 
@@ -20,6 +21,10 @@ public static class ReceivablesModule
         services.AddScoped<ImportService>();
         services.AddScoped<VerificationService>();
         services.AddScoped<SefStatusPoller>();
+        services.AddScoped<ReceivableJobs>();
+        services.AddJob("receivables-maturity-ineligibility", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<ReceivableJobs>().MarkMaturityIneligibleAsync(ct));
+        services.AddJob("receivables-sef-monitoring", TimeSpan.FromDays(1), (provider, ct) => provider.GetRequiredService<ReceivableJobs>().MonitorSefAsync(ct));
+        services.AddJob("receivables-pending-verification-retry", TimeSpan.FromMinutes(15), (provider, ct) => provider.GetRequiredService<VerificationService>().RetryPendingAsync(ct));
         services.AddScoped<ReceivableMarket>();
         services.AddScoped<IReceivableMarket>(provider => provider.GetRequiredService<ReceivableMarket>());
         services.AddScoped<IReceivableWriter>(provider => provider.GetRequiredService<ReceivableMarket>());

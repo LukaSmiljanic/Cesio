@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
+import { bankAccountsApi } from '../api/bankAccounts'
 import { onboardingApi, type PristupnicaReview } from '../api/onboarding'
 import type { Organization } from '../api/organizations'
 import { receivablesApi } from '../api/receivables'
@@ -17,6 +18,10 @@ const pristupnicaStatuses: Record<string, string> = {
 
 /** The seller's onboarding steps (task 007a): PIB → SEF → data → payout account → pristupnica → review. */
 export function SellerChecklist({ organization }: { organization: Organization }) {
+  const accounts = useQuery({
+    queryKey: ['bank-accounts', organization.id],
+    queryFn: () => bankAccountsApi.list(organization.id),
+  })
   const sef = useQuery({
     queryKey: ['sef-connection', organization.id],
     queryFn: () => receivablesApi.sefConnection(organization.id),
@@ -33,7 +38,10 @@ export function SellerChecklist({ organization }: { organization: Organization }
       label: 'Podaci o firmi',
       done: Boolean(organization.legalName && organization.mb && organization.registeredAddress),
     },
-    { label: 'Račun za isplatu (uskoro)', done: false },
+    {
+      label: 'Račun za isplatu proveren',
+      done: Boolean(accounts.data?.some((a) => a.status === 'Verified')),
+    },
     { label: 'Pristupnica prihvaćena', done: pristupnica.data?.status === 'Accepted' },
     { label: 'Provera firme', done: organization.status === 'Approved' },
   ]
@@ -245,6 +253,7 @@ function PristupnicaReviewRow({ review }: { review: PristupnicaReview }) {
   const [representativeId, setRepresentativeId] = useState(review.representatives[0]?.id ?? '')
   const [notes, setNotes] = useState('')
   const [officialEmail, setOfficialEmail] = useState('')
+  const [aprExcerpt, setAprExcerpt] = useState<File | null>(null)
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['admin-pristupnice'] })
   const decide = useMutation({
     mutationFn: (decision: 'Accepted' | 'Rejected') =>
@@ -261,7 +270,9 @@ function PristupnicaReviewRow({ review }: { review: PristupnicaReview }) {
   })
   const email = useMutation({
     mutationFn: () =>
-      withStepUp(() => onboardingApi.recordOfficialEmail(p.organizationId, officialEmail)),
+      withStepUp(() =>
+        onboardingApi.recordOfficialEmail(p.organizationId, officialEmail, aprExcerpt!),
+      ),
     onSuccess: refresh,
   })
   const content = useMutation({
@@ -299,8 +310,12 @@ function PristupnicaReviewRow({ review }: { review: PristupnicaReview }) {
             value={officialEmail}
             onChange={(e) => setOfficialEmail(e.target.value)}
           />
+          <label className="block">
+            <span className="block font-medium">APR izvod (izvor emaila)</span>
+            <input type="file" onChange={(e) => setAprExcerpt(e.target.files?.[0] ?? null)} />
+          </label>
           <ErrorMessage error={email.error} />
-          <Button type="submit" variant="secondary" disabled={email.isPending}>
+          <Button type="submit" variant="secondary" disabled={!aprExcerpt || email.isPending}>
             Upiši email
           </Button>
         </form>
