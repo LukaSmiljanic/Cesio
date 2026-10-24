@@ -64,6 +64,7 @@ app.MapReceivableEndpoints();
 app.MapMarketplaceEndpoints();
 app.MapFeeEndpoints();
 app.MapDealEndpoints();
+app.MapComplianceEndpoints();
 
 app.Run();
 

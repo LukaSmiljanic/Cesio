@@ -5,6 +5,7 @@ import { organizationsApi, type Member, type Organization } from '../api/organiz
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 import { useActiveOrganization } from '../organizations/activeOrganization'
+import { KybSection } from './KybPages'
 import { SefConnectionSection } from './ReceivablePages'
 
 const statusLabels: Record<string, string> = {
@@ -243,6 +244,7 @@ export function OrganizationPage() {
         <DetailsForm key={o.version} organization={o} />
         <Representatives organization={o} />
         {o.type === 'Seller' && <SefConnectionSection organizationId={o.id} />}
+        <KybSection organizationId={o.id} />
         {o.status === 'Draft' && (
           <section className="space-y-2">
             <h2 className="font-medium">Uslovi korišćenja</h2>

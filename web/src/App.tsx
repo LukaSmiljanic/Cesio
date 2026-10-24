@@ -13,6 +13,7 @@ import {
 } from './pages/OrganizationPages'
 import { DealPage, DealsPage } from './pages/DealPages'
 import { AdminFeesPage, FeesPage } from './pages/FeePages'
+import { KybCasePage, KybQueuePage } from './pages/KybPages'
 import { MarketplaceListingPage, MarketplacePage, SellerListingsPage } from './pages/ListingPages'
 import { ListingOffersPage, MyOffersPage } from './pages/OfferPages'
 import { ImportPage, ReceivablesPage } from './pages/ReceivablePages'
@@ -86,6 +87,14 @@ export function AppRoutes() {
       <Route path="/offers" element={<RequireSession>{() => <MyOffersPage />}</RequireSession>} />
       <Route path="/deals" element={<RequireSession>{() => <DealsPage />}</RequireSession>} />
       <Route path="/fees" element={<RequireSession>{() => <FeesPage />}</RequireSession>} />
+      <Route
+        path="/admin/kyb"
+        element={<RequireSession>{() => <KybQueuePage />}</RequireSession>}
+      />
+      <Route
+        path="/admin/kyb/:id"
+        element={<RequireSession>{() => <KybCasePage />}</RequireSession>}
+      />
       <Route
         path="/admin/fees"
         element={<RequireSession>{() => <AdminFeesPage />}</RequireSession>}

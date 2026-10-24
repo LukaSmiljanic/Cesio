@@ -6,6 +6,7 @@ using Modules.Documents;
 using Modules.Identity;
 using Modules.Organizations;
 using Modules.Receivables;
+using Modules.Compliance;
 using Modules.Deals;
 using Modules.Fees;
 using Modules.Marketplace;
@@ -24,6 +25,7 @@ builder.Services
     .AddOrganizationsModule()
     .AddReceivablesModule()
     .AddMarketplaceModule()
+    .AddComplianceModule()
     .AddFeesModule()
     .AddDealsModule();
 

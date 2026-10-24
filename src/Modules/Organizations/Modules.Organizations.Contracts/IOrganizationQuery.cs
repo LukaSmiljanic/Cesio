@@ -27,6 +27,22 @@ public sealed record OrganizationSummary(Guid Id, OrganizationType Type, Onboard
 
 public sealed record MembershipSummary(Guid OrganizationId, Guid UserId, bool IsSignatory);
 
+/// <summary>Published when KYB approves an organization (task 007); it may transact from then on (INV-A1).</summary>
+public sealed record OrganizationApproved(Guid OrganizationId, OrganizationType Type) : IIntegrationEvent
+{
+    public static string EventType => "Organizations.OrganizationApproved";
+}
+
+/// <summary>
+/// The onboarding transitions that KYB decides (task 007): Submitted → UnderReview when a case opens, then Approved,
+/// Rejected, or back to Draft when compliance needs more information. Runs in the caller's transaction, audited.
+/// </summary>
+public interface IOrganizationOnboarding
+{
+    /// <exception cref="Shared.Kernel.DomainConflictException"><c>conflict_state</c> when the organization is not in a state that allows it.</exception>
+    Task MoveAsync(Guid organizationId, OnboardingStatus to, string reason, CancellationToken cancellationToken);
+}
+
 /// <summary>A payout account a factor may pay the purchase price to: Verified and out of cool-down (INV-F2).</summary>
 public sealed record FundingAccount(Guid Id, Guid OrganizationId, Shared.Kernel.SerbianBankAccountNumber AccountNumber, string BankName, Shared.Kernel.Currency Currency);
 

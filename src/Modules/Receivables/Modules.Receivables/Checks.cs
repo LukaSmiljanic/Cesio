@@ -1,5 +1,6 @@
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
+using Modules.Compliance.Contracts;
 using Modules.Organizations.Contracts;
 using Modules.Receivables.Persistence;
 using Shared.Infrastructure.Persistence.Platform;
@@ -153,13 +154,24 @@ internal sealed class FaceValueConsistentCheck : IReceivableCheck
             : CheckOutcome.Fail("The face value is above the invoice gross amount."));
 }
 
-internal sealed class DebtorScreeningCheck : IReceivableCheck
+internal sealed class DebtorScreeningCheck(IScreeningService screening) : IReceivableCheck
 {
     public string Code => "DEBTOR_SCREENING";
 
-    /// <summary>Sanctions screening arrives with task 007 (LQ-30/31); until then a person must look, so it warns.</summary>
-    public Task<CheckOutcome> RunAsync(CheckContext context, CancellationToken cancellationToken) =>
-        Task.FromResult(CheckOutcome.Warn("Debtor screening is not available yet (task 007); review manually."));
+    /// <summary>
+    /// Sanctions screening of the debtor entity (compliance.md §3, task 007): a potential match, or no imported list to
+    /// screen against, sends the receivable to a person.
+    /// </summary>
+    public async Task<CheckOutcome> RunAsync(CheckContext context, CancellationToken cancellationToken)
+    {
+        var answer = await screening.ScreenAsync(context.Debtor.LegalName, cancellationToken);
+        return answer.Outcome switch
+        {
+            ScreeningOutcome.Clear => CheckOutcome.Pass,
+            ScreeningOutcome.NoLists => CheckOutcome.Warn("No sanctions list is imported yet; review manually."),
+            _ => CheckOutcome.Warn($"Potential sanctions match: {string.Join(", ", answer.Hits.Select(h => $"{h.ListSource} {h.EntryName}"))}."),
+        };
+    }
 }
 
 internal sealed class DebtorNotSellerCheck : IReceivableCheck

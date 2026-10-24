@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -16,6 +18,11 @@ namespace Modules.Documents;
 /// <summary>Composition entry point of the Documents module (task 006).</summary>
 public static class DocumentsModule
 {
+    /// <summary>Document requests per user and organization and minute.</summary>
+    public const string RateLimitPolicy = "documents";
+
+    private const int RequestsPerMinute = 120;
+
     /// <summary>Environments where the fake scanner may run (tasks/README, Phase 2 stubs).</summary>
     private static readonly string[] FakeScannerEnvironments = ["Development", "local", "dev", "staging"];
 
@@ -37,6 +44,10 @@ public static class DocumentsModule
         });
         services.AddScoped<DocumentService>();
         services.AddScoped<IDocumentQuery, DocumentQuery>();
+        // Uploads and downloads per user and organization (security.md §6): a factor cannot scrape listing documents.
+        services.Configure<RateLimiterOptions>(options => options.AddPolicy(RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+            $"{http.User.FindFirst(CesioClaims.UserId)?.Value ?? http.Connection.RemoteIpAddress?.ToString()}|{http.Request.Headers[OrganizationScopedMetadata.Header]}",
+            _ => new FixedWindowRateLimiterOptions { PermitLimit = RequestsPerMinute, Window = TimeSpan.FromMinutes(1) })));
         services.AddScoped<IDocumentWriter>(provider => provider.GetRequiredService<DocumentService>());
         return services;
     }
@@ -44,7 +55,7 @@ public static class DocumentsModule
     /// <summary><c>POST /documents</c>, <c>GET /documents/{id}</c>, <c>GET /documents/{id}/content</c> (api.md Documents).</summary>
     public static IEndpointRouteBuilder MapDocumentEndpoints(this IEndpointRouteBuilder app)
     {
-        var documents = app.MapGroup("/api/v1/documents").RequireAuthorization().RequireOrganization();
+        var documents = app.MapGroup("/api/v1/documents").RequireAuthorization().RequireOrganization().RequireRateLimiting(RateLimitPolicy);
         documents.MapPost("", (HttpRequest request, DocumentService service, CancellationToken ct) => service.UploadAsync(request, ct))
             .RequireIdempotency()
             // 20 MB of file plus the multipart framing; larger bodies are refused before they are read.

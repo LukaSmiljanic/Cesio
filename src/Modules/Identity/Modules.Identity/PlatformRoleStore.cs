@@ -14,6 +14,10 @@ internal sealed class PlatformRoleStore(UserManager<AuthUser> users) : IPlatform
         await users.FindByIdAsync(userId.ToString()) is { } user
         && (await users.GetClaimsAsync(user)).Any(c => c.Type == ClaimType && c.Value == role);
 
+    public async Task<bool> IsStaffAsync(Guid userId, CancellationToken cancellationToken) =>
+        await users.FindByIdAsync(userId.ToString()) is { } user
+        && (await users.GetClaimsAsync(user)).Any(c => c.Type == ClaimType);
+
     /// <summary>Development only (dev endpoint): gives the signed-in user a platform role.</summary>
     public async Task GrantAsync(Guid userId, string role)
     {

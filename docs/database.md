@@ -229,7 +229,7 @@ CREATE TABLE fees.fee_charges (
   created_at datetimeoffset(3) NOT NULL,
   -- task 018
   payer_role varchar(10) NOT NULL, vat_pending bit NOT NULL, fee_schedule_version int NOT NULL, reason nvarchar(400), created_by uniqueidentifier,
-  approved_by uniqueidentifier, deal_reference varchar(20) NOT NULL, invoice_number nvarchar(200) NOT NULL, face_value decimal(19,4) NOT NULL,
+  approved_by uniqueidentifier, approved_at datetimeoffset(3) /* a reversal counts in the month it took effect */, deal_reference varchar(20) NOT NULL, invoice_number nvarchar(200) NOT NULL, face_value decimal(19,4) NOT NULL,
   funded_at datetimeoffset(3) NOT NULL, version int NOT NULL,
   CHECK ((kind = 'Reversal' AND reverses_id IS NOT NULL) OR (kind = 'Charge' AND reverses_id IS NULL))
 );

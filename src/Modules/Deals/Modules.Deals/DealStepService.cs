@@ -33,6 +33,7 @@ internal sealed partial class DealStepService(
     IReceivableWriter receivables,
     IReceivableMarket receivableMarket,
     ISignatureValidator signatureValidator,
+    IKybQuery kyb,
     ICefGateway cef,
     IBankAccountQuery bankAccounts,
     IBusinessParameters parameters,
@@ -401,12 +402,6 @@ internal sealed partial class DealStepService(
         return true;
     }
 
-    /// <summary>The factor's KYB package of the seller; it needs the seller's KYB-sharing consent, which comes with KYB (task 007).</summary>
-    public async Task<IResult> KybPackageAsync(Guid id, CancellationToken cancellationToken) =>
-        await PartyDealAsync(id, cancellationToken) is { } deal && deal.FactorOrgId == OrganizationId
-            ? Problems.Error(StatusCodes.Status409Conflict, "kyb_consent_missing", "The seller has not consented to sharing its KYB package (KYB arrives with task 007).")
-            : NotFound();
-
     /// <summary>What the deal page shows about the steps of this task, and whose turn it is.</summary>
     public async Task<object> StepsAsync(Guid id, Guid sellerOrgId, Guid factorOrgId, DealState state, CancellationToken cancellationToken)
     {
@@ -454,6 +449,10 @@ internal sealed partial class DealStepService(
     /// <summary>The state, Signatory and hold guards shared by the steps; null when the step may go ahead.</summary>
     private async Task<IResult?> RefusalAsync(Deal deal, DealState required, bool signatory, CancellationToken cancellationToken)
     {
+        // Steps of the two parties are serialised on the deal row (the idempotent request's transaction holds the lock),
+        // so "has the other party already acted?" is never decided on a stale read; the state is read again under it.
+        await deals.Database.ExecuteSqlAsync($"SELECT id FROM deals.deals WITH (UPDLOCK, ROWLOCK) WHERE id = {deal.Id}", cancellationToken);
+        await deals.Entry(deal).ReloadAsync(cancellationToken);
         if (deal.State != required)
         {
             return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", $"The deal is {deal.State}; this step needs {required}.");
@@ -521,6 +520,11 @@ internal sealed partial class DealStepService(
         catch (DomainConflictException conflict)
         {
             return Problems.Error(conflict.Status, conflict.ErrorCode, conflict.Message);
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 })
+        {
+            // A parallel request recorded the same step first (one CDD decision, one confirmation per party and version).
+            return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", "This step was already recorded by a parallel request.");
         }
 
         return result?.Invoke() ?? Results.Ok(new { state = deal.State });

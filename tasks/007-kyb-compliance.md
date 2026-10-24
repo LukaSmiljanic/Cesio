@@ -23,6 +23,7 @@ Submitted organizations go through a KYB case reviewed by compliance staff, with
 - A ConfirmedMatch → mandatory rejection + escalation note (LQ-33 for further steps).
 - BO declaration ≠ register snapshot → `NeedsInfo`.
 - The decision guard is extensible: task 007a adds "seller claimed by SEF key + pristupnica accepted", task 009 adds "Verified payout account" (compliance.md §2).
+- Implementation notes (2026-10-24, simplest options): staff are Identity users with `platform_role` claims (granted with `POST /dev/me/platform-roles` in development until a staff admin UI exists); a staff account cannot create or join a customer organization (403 `staff_account`); `OrganizationSubmitted` opens the case (the worker's outbox consumer `compliance.kyb`), screens the organization, its legal representatives and its declared beneficial owners at once, and moves the organization to UnderReview; NeedsInfo returns the organization to Draft (it resubmits, which opens a new case; the sharing consent carries over); the lists are imported as CSV (one name per line, idempotent by SHA-256, audited) for UN, APML, EU and OFAC; the XML parsers and the daily import job come with task 020; matching normalises Cyrillic to Latin, removes diacritics, dots and case, sorts words and uses Jaro-Winkler (`screening.threshold`, default 0.92); without any imported list the result is `NoLists` (debtor screening then warns); risk is set by the officer with a reason (no automatic rules yet); "representatives verified against APR" is a confirmation in the decision, the APR snapshot documents come with automated APR data; next review after 12/24/36 months for High/Medium/Low; holds on deals, receivables and organizations are real now and replace the no-holds stub; the KYB package of task 015 is built from this data with the seller's consent.
 
 # Technical Requirements
 Expose `Modules.Compliance.Contracts`: `IHoldQuery`, `IKybQuery`, `IScreeningService` (also used for debtors in 011).
@@ -40,8 +41,8 @@ PII access is limited to ComplianceOfficer/Auditor; Support sees masked data. Al
 Four-eyes enforced (same officer twice → 403); transliteration match ("Petrović" vs "Петровић"); approval blocked by an unresolved hit; hold blocks a sample guarded action; cross-tenant KYB access → 404.
 
 # Acceptance Criteria
-- [ ] End-to-end: submit org → screening → decision → org Approved.
-- [ ] High-risk path requires two officers.
+- [x] End-to-end: submit org → screening → decision → org Approved.
+- [x] High-risk path requires two officers.
 - [ ] List import job idempotent and audited.
 
 # Out of Scope

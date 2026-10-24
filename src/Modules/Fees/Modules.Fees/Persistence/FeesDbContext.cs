@@ -141,6 +141,9 @@ internal sealed class FeeCharge
 
     public Guid? ApprovedBy { get; set; }
 
+    /// <summary>When a reversal took effect; it counts in the statement of that month.</summary>
+    public DateTimeOffset? ApprovedAt { get; set; }
+
     public int Version { get; set; }
 }
 

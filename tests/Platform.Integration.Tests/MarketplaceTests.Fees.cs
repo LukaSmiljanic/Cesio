@@ -86,6 +86,60 @@ public sealed partial class MarketplaceTests
         await Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>(() => _database.ExecuteAsync($"DELETE FROM fees.fee_charges WHERE id = '{reversalId}'"));
     }
 
+    [Fact]
+    public async Task A_split_schedule_with_standard_vat_gives_each_payer_its_charge_and_the_seller_its_net_proceeds()
+    {
+        using var finance = await StaffAsync("Finance");
+        using var second = await StaffAsync("Finance");
+        await second.StepUpAsync();
+        var effectiveFrom = DateTimeOffset.UtcNow.AddSeconds(3);
+        var schedule = await ApiClient.ReadAsync(await finance.PostAsync("/api/v1/admin/fee-schedules", new
+        {
+            definition = new { payer = "Split", basis = "Discount", share = 0.15m, sellerShareOfFee = 0.5m, vatTreatment = "Standard20", currency = "RSD" },
+            effectiveFrom,
+        }));
+        using (var approved = await second.PostAsync($"/api/v1/admin/fee-schedules/{schedule.GetProperty("version").GetInt32()}/approve"))
+        {
+            Assert.Equal(HttpStatusCode.OK, approved.StatusCode);
+        }
+
+        await Task.Delay(effectiveFrom - DateTimeOffset.UtcNow + TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+        var (seller, factor, dealId) = await FundedDealAsync();
+        await DeliverDealFundedAsync();
+
+        var deal = (await ApiClient.ReadAsync(await Send(seller, HttpMethod.Get, $"/api/v1/deals/{dealId}"))).GetProperty("deal");
+        var factorCharge = Assert.Single((await ApiClient.ReadAsync(await Send(factor, HttpMethod.Get, "/api/v1/fees/charges"))).EnumerateArray());
+        var sellerCharge = Assert.Single((await ApiClient.ReadAsync(await Send(seller, HttpMethod.Get, "/api/v1/fees/charges"))).EnumerateArray());
+        var sellerStatement = await ApiClient.ReadAsync(await Send(seller, HttpMethod.Get, $"/api/v1/fees/statements/{ThisMonth}"));
+
+        Assert.Equal("1146250.00", deal.GetProperty("sellerNetProceeds").GetProperty("amount").GetString());
+        Assert.Equal("3750.00", factorCharge.GetProperty("amount").GetProperty("amount").GetString());
+        Assert.Equal("750.00", factorCharge.GetProperty("vat").GetProperty("amount").GetString());
+        Assert.False(factorCharge.GetProperty("vatPending").GetBoolean());
+        Assert.Equal("Seller", sellerCharge.GetProperty("payerRole").GetString());
+        Assert.Equal("3750.00", sellerCharge.GetProperty("amount").GetProperty("amount").GetString());
+        Assert.Equal("4500.00", sellerStatement.GetProperty("totals")[0].GetProperty("total").GetProperty("amount").GetString());
+        Assert.Equal(2, await CountAsync($"SELECT COUNT(*) FROM fees.fee_charges WHERE deal_id = '{dealId}'"));
+    }
+
+    [Fact]
+    public async Task A_reversed_charge_is_never_invoiced()
+    {
+        var (_, factor, _) = await FundedDealAsync();
+        await DeliverDealFundedAsync();
+        var chargeId = (await ApiClient.ReadAsync(await Send(factor, HttpMethod.Get, "/api/v1/fees/charges")))[0].GetProperty("id").GetGuid();
+        using var finance = await StaffAsync("Finance");
+        await finance.StepUpAsync();
+        using (var reversed = await finance.PostAsync($"/api/v1/admin/fees/charges/{chargeId}/reverse", new { reason = "Pogrešan posao" }))
+        {
+            Assert.Equal(HttpStatusCode.Created, reversed.StatusCode);
+        }
+
+        var invoiced = await ApiClient.ErrorCodeAsync(await finance.PostAsync($"/api/v1/admin/fees/charges/{chargeId}/invoiced", new { externalInvoiceRef = "SEF-1" }));
+
+        Assert.Equal("charge_reversed", invoiced);
+    }
+
     /// <summary>A Funded deal (the seller confirmed receipt), with its DealFunded event in the outbox.</summary>
     private async Task<(Party Seller, Party Factor, Guid DealId)> FundedDealAsync()
     {

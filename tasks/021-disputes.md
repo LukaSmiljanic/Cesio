@@ -38,5 +38,9 @@ Dispute → hold blocks the next deal transition; resolve → unblocked; interna
 - [ ] Automatic disputes from 017 appear in the queue.
 - [ ] Hold policy enforced and tested for each kind.
 
+# Follow-ups from the phase 2–3 review (2026-10-24)
+- A `FundingDiscrepancy` dispute opened by a differing funding amount holds the deal (task 017): resolving it must let the seller confirm receipt, or end the deal.
+- A pending fee reversal cannot be withdrawn yet; add a way for Finance to withdraw or reject it.
+
 # Out of Scope
 Mediation, arbitration, debtor participation.

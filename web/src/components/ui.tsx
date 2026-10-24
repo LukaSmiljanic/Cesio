@@ -109,6 +109,12 @@ const messages: Record<string, string> = {
   account_not_usable: 'Uplata mora ići na verifikovan račun prodavca.',
   cef_not_registered: 'Isplata čeka upis ugovora u CEF.',
   evidence_missing: 'Priložite ispravan dokaz (dokument vaše firme).',
+  staff_account: 'Nalog osoblja platforme ne može biti član firme.',
+  screening_unresolved: 'Prvo razrešite sva moguća poklapanja sa sankcionim listama.',
+  confirmed_match: 'Potvrđeno poklapanje sa sankcionom listom: firma se mora odbiti.',
+  kyb_incomplete: 'Postavite rizik i potvrdite zastupnike pre odobrenja.',
+  four_eyes_required: 'Potrebno je odobrenje drugog službenika.',
+  charge_reversed: 'Naknada je stornirana.',
 }
 
 export function ErrorMessage({ error }: { error: unknown }) {

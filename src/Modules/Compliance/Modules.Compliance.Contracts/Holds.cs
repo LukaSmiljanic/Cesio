@@ -7,7 +7,15 @@ public enum HoldSubject
     Deal,
 }
 
-/// <summary>Whether a hold blocks forward transitions of a subject (ADR-014). Holds themselves come with task 007.</summary>
+/// <summary>Hold kinds (domain-model.md); lifting a FraudInvestigation hold needs four-eyes (task 007).</summary>
+public enum HoldKind
+{
+    ComplianceHold,
+    Disputed,
+    FraudInvestigation,
+}
+
+/// <summary>Whether a hold blocks forward transitions of a subject (ADR-014).</summary>
 public interface IHoldQuery
 {
     Task<bool> HasActiveHoldAsync(HoldSubject subject, Guid subjectId, CancellationToken cancellationToken);
@@ -17,4 +25,39 @@ public interface IHoldQuery
 public interface IAuthorizationQuery
 {
     Task<bool> IsFactorAuthorizedAsync(Guid factorOrgId, CancellationToken cancellationToken);
+}
+
+public enum ScreeningOutcome
+{
+    Clear,
+    PotentialMatch,
+
+    /// <summary>No list has been imported yet, so nothing can be said (callers ask a person to look).</summary>
+    NoLists,
+}
+
+/// <summary>A list entry a screened name may match.</summary>
+public sealed record ScreeningHit(string ListSource, string EntryName, decimal Score);
+
+public sealed record ScreeningAnswer(ScreeningOutcome Outcome, IReadOnlyList<ScreeningHit> Hits);
+
+/// <summary>Sanctions screening against the locally imported lists (task 007; also used for debtors in task 011).</summary>
+public interface IScreeningService
+{
+    Task<ScreeningAnswer> ScreenAsync(string name, CancellationToken cancellationToken);
+}
+
+/// <summary>A beneficial owner as the KYB package shares it (task 015).</summary>
+public sealed record BeneficialOwnerSummary(string Name, DateOnly? DateOfBirth, string? Nationality, decimal? OwnershipPercent, string? ControlType, bool PepDeclared);
+
+/// <summary>What other modules may know about an organization's KYB (task 007).</summary>
+public interface IKybQuery
+{
+    /// <summary>Whether the organization consented to sharing its KYB package with the factor of a deal.</summary>
+    Task<bool> HasSharingConsentAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<BeneficialOwnerSummary>> BeneficialOwnersAsync(Guid organizationId, CancellationToken cancellationToken);
+
+    /// <summary>The latest decided risk rating and screening outcome, for the KYB package summary (not the raw hits).</summary>
+    Task<(string? RiskRating, string ScreeningSummary)> SummaryAsync(Guid organizationId, CancellationToken cancellationToken);
 }

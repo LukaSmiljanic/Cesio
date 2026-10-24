@@ -25,4 +25,7 @@ public static class PlatformRoles
 public interface IPlatformRoles
 {
     Task<bool> HasRoleAsync(Guid userId, string role, CancellationToken cancellationToken);
+
+    /// <summary>Whether the user is platform staff (any role); staff cannot belong to customer organizations (task 007).</summary>
+    Task<bool> IsStaffAsync(Guid userId, CancellationToken cancellationToken);
 }

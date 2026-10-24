@@ -28,6 +28,7 @@ internal sealed class FeeChargeConsumer(
 
     private const int DefaultPaymentTermsDays = 15;
 
+    /// <summary>The rate of <c>VatTreatment.Standard20</c> (financial-model.md §4); whether and how VAT applies is LQ-43.</summary>
     private const decimal StandardVatRate = 0.20m;
 
     public async Task HandleAsync(DealFunded integrationEvent, Guid eventId, CancellationToken cancellationToken)
@@ -35,6 +36,12 @@ internal sealed class FeeChargeConsumer(
         ArgumentNullException.ThrowIfNull(integrationEvent);
         var schedule = await schedules.GetAsync(integrationEvent.FeeScheduleVersion, cancellationToken)
             ?? throw new InvalidOperationException($"Fee schedule {integrationEvent.FeeScheduleVersion} does not exist.");
+        var currency = schedule.Definition.Currency;
+        if (integrationEvent.PlatformFee.Currency != currency || integrationEvent.SellerFee.Currency != currency || integrationEvent.FaceValue.Currency != currency)
+        {
+            throw new CurrencyMismatchException($"DealFunded {integrationEvent.DealId} is not in the currency of fee schedule {schedule.Version}.");
+        }
+
         var funded = DateOnly.FromDateTime(integrationEvent.FundedAt.UtcDateTime);
         var periodEnd = new DateOnly(funded.Year, funded.Month, 1).AddMonths(1).AddDays(-1);
         var dueAt = periodEnd.AddDays(await parameters.GetAsync(PaymentTermsDays, DefaultPaymentTermsDays, cancellationToken));

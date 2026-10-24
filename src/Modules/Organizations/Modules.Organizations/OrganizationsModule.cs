@@ -19,6 +19,7 @@ public static class OrganizationsModule
         services.AddModuleDbContext<OrgsDbContext>(OrgsDbContext.SchemaName, migrationOrder: 3);
         services.AddOptions<OrganizationOptions>().BindConfiguration("Auth");
         services.AddScoped<IOrganizationQuery, OrganizationQuery>();
+        services.AddScoped<IOrganizationOnboarding, OrganizationOnboarding>();
         services.AddScoped<OrganizationService>();
         services.AddSef();
         services.AddScoped<SefConnectionService>();

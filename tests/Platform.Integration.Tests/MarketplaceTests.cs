@@ -216,7 +216,7 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
         Assert.Equal("validation_failed", past);
         Assert.Equal("validation_failed", reserve);
         Assert.Equal("validation_failed", emptySelection);
-        Assert.Equal("unknown_factor", notFactor);
+        Assert.Equal("validation_failed", notFactor);
         Assert.Equal("receivable_not_verified", notVerified);
         Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
     }

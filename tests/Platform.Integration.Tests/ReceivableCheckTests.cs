@@ -71,7 +71,7 @@ public sealed class ReceivableCheckTests
     {
         Assert.Equal(CheckResult.Pass, (await new SefFreshApprovedCheck().RunAsync(Context(), TestContext.Current.CancellationToken)).Result);
         Assert.Equal(CheckResult.Fail, (await new SefFreshApprovedCheck().RunAsync(Context(sefStatus: "Storno"), TestContext.Current.CancellationToken)).Result);
-        Assert.Equal(CheckResult.Warn, (await new DebtorScreeningCheck().RunAsync(Context(), TestContext.Current.CancellationToken)).Result);
+        Assert.Equal(CheckResult.Warn, (await new DebtorScreeningCheck(new NoListsScreening()).RunAsync(Context(), TestContext.Current.CancellationToken)).Result);
         Assert.Equal(CheckResult.Pass, (await new RelatedPartyCheck().RunAsync(Context(), TestContext.Current.CancellationToken)).Result);
     }
 
@@ -118,6 +118,12 @@ public sealed class ReceivableCheckTests
             sefStatus,
             declarationComplete,
             Today);
+    }
+
+    private sealed class NoListsScreening : Modules.Compliance.Contracts.IScreeningService
+    {
+        public Task<Modules.Compliance.Contracts.ScreeningAnswer> ScreenAsync(string name, CancellationToken cancellationToken) =>
+            Task.FromResult(new Modules.Compliance.Contracts.ScreeningAnswer(Modules.Compliance.Contracts.ScreeningOutcome.NoLists, []));
     }
 
     private sealed class Defaults : IBusinessParameters

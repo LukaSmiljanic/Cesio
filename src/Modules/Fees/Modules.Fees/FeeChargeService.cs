@@ -35,7 +35,7 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
         Results.Ok((await Effective(fees.FeeCharges.AsNoTracking().Where(c => c.PayerOrgId == OrganizationId))
             .OrderByDescending(c => c.FundedAt).Take(500).ToListAsync(cancellationToken)).Select(View));
 
-    /// <summary>The payer's statement for one month: charges of deals funded in it and reversals created in it.</summary>
+    /// <summary>The payer's statement for one month: charges of deals funded in it and reversals that took effect in it.</summary>
     public async Task<IResult> StatementAsync(string period, CancellationToken cancellationToken)
     {
         if (Period(period) is not { } range)
@@ -149,14 +149,22 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
             CreatedAt = timeProvider.GetUtcNow(),
         };
         fees.FeeCharges.Add(reversal);
-        await unitOfWork.ExecuteInTransactionAsync(
-            async ct =>
-            {
-                await fees.SaveChangesAsync(ct);
-                await audit.WriteAsync(new AuditEntry("FeeCharge.ReversalProposed", "FeeCharge", reversal.Id, charge.PayerOrgId, NewState: "PendingApproval",
-                    Reason: reason, Related: [new AuditReference("FeeCharge", charge.Id)]), ct);
-            },
-            cancellationToken);
+        try
+        {
+            await unitOfWork.ExecuteInTransactionAsync(
+                async ct =>
+                {
+                    await fees.SaveChangesAsync(ct);
+                    await audit.WriteAsync(new AuditEntry("FeeCharge.ReversalProposed", "FeeCharge", reversal.Id, charge.PayerOrgId, NewState: "PendingApproval",
+                        Reason: reason, Related: [new AuditReference("FeeCharge", charge.Id)]), ct);
+                },
+                cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is Microsoft.Data.SqlClient.SqlException { Number: 2601 or 2627 })
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", "The charge already has a reversal.");
+        }
+
         return Results.Created($"/api/v1/admin/fees/charges/{reversal.Id}", View(reversal));
     }
 
@@ -179,14 +187,23 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
 
         reversal.Status = "Effective";
         reversal.ApprovedBy = UserId;
-        await unitOfWork.ExecuteInTransactionAsync(
-            async ct =>
-            {
-                await fees.SaveChangesAsync(ct);
-                await audit.WriteAsync(new AuditEntry("FeeCharge.Reversed", "FeeCharge", reversal.Id, reversal.PayerOrgId,
-                    PreviousState: "PendingApproval", NewState: "Effective", Related: [new AuditReference("FeeCharge", reversal.ReversesId!.Value)]), ct);
-            },
-            cancellationToken);
+        reversal.ApprovedAt = timeProvider.GetUtcNow();
+        try
+        {
+            await unitOfWork.ExecuteInTransactionAsync(
+                async ct =>
+                {
+                    await fees.SaveChangesAsync(ct);
+                    await audit.WriteAsync(new AuditEntry("FeeCharge.Reversed", "FeeCharge", reversal.Id, reversal.PayerOrgId,
+                        PreviousState: "PendingApproval", NewState: "Effective", Related: [new AuditReference("FeeCharge", reversal.ReversesId!.Value)]), ct);
+                },
+                cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", "Another officer approved the reversal first.");
+        }
+
         return Results.Ok(View(reversal));
     }
 
@@ -216,15 +233,28 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
         return Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv.ToString())).ToArray(), "text/csv", $"cesio-fees-{period}.csv");
     }
 
-    private static string Csv(string value) => value.Contains(';', StringComparison.Ordinal) || value.Contains('"', StringComparison.Ordinal)
-        ? $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
-        : value;
+    /// <summary>
+    /// A text cell: quoted when it holds a separator, quote or line break, and a leading <c>= + - @</c>, tab or CR (the
+    /// invoice number comes from the seller's SEF data) is neutralised with an apostrophe so a spreadsheet never runs it.
+    /// </summary>
+    internal static string Csv(string value)
+    {
+        var safe = value.Length > 0 && "=+-@\t\r".Contains(value[0], StringComparison.Ordinal) ? "'" + value : value;
+        return safe.Contains(';', StringComparison.Ordinal) || safe.Contains('"', StringComparison.Ordinal) || safe.Contains('\n', StringComparison.Ordinal)
+            ? $"\"{safe.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
+            : safe;
+    }
 
     private async Task<IResult> ChangeChargeAsync(Guid id, string from, string to, string action, Func<FeeCharge, string?> apply, CancellationToken cancellationToken)
     {
         if (await fees.FeeCharges.SingleOrDefaultAsync(c => c.Id == id && c.Kind == FeeCharge.ChargeKind, cancellationToken) is not { } charge)
         {
             return NotFound();
+        }
+
+        if (await fees.FeeCharges.AnyAsync(c => c.ReversesId == id, cancellationToken))
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "charge_reversed", "The charge has a reversal; it is not invoiced or collected.");
         }
 
         if (charge.Status != from)
@@ -260,7 +290,7 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
     private static async Task<List<FeeCharge>> StatementRowsAsync(IQueryable<FeeCharge> query, (DateTimeOffset From, DateTimeOffset To) range, CancellationToken cancellationToken) =>
         await Effective(query)
             .Where(c => (c.Kind == FeeCharge.ChargeKind && c.FundedAt >= range.From && c.FundedAt < range.To)
-                || (c.Kind == FeeCharge.ReversalKind && c.CreatedAt >= range.From && c.CreatedAt < range.To))
+                || (c.Kind == FeeCharge.ReversalKind && c.ApprovedAt >= range.From && c.ApprovedAt < range.To))
             .OrderBy(c => c.FundedAt).ThenBy(c => c.Kind)
             .ToListAsync(cancellationToken);
 

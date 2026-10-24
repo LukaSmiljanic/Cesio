@@ -406,7 +406,7 @@ internal sealed class ListingService(
         {
             if (await organizations.GetAsync(factorOrgId, cancellationToken) is not { Type: OrganizationType.Factor })
             {
-                return Problems.Error(StatusCodes.Status422UnprocessableEntity, "unknown_factor", $"{factorOrgId} is not a factor organization.");
+                return Problems.Error(StatusCodes.Status400BadRequest, "validation_failed", "The audience and the exclusions may name factor organizations only.");
             }
         }
 

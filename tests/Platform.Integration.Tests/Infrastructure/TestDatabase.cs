@@ -8,6 +8,7 @@ using Modules.Audit;
 using Modules.Documents;
 using Modules.Identity;
 using Modules.Organizations;
+using Modules.Compliance;
 using Modules.Deals;
 using Modules.Fees;
 using Modules.Marketplace;
@@ -68,7 +69,7 @@ public sealed class TestDatabase(SqlServerContainer server) : IAsyncLifetime
     public void AddServices(IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
-        services.AddPersistence().AddAuditModule().AddIdentityModule().AddOrganizationsModule().AddDocumentsModule().AddReceivablesModule().AddMarketplaceModule().AddFeesModule().AddDealsModule();
+        services.AddPersistence().AddAuditModule().AddIdentityModule().AddOrganizationsModule().AddComplianceModule().AddDocumentsModule().AddReceivablesModule().AddMarketplaceModule().AddFeesModule().AddDealsModule();
         // Not through AddModuleDbContext: the sample schema has no migrations; InitializeAsync creates its tables.
         services.AddDbContext<SampleDbContext>((provider, options) => options.UseSqlServer(provider.GetRequiredService<UnitOfWork>().Connection));
         services.AddScoped<SubmitSampleOrder>();

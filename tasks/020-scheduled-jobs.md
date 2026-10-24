@@ -45,5 +45,11 @@ Time-travel tests with a fake `TimeProvider` for each job; two worker instances 
 - [ ] All jobs implemented with tests and metrics.
 - [ ] Admin can view job status and trigger runs.
 
+# Follow-ups from the phase 2–3 review (2026-10-24)
+- Delete quarantined blobs whose document row was rolled back (an upload whose request ended in 5xx leaves an orphan blob).
+- When SEF shows a listed receivable as no longer approved (re-check job or acceptance), close or suspend its Open listing and supersede its offers; today only the receivable becomes Ineligible.
+- The daily sanctions-list import (UN and EU XML, OFAC SDN; APML as CSV) of task 007 and the re-screening of approved organizations.
+- Call `DealStepService.CancelIfSignatureDeadlinePassedAsync` for deals past their signature deadline.
+
 # Out of Scope
 CEF monitoring (future).

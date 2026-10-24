@@ -146,6 +146,60 @@ public sealed partial class MarketplaceTests
         Assert.Equal(1, await CountAsync($"SELECT COUNT(*) FROM deals.cef_registrations WHERE deal_id = '{dealId}' AND status = 'Registered' AND reference = 'CEF-2026-1'"));
     }
 
+    [Fact]
+    public async Task Non_parties_and_the_wrong_party_cannot_reach_any_deal_endpoint()
+    {
+        var (seller, factor, dealId, _) = await SignedDealAsync();
+        var outsider = await FactorAsync();
+        await outsider.Client.StepUpAsync();
+        var anyDocument = Guid.NewGuid();
+        var routes = new (HttpMethod Method, string Path, object? Body)[]
+        {
+            (HttpMethod.Get, $"/api/v1/deals/{dealId}", null),
+            (HttpMethod.Get, $"/api/v1/deals/{dealId}/timeline", null),
+            (HttpMethod.Get, $"/api/v1/deals/{dealId}/funding-accounts", null),
+            (HttpMethod.Get, $"/api/v1/deals/{dealId}/kyb-package", null),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/cdd-decision", new { decision = "Approved" }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/contract", new { documentId = anyDocument }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/terms-confirmation", new { contractDocumentId = anyDocument, confirmed = true }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/cancel", new { reasonCode = "X" }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/signed-contract", new { documentId = anyDocument }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/cef-registration", new { reference = "X", evidenceDocumentId = anyDocument }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/debtor-notification", new { channel = "Email", sentAt = DateTimeOffset.UtcNow, evidenceDocumentId = anyDocument }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/funding-report", new { amount = new { amount = "1.00", currency = "RSD" }, valueDate = Today, paymentReference = "x", payeeBankAccountId = anyDocument }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/funding-confirmation", new { received = true }),
+            (HttpMethod.Post, $"/api/v1/deals/{dealId}/outcome", new { type = "Settled", date = Today }),
+        };
+
+        foreach (var (method, path, body) in routes)
+        {
+            using var response = await Send(outsider, method, path, body);
+            Assert.True(response.StatusCode == HttpStatusCode.NotFound, $"{method} {path} gave {response.StatusCode} to a non-party.");
+        }
+
+        // A party on the other party's step is answered like a stranger.
+        foreach (var (party, method, path, body) in new (Party, HttpMethod, string, object?)[]
+        {
+            (seller, HttpMethod.Get, $"/api/v1/deals/{dealId}/funding-accounts", null),
+            (seller, HttpMethod.Get, $"/api/v1/deals/{dealId}/kyb-package", null),
+            (seller, HttpMethod.Post, $"/api/v1/deals/{dealId}/funding-report", new { amount = new { amount = "1.00", currency = "RSD" }, valueDate = Today, paymentReference = "x", payeeBankAccountId = anyDocument }),
+            (seller, HttpMethod.Post, $"/api/v1/deals/{dealId}/outcome", new { type = "Settled", date = Today }),
+            (factor, HttpMethod.Post, $"/api/v1/deals/{dealId}/funding-confirmation", new { received = true }),
+            (factor, HttpMethod.Post, $"/api/v1/deals/{dealId}/cef-registration", new { reference = "X", evidenceDocumentId = anyDocument }),
+        })
+        {
+            using var response = await Send(party, method, path, body);
+            Assert.True(response.StatusCode == HttpStatusCode.NotFound, $"{method} {path} gave {response.StatusCode} to the wrong party.");
+        }
+
+        using var compliance = await StaffAsync("ComplianceOfficer");
+        await compliance.StepUpAsync();
+        using var byParty = await factor.Client.PostAsync($"/api/v1/admin/deals/{dealId}/terminate", new { reason = "x" });
+        using var byCompliance = await compliance.PostAsync($"/api/v1/admin/deals/{dealId}/terminate", new { reason = "x" });
+        Assert.Equal(HttpStatusCode.NotFound, byParty.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, byCompliance.StatusCode);
+    }
+
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
 
     /// <summary>A Signed deal; both parties have a recent step-up.</summary>

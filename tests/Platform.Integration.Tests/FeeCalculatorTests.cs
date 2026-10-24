@@ -13,6 +13,10 @@ public sealed class FeeCalculatorTests
     [InlineData("10000.00", "9850.00", "150.00", "22.50")]
     [InlineData("100000.00", "97000.00", "3000.00", "450.00")]
     [InlineData("1000000.00", "985000.00", "15000.00", "2250.00")]
+    [InlineData("1000000.00", "970000.00", "30000.00", "4500.00")]
+    [InlineData("333333.33", "323333.33", "10000.00", "1500.00")]
+    [InlineData("100000.00", "99876.67", "123.33", "18.50")]
+    [InlineData("100000.00", "99999.99", "0.01", "0.00")]
     public void The_documented_examples_are_reproduced_exactly(string face, string price, string discount, string fee)
     {
         var quote = Calculator.Calculate(Rsd(face), Rsd(price), Schedule());
@@ -24,6 +28,16 @@ public sealed class FeeCalculatorTests
         Assert.Equal(Rsd("0.00"), factor.Vat);
         Assert.True(quote.VatPending);
         Assert.Equal(1, quote.ScheduleVersion);
+    }
+
+    [Theory]
+    [InlineData("10000.00", "9800.00", "30.00")]
+    [InlineData("100000.00", "97000.00", "450.00")]
+    public void Euro_amounts_use_a_euro_schedule(string face, string price, string fee)
+    {
+        var schedule = new FeeSchedule(2, new FeeScheduleDefinition(FeePayer.Factor, FeeBasis.Discount, 0.15m, null, null, null, VatTreatment.TBD, Currency.Eur), DateTimeOffset.UnixEpoch);
+
+        Assert.Equal(Money.Parse(fee, Currency.Eur), Calculator.Calculate(Money.Parse(face, Currency.Eur), Money.Parse(price, Currency.Eur), schedule).TotalNet);
     }
 
     [Fact]
@@ -77,7 +91,18 @@ public sealed class FeeCalculatorTests
         Assert.Throws<ArgumentException>(() => Calculator.Calculate(Rsd("100.00"), Rsd("100.00"), Schedule()));
         Assert.Throws<ArgumentException>(() => Calculator.Calculate(Rsd("100.00"), Rsd("120.00"), Schedule()));
         Assert.Throws<ArgumentException>(() => Calculator.Calculate(Rsd("100.00"), Rsd("0.00"), Schedule()));
+        Assert.Throws<ArgumentException>(() => Calculator.Calculate(Rsd("100.00"), Rsd("-1.00"), Schedule()));
     }
+
+    [Theory]
+    [InlineData("F-1", "F-1")]
+    [InlineData("=HYPERLINK(\"x\")", "\"'=HYPERLINK(\"\"x\"\")\"")]
+    [InlineData("+1", "'+1")]
+    [InlineData("-2", "'-2")]
+    [InlineData("@SUM(A1)", "'@SUM(A1)")]
+    [InlineData("a;b", "\"a;b\"")]
+    public void Csv_cells_never_start_a_formula(string value, string expected) =>
+        Assert.Equal(expected, FeeChargeService.Csv(value));
 
     private static Money Rsd(string amount) => Money.Parse(amount, Currency.Rsd);
 

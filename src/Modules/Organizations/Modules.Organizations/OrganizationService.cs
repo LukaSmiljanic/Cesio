@@ -59,6 +59,7 @@ internal sealed class OrganizationService(
     IBusinessParameters parameters,
     IEmailSender email,
     IUserDirectory userDirectory,
+    IPlatformRoles platformRoles,
     IOptions<OrganizationOptions> options,
     TimeProvider timeProvider)
 {
@@ -87,6 +88,11 @@ internal sealed class OrganizationService(
     /// <summary>A seller's private Draft claim (ADR-020): nobody else sees it, and the PIB is reserved only by a valid SEF key (task 007a).</summary>
     public async Task<IResult> CreateSellerAsync(CreateOrganizationRequest body, CancellationToken cancellationToken)
     {
+        if (await platformRoles.IsStaffAsync(UserId, cancellationToken))
+        {
+            return Problems.StaffAccount();
+        }
+
         if (!Pib.TryParse(body.Pib, out var pib))
         {
             return Problems.Validation("pib", "invalid_pib", "A PIB has 9 digits and a valid check digit.");
@@ -99,6 +105,11 @@ internal sealed class OrganizationService(
     /// <summary>Development only: factor organizations are created by staff in task 008.</summary>
     public async Task<IResult> CreateFactorAsync(CreateFactorOrganizationRequest body, CancellationToken cancellationToken)
     {
+        if (await platformRoles.IsStaffAsync(UserId, cancellationToken))
+        {
+            return Problems.StaffAccount();
+        }
+
         if (!Pib.TryParse(body.Pib, out var pib) || string.IsNullOrWhiteSpace(body.LegalName))
         {
             return Problems.Validation("pib", "invalid_pib", "A valid PIB and a legal name are required.");
@@ -279,6 +290,11 @@ internal sealed class OrganizationService(
     /// <summary>The invited user accepts with the emailed token; the token only works for the invited email address.</summary>
     public async Task<IResult> AcceptInvitationAsync(AcceptInvitationRequest body, CancellationToken cancellationToken)
     {
+        if (await platformRoles.IsStaffAsync(UserId, cancellationToken))
+        {
+            return Problems.StaffAccount();
+        }
+
         if (string.IsNullOrWhiteSpace(body.Token) || body.Token.Length > 100)
         {
             return Results.NotFound();
@@ -659,6 +675,9 @@ internal sealed class OrganizationService(
 
 internal static class Problems
 {
+    public static IResult StaffAccount() =>
+        Error(StatusCodes.Status403Forbidden, "staff_account", "Platform staff accounts cannot belong to customer organizations.");
+
     public static IResult Validation(string field, string code, string message) =>
         Error(StatusCodes.Status400BadRequest, "validation_failed", message, new[] { new { field, code, message } });
 

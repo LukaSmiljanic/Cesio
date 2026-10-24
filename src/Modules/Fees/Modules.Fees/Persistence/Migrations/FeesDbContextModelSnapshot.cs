@@ -30,6 +30,11 @@ namespace Modules.Fees.Persistence.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("id");
 
+                    b.Property<DateTimeOffset?>("ApprovedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("approved_at");
+
                     b.Property<Guid?>("ApprovedBy")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("approved_by");
