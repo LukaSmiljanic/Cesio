@@ -11,7 +11,8 @@ namespace Integrations.Sef;
 public sealed class FakeSefClient : ISefClient
 {
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<long, (string Status, byte[] Ubl)>> _invoices = new(StringComparer.Ordinal);
-    private long _nextId = 100_000;
+    // Starts from the clock, so invoice ids of a restarted local API never collide with ones already imported.
+    private long _nextId = DateTimeOffset.UtcNow.ToUnixTimeSeconds() * 1_000;
 
     /// <summary>Simulated failures: keys that answer 401, and the number of upcoming calls that fail as unavailable.</summary>
     public HashSet<string> RejectedKeys { get; } = new(StringComparer.Ordinal);
