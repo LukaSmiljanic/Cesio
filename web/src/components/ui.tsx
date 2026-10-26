@@ -1,21 +1,30 @@
-// Minimal components in the shadcn/ui style (ADR-010): Tailwind classes, no extra runtime dependency.
+// Components in the look of design/prototype.html (ADR-010): Tailwind classes on the theme tokens, no extra runtime
+// dependency.
+import { useContext } from 'react'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { ApiError } from '../api/client'
+import { buttonClass, InShell } from './styles'
 
 export function Button({
   className = '',
   variant = 'primary',
+  size = 'md',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' }) {
-  const look =
-    variant === 'primary'
-      ? 'bg-slate-900 text-white hover:bg-slate-700'
-      : 'border border-slate-300 bg-white text-slate-900 hover:bg-slate-100'
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'primary' | 'secondary'
+  size?: 'md' | 'sm'
+}) {
+  return <button className={`${buttonClass(variant, size)} ${className}`} {...props} />
+}
+
+/** A table inside a panel, with an empty-state row. */
+export function EmptyRow({ columns, children }: { columns: number; children: ReactNode }) {
   return (
-    <button
-      className={`inline-flex h-10 items-center justify-center rounded-md px-4 text-sm font-medium disabled:opacity-50 ${look} ${className}`}
-      {...props}
-    />
+    <tr>
+      <td colSpan={columns} className="py-6 text-ink-2">
+        {children}
+      </td>
+    </tr>
   )
 }
 
@@ -25,13 +34,13 @@ export function Field({
   ...props
 }: InputHTMLAttributes<HTMLInputElement> & { label: string; id: string }) {
   return (
-    <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium">
+    <div className="flex min-w-0 flex-col gap-1.5">
+      <label htmlFor={id} className="text-[12.5px] font-semibold text-ink-2">
         {label}
       </label>
       <input
         id={id}
-        className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm focus:outline-2 focus:outline-slate-400"
+        className="h-9 w-full rounded-[7px] border border-line bg-surface px-2.5 text-sm focus:border-accent focus:outline-2 focus:outline-accent-soft"
         {...props}
       />
     </div>
@@ -39,12 +48,154 @@ export function Field({
 }
 
 export function Card({ title, children }: { title: string; children: ReactNode }) {
+  if (useContext(InShell)) {
+    return (
+      <section className="flex flex-col gap-5">
+        <h1 className="text-[28px] leading-tight">{title}</h1>
+        <div className="rounded-lg border border-line bg-surface p-5">{children}</div>
+      </section>
+    )
+  }
   return (
-    <section className="mx-auto mt-16 w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <h1 className="mb-4 text-xl font-semibold">{title}</h1>
+    <section className="mx-auto mt-16 w-full max-w-md rounded-xl border border-line bg-surface p-7 shadow-panel">
+      <div className="mb-5 flex items-center gap-2.5">
+        <BrandMark />
+        <h1 className="text-[22px]">{title}</h1>
+      </div>
       {children}
     </section>
   )
+}
+
+export function BrandMark() {
+  return (
+    <span className="grid size-[26px] place-items-center rounded-md bg-accent font-mono text-[13px] font-medium text-accent-ink">
+      C
+    </span>
+  )
+}
+
+/** A panel with an optional header row (title left, actions right), as in the prototype. */
+export function Panel({
+  title,
+  actions,
+  children,
+  padded = true,
+}: {
+  title?: ReactNode
+  actions?: ReactNode
+  children: ReactNode
+  padded?: boolean
+}) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-line bg-surface">
+      {(title || actions) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-[18px] py-3.5">
+          {title && <h2 className="text-[15px] font-semibold">{title}</h2>}
+          {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+        </div>
+      )}
+      <div className={padded ? 'p-[18px]' : 'overflow-x-auto'}>{children}</div>
+    </section>
+  )
+}
+
+export function PageHeader({
+  eyebrow,
+  title,
+  actions,
+}: {
+  eyebrow?: string
+  title: string
+  actions?: ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div>
+        {eyebrow && (
+          <div className="text-[11.5px] font-semibold tracking-[0.08em] text-ink-3 uppercase">
+            {eyebrow}
+          </div>
+        )}
+        <h1 className="mt-1 text-[28px] leading-tight">{title}</h1>
+      </div>
+      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+    </div>
+  )
+}
+
+/** KPI tiles separated by hairlines. */
+export function Kpis({ items }: { items: { label: string; value: ReactNode; sub?: ReactNode }[] }) {
+  return (
+    <div className="grid grid-cols-1 gap-px sm:grid-cols-2 xl:grid-cols-4 overflow-hidden rounded-lg border border-line bg-line">
+      {items.map((k) => (
+        <div key={k.label} className="bg-surface px-[18px] py-4">
+          <div className="text-[12.5px] text-ink-2">{k.label}</div>
+          <div className="mt-1 font-display text-2xl font-medium tabular-nums">{k.value}</div>
+          {k.sub && <div className="text-[12.5px] text-ink-2">{k.sub}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+type Tone = 'neutral' | 'accent' | 'pos' | 'warn' | 'crit'
+
+const tones: Record<Tone, string> = {
+  neutral: 'bg-surface-2 text-ink-2',
+  accent: 'bg-accent-soft text-accent',
+  pos: 'bg-pos-soft text-pos',
+  warn: 'bg-warn-soft text-warn',
+  crit: 'bg-crit-soft text-crit',
+}
+
+export function Chip({ tone = 'neutral', children }: { tone?: Tone; children: ReactNode }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${tones[tone]}`}
+    >
+      <span aria-hidden className="size-1.5 rounded-full bg-current" />
+      {children}
+    </span>
+  )
+}
+
+/** Serbian labels and colours of the states (ux-design.md §5): colour encodes state, never decoration. */
+const states: Record<string, [string, Tone]> = {
+  Draft: ['Nacrt', 'neutral'],
+  PendingVerification: ['Na proveri', 'neutral'],
+  Verified: ['Verifikovano', 'neutral'],
+  Listed: ['Na tržištu', 'accent'],
+  Open: ['Otvoren', 'accent'],
+  Reserved: ['Rezervisano', 'accent'],
+  Active: ['Aktivna', 'accent'],
+  Accepted: ['Prihvaćena', 'pos'],
+  Assigned: ['Ustupljeno', 'accent'],
+  AwaitingSignatures: ['Čeka potpise', 'warn'],
+  Signed: ['Potpisano', 'accent'],
+  FundingReported: ['Isplata prijavljena', 'warn'],
+  Funded: ['Finansirano', 'pos'],
+  Settled: ['Naplaćeno', 'pos'],
+  Closed: ['Zatvoreno', 'pos'],
+  Paid: ['Plaćeno', 'pos'],
+  Due: ['Dospeva', 'warn'],
+  Invoiced: ['Fakturisano', 'neutral'],
+  Rejected: ['Odbijeno', 'crit'],
+  Cancelled: ['Otkazano', 'neutral'],
+  Withdrawn: ['Povučeno', 'neutral'],
+  Expired: ['Isteklo', 'neutral'],
+  Ineligible: ['Ne ispunjava uslove', 'crit'],
+  Defaulted: ['Neplaćeno', 'crit'],
+  RecourseReturned: ['Vraćeno (regres)', 'warn'],
+  Terminated: ['Raskinuto', 'crit'],
+  Approved: ['Odobreno', 'pos'],
+  Pending: ['Na čekanju', 'warn'],
+  Suspended: ['Suspendovano', 'crit'],
+}
+
+export function StateChip({ state }: { state: string }) {
+  const [label, tone] = states[state] ?? [state, 'neutral']
+  return <Chip tone={tone}>{label}</Chip>
 }
 
 const messages: Record<string, string> = {
@@ -151,10 +302,7 @@ export function ErrorMessage({ error }: { error: unknown }) {
         ]
       : ['Došlo je do greške. Pokušajte ponovo.']
   return (
-    <div
-      role="alert"
-      className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800"
-    >
+    <div role="alert" className="rounded-md bg-crit-soft px-3 py-2 text-[13px] text-crit">
       {[...new Set(lines)].map((line) => (
         <p key={line}>{line}</p>
       ))}

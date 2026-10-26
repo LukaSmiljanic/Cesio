@@ -100,10 +100,11 @@ export function DealExecution({ detail }: { detail: DealDetail }) {
   }
 
   return (
-    <section className="mt-4 space-y-3 text-sm">
+    <section className="space-y-3 text-sm">
       {steps.openDisputes.length > 0 && (
-        <p className="rounded bg-red-50 p-2 text-red-900">
-          Otvoren spor ({steps.openDisputes.join(', ')}): posao je blokiran do odluke platforme.
+        <p className="rounded-md bg-crit-soft px-3 py-2 text-crit">
+          Otvoren spor ({steps.openDisputes.join(', ')}): posao je zaustavljen dok se spor ne
+          zatvori.
         </p>
       )}
       {steps.cef && (

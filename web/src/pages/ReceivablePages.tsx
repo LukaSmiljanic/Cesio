@@ -1,9 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { formatMoney, receivablesApi, type ImportRequest } from '../api/receivables'
 import { useStepUp } from '../auth/stepUpContext'
-import { Button, Card, ErrorMessage, Field } from '../components/ui'
+import {
+  Button,
+  Card,
+  EmptyRow,
+  ErrorMessage,
+  Field,
+  PageHeader,
+  Panel,
+  StateChip,
+} from '../components/ui'
+import { buttonClass, formatDate } from '../components/styles'
 import { useActiveOrganization } from '../organizations/activeOrganization'
 
 const resultLabels: Record<string, string> = {
@@ -162,6 +172,7 @@ export function ImportPage() {
 }
 
 export function ReceivablesPage() {
+  const navigate = useNavigate()
   const { activeId } = useActiveOrganization()
   const list = useQuery({
     queryKey: ['receivables', activeId],
@@ -170,45 +181,54 @@ export function ReceivablesPage() {
   })
 
   return (
-    <Card title="Potraživanja">
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="text-slate-500">
-            <th className="py-1">Faktura</th>
-            <th>Dužnik</th>
-            <th>Iznos</th>
-            <th>Dospeće</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.data?.map((r) => (
-            <tr key={r.id} className="border-t border-slate-100">
-              <td className="py-1">
-                <Link className="underline" to={`/receivables/${r.id}`}>
-                  {r.invoice.number}
-                </Link>
-              </td>
-              <td>{r.debtor.legalName}</td>
-              <td>{formatMoney(r.faceValue)}</td>
-              <td>{r.maturityDate}</td>
-              <td>{r.state === 'Draft' ? 'Nacrt' : r.state}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {list.data?.length === 0 && (
-        <p className="mt-2 text-sm text-slate-600">Još nema uvezenih faktura.</p>
-      )}
+    <>
+      <PageHeader
+        eyebrow="Prodavac"
+        title="Potraživanja"
+        actions={
+          <Link to="/receivables/import" className={buttonClass()}>
+            Uvezi iz SEF-a
+          </Link>
+        }
+      />
       <ErrorMessage error={list.error} />
-      <div className="mt-4 flex gap-4 text-sm">
-        <Link className="underline" to="/receivables/import">
-          Uvezi iz SEF-a
-        </Link>
-        <Link className="underline" to="/">
-          Nazad
-        </Link>
-      </div>
-    </Card>
+      <Panel padded={false}>
+        <table>
+          <thead>
+            <tr>
+              <th>Faktura</th>
+              <th>Dužnik</th>
+              <th className="text-right">Iznos</th>
+              <th>Dospeće</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.data?.map((r) => (
+              <tr
+                key={r.id}
+                className="cursor-pointer hover:bg-surface-2"
+                onClick={() => navigate(`/receivables/${r.id}`)}
+              >
+                <td className="font-mono text-[13px]">
+                  <Link to={`/receivables/${r.id}`} onClick={(e) => e.stopPropagation()}>
+                    {r.invoice.number}
+                  </Link>
+                </td>
+                <td>{r.debtor.legalName}</td>
+                <td className="text-right font-medium">{formatMoney(r.faceValue)}</td>
+                <td>{formatDate(r.maturityDate)}</td>
+                <td>
+                  <StateChip state={r.state} />
+                </td>
+              </tr>
+            ))}
+            {list.data?.length === 0 && (
+              <EmptyRow columns={5}>Još nema uvezenih faktura. Uvezite ih iz SEF-a.</EmptyRow>
+            )}
+          </tbody>
+        </table>
+      </Panel>
+    </>
   )
 }

@@ -18,6 +18,8 @@ public sealed partial class MarketplaceTests
         using var factorAsSeller = await Send(factor, HttpMethod.Get, "/api/v1/dashboards/seller");
         using var operations = await StaffAsync("Operations");
         var admin = await ApiClient.ReadAsync(await operations.GetAsync("/api/v1/admin/dashboard"));
+        var staffMe = await ApiClient.ReadAsync(await operations.GetAsync("/api/v1/me"));
+        var sellerMe = await ApiClient.ReadAsync(await seller.Client.GetAsync("/api/v1/me"));
         using var customerAdmin = await seller.Client.GetAsync("/api/v1/admin/dashboard");
         using var auditor = await StaffAsync("Auditor");
         using var auditorAdmin = await auditor.GetAsync("/api/v1/admin/dashboard");
@@ -34,6 +36,8 @@ public sealed partial class MarketplaceTests
         Assert.True(admin.GetProperty("month").GetProperty("funded").GetInt32() >= 1);
         Assert.True(admin.GetProperty("integrationHealth").GetProperty("jobs").GetArrayLength() > 0);
         Assert.Equal(HttpStatusCode.NotFound, customerAdmin.StatusCode);
+        Assert.Equal(["Operations"], staffMe.GetProperty("platformRoles").EnumerateArray().Select(r => r.GetString()));
+        Assert.Empty(sellerMe.GetProperty("platformRoles").EnumerateArray());
         Assert.Equal(HttpStatusCode.NotFound, auditorAdmin.StatusCode);
     }
 

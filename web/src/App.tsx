@@ -3,6 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
 import { authApi, type Me } from './api/auth'
 import { StepUpProvider } from './auth/StepUpProvider'
+import { AppShell, HomeRedirect } from './components/AppShell'
 import { ActiveOrganizationProvider } from './organizations/ActiveOrganizationProvider'
 import { HomePage, SessionsPage } from './pages/AccountPages'
 import {
@@ -45,13 +46,17 @@ import {
   ResetPasswordPage,
 } from './pages/AuthPages'
 
-/** Pages behind sign-in with completed MFA; anyone else goes to the login page. */
+/** Pages behind sign-in with completed MFA, inside the app shell; anyone else goes to the login page. */
 function RequireSession({ children }: { children: (me: Me) => ReactNode }) {
   const me = useQuery({ queryKey: ['me'], queryFn: authApi.me, retry: false })
   if (me.isPending) {
     return <p className="p-8 text-sm">Učitavanje...</p>
   }
-  return me.data ? children(me.data) : <Navigate to="/login" replace />
+  return me.data ? (
+    <AppShell me={me.data}>{children(me.data)}</AppShell>
+  ) : (
+    <Navigate to="/login" replace />
+  )
 }
 
 export function AppRoutes() {
@@ -184,8 +189,12 @@ export function AppRoutes() {
         element={<RequireSession>{() => <ReviewQueuePage />}</RequireSession>}
       />
       <Route
-        path="/"
+        path="/account"
         element={<RequireSession>{(me) => <HomePage email={me.email} />}</RequireSession>}
+      />
+      <Route
+        path="/"
+        element={<RequireSession>{(me) => <HomeRedirect me={me} />}</RequireSession>}
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -54,8 +54,16 @@ public static class AuthEndpoints
             .RequireAuthorization();
 
         var me = api.MapGroup("/me").RequireAuthorization();
+        // The user's own platform roles, so the SPA shows staff their menu; every admin endpoint still checks the role itself.
         me.MapGet("", async (HttpContext http, UserManager<AuthUser> users, SessionStore sessions, CancellationToken ct) =>
-            await CurrentAsync(http, users, sessions, ct) is var (user, _) ? Results.Ok(new { id = user.Id, email = user.Email }) : Results.Unauthorized());
+            await CurrentAsync(http, users, sessions, ct) is var (user, _)
+                ? Results.Ok(new
+                {
+                    id = user.Id,
+                    email = user.Email,
+                    platformRoles = (await users.GetClaimsAsync(user)).Where(c => c.Type == PlatformRoleStore.ClaimType).Select(c => c.Value).Order(StringComparer.Ordinal).ToList(),
+                })
+                : Results.Unauthorized());
         me.MapGet("/sessions", async (HttpContext http, SessionStore sessions, CancellationToken ct) =>
         {
             var (userId, sessionId) = Ids(http);

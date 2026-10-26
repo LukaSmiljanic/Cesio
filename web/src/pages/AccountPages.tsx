@@ -29,24 +29,6 @@ function MyOrganizations() {
       {mine.data?.length === 0 && (
         <p className="text-sm text-slate-600">Još niste član nijedne firme.</p>
       )}
-      <Link to="/receivables" className={`${linkButton} mr-2`}>
-        Potraživanja
-      </Link>
-      <Link to="/listings" className={`${linkButton} mr-2`}>
-        Moji listinzi
-      </Link>
-      <Link to="/marketplace" className={`${linkButton} mr-2`}>
-        Marketplace (faktori)
-      </Link>
-      <Link to="/deals" className={`${linkButton} mr-2`}>
-        Poslovi
-      </Link>
-      <Link to="/fees" className={`${linkButton} mr-2`}>
-        Naknade
-      </Link>
-      <Link to="/offers" className={`${linkButton} mr-2`}>
-        Moje ponude
-      </Link>
       <Link to="/organizations/new" className={linkButton}>
         Dodaj firmu (prodavac)
       </Link>
@@ -69,7 +51,7 @@ export function HomePage({ email }: { email: string }) {
   })
 
   return (
-    <Card title="Cesio">
+    <Card title="Moj nalog">
       <p className="mb-4 text-sm">
         Prijavljeni ste kao {email}. <NotificationBell />
       </p>

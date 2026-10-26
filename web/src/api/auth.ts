@@ -3,6 +3,8 @@ import { api, resetAntiforgery } from './client'
 export interface Me {
   id: string
   email: string
+  /** The user's own platform staff roles (empty for customers). */
+  platformRoles: string[]
 }
 
 export interface Session {

@@ -2,6 +2,7 @@
 
 Status: **draft v0.1** (2026-10-05). The prototype is a validation tool for the task 000 interviews, not a final design.
 Prototype: `design/prototype.html` (single-file, clickable, fictional data).
+SPA (2026-10-26): the web app uses the prototype's design tokens (light and dark), its shell (sidebar menu per role from §3, top bar with the organization switcher) and its patterns for the dashboard (S1), receivables (S2), offer comparison (S6), deal page (S8) and marketplace (S9, S10). Fonts fall back to the system UI fonts: the prototype's fonts are not loaded from a third-party CDN. Platform staff use the same SPA until the admin app and staff realm exist (security.md §1); their menu follows their roles from `GET /me`.
 
 ## 1. Users and context
 | User | Context | What they need from the UI |
@@ -28,7 +29,7 @@ Language: **Serbian (Latin)** by default, English as the second language. Cyrill
 
 **Factor:** Pregled · Tržište (marketplace) · Moje ponude · Poslovi · Naknade · Organizacija (incl. authorization, appetite filters).
 
-**Admin (separate app):** Redovi čekanja (KYB, authorizations, receivables, bank accounts, disputes) · Organizacije · Poslovi · Naknade · Parametri · Audit · Integracije.
+**Admin (separate app; until the admin app and staff realm exist, security.md §1, the staff screens are an area of the same SPA):** Redovi čekanja (KYB, authorizations, receivables, bank accounts, disputes) · Organizacije · Poslovi · Naknade · Parametri · Audit · Integracije.
 
 Global: organization switcher (users can be members of several orgs), notifications, profile/security (sessions, MFA).
 
@@ -73,7 +74,7 @@ The prototype covers S1, S2, S3, S4 (light), S5, S6, S7, S8, S9, S10, S11 and th
 
 ## 7. Visual direction (prototype v0.1)
 - Character: a calm, precise "ledger" look. Ink-blue neutrals with a slight cool bias, one deep teal accent, semantic colours for state only.
-- Type: Bricolage Grotesque (display, used sparingly), IBM Plex Sans (UI/body, full Serbian Latin support), IBM Plex Mono (identifiers, amounts in tables).
+- Type (prototype; the SPA uses the system UI fonts, see the top of this file): Bricolage Grotesque (display, used sparingly), IBM Plex Sans (UI/body, full Serbian Latin support), IBM Plex Mono (identifiers, amounts in tables).
 - Light and dark themes are both supported via tokens.
 - **Brand (name, logo, final palette) is open.** A designer engagement is recommended before public launch (BQ: brand).
 

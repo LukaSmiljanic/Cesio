@@ -1,6 +1,195 @@
 @import 'tailwindcss';
 
-body {
-  @apply bg-slate-50 text-slate-900 antialiased;
-  font-family: system-ui, sans-serif;
+/*
+ * Design tokens of design/prototype.html (ledger-style shell, one teal accent, semantic colours for state only), as
+ * CSS variables with a dark variant. Tailwind's slate, white, red, green and amber map onto them, so every screen
+ * follows the theme; new markup uses the token names (bg-surface, text-ink-2, border-line, bg-accent, ...).
+ * Fonts: the prototype's Bricolage Grotesque / IBM Plex are not loaded from a third-party CDN (personal data to the
+ * font host); the stacks fall back to the system UI fonts.
+ */
+:root {
+  --bg: #f3f6f8;
+  --surface: #ffffff;
+  --surface-2: #eaf0f3;
+  --ink: #13202a;
+  --ink-2: #4b5b68;
+  --ink-3: #71818e;
+  --line: #d6dee4;
+  --accent: #0e6e6a;
+  --accent-ink: #ffffff;
+  --accent-soft: #dceeed;
+  --pos: #1b7443;
+  --pos-soft: #dff1e6;
+  --warn: #8f5a00;
+  --warn-soft: #fbeed3;
+  --crit: #ae2a20;
+  --crit-soft: #fadfdc;
+  --focus: #2b7fd9;
+  --shadow: 0 1px 2px rgb(19 32 42 / 0.06), 0 8px 24px rgb(19 32 42 / 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0d141a;
+    --surface: #141e26;
+    --surface-2: #1b2731;
+    --ink: #e4ecf1;
+    --ink-2: #a2b2be;
+    --ink-3: #7f909c;
+    --line: #293844;
+    --accent: #3db0a7;
+    --accent-ink: #04201d;
+    --accent-soft: #12312e;
+    --pos: #5cc48a;
+    --pos-soft: #143424;
+    --warn: #e3aa3e;
+    --warn-soft: #3a2b0f;
+    --crit: #f07d73;
+    --crit-soft: #3c1a18;
+    --focus: #6aaef5;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0d141a;
+  --surface: #141e26;
+  --surface-2: #1b2731;
+  --ink: #e4ecf1;
+  --ink-2: #a2b2be;
+  --ink-3: #7f909c;
+  --line: #293844;
+  --accent: #3db0a7;
+  --accent-ink: #04201d;
+  --accent-soft: #12312e;
+  --pos: #5cc48a;
+  --pos-soft: #143424;
+  --warn: #e3aa3e;
+  --warn-soft: #3a2b0f;
+  --crit: #f07d73;
+  --crit-soft: #3c1a18;
+  --focus: #6aaef5;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.35);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-display: 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'IBM Plex Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-pos: var(--pos);
+  --color-pos-soft: var(--pos-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-crit: var(--crit);
+  --color-crit-soft: var(--crit-soft);
+  --color-focus: var(--focus);
+  --shadow-panel: var(--shadow);
+
+  /* The screens written before the design pass use slate, white, red, green and amber. */
+  --color-white: var(--surface);
+  --color-slate-50: var(--bg);
+  --color-slate-100: var(--surface-2);
+  --color-slate-200: var(--line);
+  --color-slate-300: var(--line);
+  --color-slate-400: var(--ink-3);
+  --color-slate-500: var(--ink-3);
+  --color-slate-600: var(--ink-2);
+  --color-slate-700: var(--ink-2);
+  --color-slate-800: var(--ink);
+  --color-slate-900: var(--ink);
+  --color-red-50: var(--crit-soft);
+  --color-red-100: var(--crit-soft);
+  --color-red-200: var(--crit-soft);
+  --color-red-600: var(--crit);
+  --color-red-700: var(--crit);
+  --color-red-800: var(--crit);
+  --color-red-900: var(--crit);
+  --color-green-50: var(--pos-soft);
+  --color-green-100: var(--pos-soft);
+  --color-green-600: var(--pos);
+  --color-green-700: var(--pos);
+  --color-green-800: var(--pos);
+  --color-amber-50: var(--warn-soft);
+  --color-amber-100: var(--warn-soft);
+  --color-amber-600: var(--warn);
+  --color-amber-700: var(--warn);
+  --color-amber-800: var(--warn);
+  --color-amber-900: var(--warn);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 400 14px/1.5 var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  /* Tables as in the prototype: quiet header, row rules, tabular numbers. */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  th {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink-3);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: bottom;
+  }
+
+  td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  /* Amounts stay on one line. */
+  td.text-right {
+    white-space: nowrap;
+  }
+
+  tr:last-child td {
+    border-bottom: 0;
+  }
+
+  select,
+  textarea {
+    background: var(--surface);
+  }
 }

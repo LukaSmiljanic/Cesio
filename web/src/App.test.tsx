@@ -37,7 +37,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Prijava' })).toBeInTheDocument()
   })
 
-  it('shows the signed-in user and their organizations on the home page', async () => {
+  it('shows the signed-in user and their organizations on the account page', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) =>
@@ -52,15 +52,33 @@ describe('App', () => {
                 isSignatory: false,
               },
             ])
-          : json(200, { id: '1', email: 'ana@firma.rs' }),
+          : json(200, { id: '1', email: 'ana@firma.rs', platformRoles: [] }),
       ),
     )
 
-    renderAt('/')
+    renderAt('/account')
 
     expect(await screen.findByRole('link', { name: 'PIB 101134702' })).toBeInTheDocument()
 
     expect(await screen.findByText('Prijavljeni ste kao ana@firma.rs.')).toBeInTheDocument()
+  })
+
+  it('shows staff the queues of their role and no customer menu', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) =>
+        String(input).endsWith('/me')
+          ? json(200, { id: '1', email: 'ana@cesio.rs', platformRoles: ['Finance'] })
+          : json(200, []),
+      ),
+    )
+
+    renderAt('/account')
+
+    expect(await screen.findByRole('link', { name: 'Naknade' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Parametri' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'KYB provere' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Tržište' })).not.toBeInTheDocument()
   })
 
   it('continues to MFA enrolment after the password', async () => {
@@ -137,7 +155,8 @@ describe('start-seller wizard', () => {
           claimed: false,
           version: 0,
         })
-      if (url.endsWith('/me')) return json(200, { id: '1', email: 'ana@firma.rs' })
+      if (url.endsWith('/me'))
+        return json(200, { id: '1', email: 'ana@firma.rs', platformRoles: [] })
       return json(200, [])
     })
     vi.stubGlobal('fetch', fetchMock)
