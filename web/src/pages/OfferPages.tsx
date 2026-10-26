@@ -5,6 +5,7 @@ import { dealsApi } from '../api/deals'
 import { useStepUp } from '../auth/stepUpContext'
 import { offersApi, type FactorOffer, type RecourseType, type SellerOffer } from '../api/offers'
 import { formatMoney } from '../api/receivables'
+import { OptionCards } from '../components/inputs'
 import {
   Button,
   EmptyRow,
@@ -91,17 +92,23 @@ export function OfferForm({
           preview.reset()
         }}
       />
-      <label className="flex flex-col gap-1.5 text-[12.5px] font-semibold text-ink-2">
-        Regres
-        <select
-          className={selectClass}
-          value={recourse}
-          onChange={(e) => setRecourse(e.target.value as RecourseType)}
-        >
-          <option value="NonRecourse">Bez regresa</option>
-          <option value="Recourse">Sa regresom</option>
-        </select>
-      </label>
+      <OptionCards
+        label="Regres"
+        value={recourse}
+        onChange={setRecourse}
+        options={[
+          {
+            value: 'NonRecourse',
+            title: 'Bez regresa',
+            description: 'Rizik neplaćanja dužnika snosite vi',
+          },
+          {
+            value: 'Recourse',
+            title: 'Sa regresom',
+            description: 'Ako dužnik ne plati, prodavac vraća iznos',
+          },
+        ]}
+      />
       <Field
         id="fundingDays"
         label="Rok isplate (radnih dana posle potpisa, 1–30)"

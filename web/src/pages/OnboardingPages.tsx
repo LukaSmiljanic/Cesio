@@ -6,6 +6,7 @@ import { onboardingApi, type PristupnicaReview } from '../api/onboarding'
 import type { Organization } from '../api/organizations'
 import { receivablesApi } from '../api/receivables'
 import { useStepUp } from '../auth/stepUpContext'
+import { FileDrop, OptionCards, Stepper } from '../components/inputs'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 
 const pristupnicaStatuses: Record<string, string> = {
@@ -32,29 +33,28 @@ export function SellerChecklist({ organization }: { organization: Organization }
     enabled: organization.claimed,
   })
   const steps = [
-    { label: 'PIB unet', done: true },
-    { label: 'SEF ključ potvrdio PIB', done: organization.claimed },
+    { label: 'PIB', done: true },
+    { label: 'SEF ključ', done: organization.claimed },
     {
       label: 'Podaci o firmi',
       done: Boolean(organization.legalName && organization.mb && organization.registeredAddress),
     },
     {
-      label: 'Račun za isplatu proveren',
+      label: 'Račun za isplatu',
       done: Boolean(accounts.data?.some((a) => a.status === 'Verified')),
     },
-    { label: 'Pristupnica prihvaćena', done: pristupnica.data?.status === 'Accepted' },
+    { label: 'Pristupnica', done: pristupnica.data?.status === 'Accepted' },
     { label: 'Provera firme', done: organization.status === 'Approved' },
   ]
   return (
-    <section className="space-y-1 text-sm">
-      <h2 className="font-medium">Koraci registracije</h2>
-      <ol className="list-decimal pl-5">
-        {steps.map((step) => (
-          <li key={step.label} className={step.done ? 'text-green-700' : 'text-slate-600'}>
-            {step.label} {step.done ? '✓' : ''}
-          </li>
-        ))}
-      </ol>
+    <section className="flex flex-col gap-3 rounded-lg border border-line bg-surface p-4 text-sm">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold">Registracija firme</h2>
+        <span className="text-[13px] text-ink-2">
+          {steps.filter((s) => s.done).length} od {steps.length} koraka
+        </span>
+      </div>
+      <Stepper steps={steps} />
       {sef.data?.status !== 'Connected' && !organization.claimed && (
         <p className="text-slate-600">
           Firmu registrujete tek kada važeći SEF API ključ potvrdi PIB; sam unos PIB-a ništa ne
@@ -104,35 +104,32 @@ export function PristupnicaSection({ organizationId }: { organizationId: string 
           <ErrorMessage error={download.error} />
           {p.status !== 'Accepted' && (
             <form
-              className="space-y-2"
+              className="flex flex-col gap-3.5"
               onSubmit={(e) => (e.preventDefault(), file && upload.mutate())}
             >
-              <label className="block">
-                <span className="block font-medium">Potpisana pristupnica</span>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              <label className="block">
-                <input
-                  type="radio"
-                  name="method"
-                  checked={method === 'Qes'}
-                  onChange={() => setMethod('Qes')}
-                />{' '}
-                Potpisana kvalifikovanim elektronskim potpisom
-              </label>
-              <label className="block">
-                <input
-                  type="radio"
-                  name="method"
-                  checked={method === 'Scanned'}
-                  onChange={() => setMethod('Scanned')}
-                />{' '}
-                Svojeručno potpisana i skenirana (potvrda stiže na službeni email firme iz APR-a)
-              </label>
+              <OptionCards
+                label="Kako je pristupnica potpisana"
+                value={method}
+                onChange={setMethod}
+                options={[
+                  {
+                    value: 'Qes',
+                    title: 'Kvalifikovanim elektronskim potpisom',
+                    description: 'Potpis zastupnika na PDF-u',
+                  },
+                  {
+                    value: 'Scanned',
+                    title: 'Svojeručno, pa skenirano',
+                    description: 'Potvrda stiže na službeni email firme iz APR-a',
+                  },
+                ]}
+              />
+              <FileDrop
+                label="Potpisana pristupnica"
+                hint="PDF"
+                accept="application/pdf"
+                onFile={(picked) => setFile(picked)}
+              />
               <ErrorMessage error={upload.error} />
               <Button type="submit" disabled={!file || upload.isPending}>
                 Otpremi
@@ -310,10 +307,11 @@ function PristupnicaReviewRow({ review }: { review: PristupnicaReview }) {
             value={officialEmail}
             onChange={(e) => setOfficialEmail(e.target.value)}
           />
-          <label className="block">
-            <span className="block font-medium">APR izvod (izvor emaila)</span>
-            <input type="file" onChange={(e) => setAprExcerpt(e.target.files?.[0] ?? null)} />
-          </label>
+          <FileDrop
+            label="APR izvod (izvor emaila)"
+            hint="PDF ili slika"
+            onFile={(picked) => setAprExcerpt(picked)}
+          />
           <ErrorMessage error={email.error} />
           <Button type="submit" variant="secondary" disabled={!aprExcerpt || email.isPending}>
             Upiši email

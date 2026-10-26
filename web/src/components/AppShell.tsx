@@ -184,7 +184,7 @@ const navLink = ({ isActive }: { isActive: boolean }) =>
 export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { mine, active, setActiveId } = useActiveType()
+  const { mine, active, loaded, setActiveId } = useActiveType()
   const theme = useTheme()
   const unread = useQuery({
     queryKey: ['notifications-unread'],
@@ -199,7 +199,9 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
       navigate('/login')
     },
   })
-  const sections = menu(me, active?.type ?? null, active?.id ?? null)
+  // No menu until the organizations are known, so a customer never sees the "no organization" menu flash by.
+  const sections =
+    me.platformRoles.length > 0 || loaded ? menu(me, active?.type ?? null, active?.id ?? null) : []
   const staff = me.platformRoles.length > 0
 
   return (

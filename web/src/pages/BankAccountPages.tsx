@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { bankAccountsApi, type BankAccountReview } from '../api/bankAccounts'
 import { useStepUp } from '../auth/stepUpContext'
+import { FileDrop } from '../components/inputs'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 
 const statuses: Record<string, string> = {
@@ -130,14 +131,11 @@ function ReviewRow({ review }: { review: BankAccountReview }) {
           Isti račun je prijavila i druga firma: provera je blokirana.
         </p>
       )}
-      <label className="block">
-        <span className="block font-medium">Snimak iz registra računa NBS (obavezno)</span>
-        <input type="file" onChange={(e) => setSnapshot(e.target.files?.[0] ?? null)} />
-      </label>
-      <label className="block">
-        <span className="block font-medium">Pismo banke (opciono)</span>
-        <input type="file" onChange={(e) => setLetter(e.target.files?.[0] ?? null)} />
-      </label>
+      <FileDrop
+        label="Snimak iz registra računa NBS (obavezno)"
+        onFile={(file) => setSnapshot(file)}
+      />
+      <FileDrop label="Pismo banke (opciono)" onFile={(file) => setLetter(file)} />
       <Field
         id={`reason-${a.id}`}
         label="Razlog (odbijanje ili razrešenje duplikata)"

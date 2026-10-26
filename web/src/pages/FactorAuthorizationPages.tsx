@@ -6,6 +6,7 @@ import {
   type FactorAuthorization,
 } from '../api/factorAuthorizations'
 import { useStepUp } from '../auth/stepUpContext'
+import { FileDrop } from '../components/inputs'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 
 const statuses: Record<string, string> = {
@@ -119,14 +120,12 @@ export function FactorAuthorizationSection({ organizationId }: { organizationId:
               value={decisionDate}
               onChange={(e) => setDecisionDate(e.target.value)}
             />
-            <label className="block">
-              <span className="block font-medium">Rešenje o davanju saglasnosti (PDF)</span>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-            </label>
+            <FileDrop
+              label="Rešenje o davanju saglasnosti (PDF)"
+              hint="PDF"
+              accept="application/pdf"
+              onFile={(picked) => setFile(picked)}
+            />
           </>
         )}
         <Field
@@ -202,10 +201,7 @@ function AuthorizationRow({ authorization }: { authorization: FactorAuthorizatio
       )}
       {a.status === 'Submitted' && (
         <>
-          <label className="block">
-            <span className="block font-medium">Snimak zvaničnog izvora</span>
-            <input type="file" onChange={(e) => setSnapshot(e.target.files?.[0] ?? null)} />
-          </label>
+          <FileDrop label="Snimak zvaničnog izvora" onFile={(file) => setSnapshot(file)} />
           <label className="block">
             <span className="block font-medium">Način provere</span>
             <select

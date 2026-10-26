@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { download } from '../api/client'
 import { listingsApi, type AudienceType, type FeedFilters } from '../api/listings'
 import { formatMoney } from '../api/receivables'
+import { Segmented } from '../components/inputs'
 import {
   Button,
   Chip,
@@ -59,8 +60,7 @@ export function PublishListingSection({ receivableId }: { receivableId: string }
   }
 
   return (
-    <form className="space-y-2" onSubmit={submit}>
-      <h2 className="font-medium">Objavi na marketplace-u</h2>
+    <form className="flex flex-col gap-3.5" onSubmit={submit}>
       <Field
         id="closesAt"
         label="Ponude se primaju do"
@@ -69,17 +69,15 @@ export function PublishListingSection({ receivableId }: { receivableId: string }
         value={closesAt}
         onChange={(e) => setClosesAt(e.target.value)}
       />
-      <label className="block text-sm">
-        Kome je vidljivo
-        <select
-          className={selectClass}
-          value={audience}
-          onChange={(e) => setAudience(e.target.value as AudienceType)}
-        >
-          <option value="AllVerifiedFactors">Svim proverenim faktorima</option>
-          <option value="Selected">Samo izabranim faktorima</option>
-        </select>
-      </label>
+      <Segmented
+        label="Kome je oglas vidljiv"
+        value={audience}
+        onChange={setAudience}
+        options={[
+          { value: 'AllVerifiedFactors', label: 'Svim proverenim faktorima' },
+          { value: 'Selected', label: 'Samo izabranim' },
+        ]}
+      />
       {audience === 'Selected' && (
         <Field
           id="selected"

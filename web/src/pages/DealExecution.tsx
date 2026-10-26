@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type ChangeEvent } from 'react'
+import { useState } from 'react'
 import { dealsApi, type DealDetail } from '../api/deals'
 import { formatMoney } from '../api/receivables'
 import { useStepUp } from '../auth/stepUpContext'
+import { FileDrop } from '../components/inputs'
 import { Button, ErrorMessage, Field } from '../components/ui'
 
 const cefLabels: Record<string, string> = {
@@ -90,15 +91,6 @@ export function DealExecution({ detail }: { detail: DealDetail }) {
     return null
   }
 
-  function onFile(mutate: (file: File) => void) {
-    return (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (file) {
-        mutate(file)
-      }
-    }
-  }
-
   return (
     <section className="space-y-3 text-sm">
       {steps.openDisputes.length > 0 && (
@@ -122,16 +114,15 @@ export function DealExecution({ detail }: { detail: DealDetail }) {
             value={cefReference}
             onChange={(e) => setCefReference(e.target.value)}
           />
-          <input aria-label="Dokaz o upisu u CEF" type="file" onChange={onFile(cef.mutate)} />
+          <FileDrop label="Dokaz o upisu u CEF" onFile={(file) => cef.mutateAsync(file)} />
         </div>
       )}
       {deal.state !== 'Closed' && (
         <div className="space-y-1">
           <p>Obaveštenje dužniku: {steps.debtorNotified ? 'evidentirano' : 'nije evidentirano'}</p>
-          <input
-            aria-label="Dokaz o obaveštenju dužnika"
-            type="file"
-            onChange={onFile(notify.mutate)}
+          <FileDrop
+            label="Dokaz o obaveštenju dužnika"
+            onFile={(file) => notify.mutateAsync(file)}
           />
         </div>
       )}

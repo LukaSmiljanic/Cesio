@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type ChangeEvent } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { download } from '../api/client'
 import { dealsApi, type DealDetail } from '../api/deals'
 import { formatMoney } from '../api/receivables'
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Chip, EmptyRow, ErrorMessage, Field, PageHeader, Panel } from '../components/ui'
+import { FileDrop } from '../components/inputs'
 import { DealExecution } from './DealExecution'
 import { DealDisputes } from './DisputePages'
 import { useActiveOrganization } from '../organizations/activeOrganization'
@@ -134,20 +135,6 @@ function DealSteps({ detail }: { detail: DealDetail }) {
   const iConfirmed = myRole === 'Seller' ? steps.sellerConfirmed : steps.factorConfirmed
   const current = steps.contract
 
-  function onSignedFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (file) {
-      signed.mutate(file)
-    }
-  }
-
-  function onFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (file) {
-      contract.mutate(file)
-    }
-  }
-
   return (
     <section className="space-y-3 text-sm">
       {beforeSigning && (
@@ -180,7 +167,12 @@ function DealSteps({ detail }: { detail: DealDetail }) {
         <div className="space-y-2">
           <h2 className="font-medium">Ugovor o faktoringu</h2>
           {myRole === 'Factor' && (
-            <input aria-label="Ugovor (PDF)" type="file" accept=".pdf" onChange={onFile} />
+            <FileDrop
+              label="Ugovor (PDF)"
+              hint="PDF"
+              accept=".pdf"
+              onFile={(file) => contract.mutateAsync(file)}
+            />
           )}
           {current ? (
             <>
@@ -222,11 +214,11 @@ function DealSteps({ detail }: { detail: DealDetail }) {
             Potpišite usaglašeni ugovor kvalifikovanim elektronskim potpisom zastupnika i otpremite
             potpisani PDF. Posao je potpisan kada obe strane imaju bar jedan ispravan potpis.
           </p>
-          <input
-            aria-label="Potpisani ugovor (PDF)"
-            type="file"
+          <FileDrop
+            label="Potpisani ugovor (PDF)"
+            hint="PDF sa kvalifikovanim potpisom"
             accept=".pdf"
-            onChange={onSignedFile}
+            onFile={(file) => signed.mutateAsync(file)}
           />
         </div>
       )}
