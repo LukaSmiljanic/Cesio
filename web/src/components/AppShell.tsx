@@ -6,6 +6,7 @@ import { notificationsApi } from '../api/notifications'
 import { organizationsApi } from '../api/organizations'
 import { useActiveOrganization } from '../organizations/activeOrganization'
 import { InShell } from './styles'
+import { Toaster } from './Toaster'
 import { BrandMark } from './ui'
 
 interface NavItem {
@@ -302,6 +303,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
         </header>
         <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-5 lg:px-7 lg:py-7">
           <InShell.Provider value={true}>{children}</InShell.Provider>
+          {!staff && <Toaster />}
         </main>
       </div>
     </div>

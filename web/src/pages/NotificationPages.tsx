@@ -2,27 +2,25 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { notificationsApi, type FactorAppetite } from '../api/notifications'
-import { Button, Card, ErrorMessage, Field } from '../components/ui'
+import { Segmented, Switch } from '../components/inputs'
+import { KindIcon } from '../components/NotificationIcon'
+import { kindOf } from '../notifications/kinds'
+import { buttonClass } from '../components/styles'
+import { Button, ErrorMessage, Field, PageHeader, Panel } from '../components/ui'
 
-const notificationLabels: Record<string, string> = {
-  deal_action_required: 'Potrebna je vaša radnja na poslu',
-  funding_reported: 'Faktor je prijavio isplatu',
-  funding_confirmed: 'Isplata je potvrđena',
-  deal_cancelled: 'Posao je otkazan',
-  offer_received: 'Nova ponuda',
-  offer_withdrawn: 'Ponuda je povučena',
-  offer_accepted: 'Vaša ponuda je prihvaćena',
-  offer_superseded: 'Vaša ponuda više nije aktivna',
-  new_listing: 'Novi oglas po vašim filterima',
-  receivable_verification: 'Provera potraživanja je završena',
-  kyb_decision: 'Odluka o proveri firme',
-  factor_authorization: 'Promena ovlašćenja za faktoring',
-  hold: 'Promena blokade',
-  sef_status_changed: 'SEF status fakture se promenio',
-  fee_statement: 'Izdat je obračun naknade',
-  security: 'Bezbednosno obaveštenje',
-  reminder: 'Podsetnik',
+/** "Danas", "Juče" or the date, for grouping by day. */
+function dayLabel(iso: string) {
+  const day = new Date(iso)
+  const today = new Date()
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const diff = Math.round((start(today) - start(day)) / 86_400_000)
+  if (diff === 0) return 'Danas'
+  if (diff === 1) return 'Juče'
+  return day.toLocaleDateString('sr-Latn-RS', { weekday: 'long', day: 'numeric', month: 'long' })
 }
+
+const time = (iso: string) =>
+  new Date(iso).toLocaleTimeString('sr-Latn-RS', { hour: '2-digit', minute: '2-digit' })
 
 /** The bell: unread count, linking to the list. */
 export function NotificationBell() {
@@ -31,9 +29,19 @@ export function NotificationBell() {
     queryFn: notificationsApi.unread,
     refetchInterval: 60_000,
   })
+  const count = unread.data?.unread ?? 0
   return (
-    <Link className="text-sm underline" to="/notifications" aria-label="Obaveštenja">
-      🔔 {unread.data?.unread ?? 0}
+    <Link
+      to="/notifications"
+      className="inline-flex items-center gap-1.5 text-[13px] text-ink-2 hover:text-ink"
+      aria-label={`Obaveštenja, nepročitanih: ${count}`}
+    >
+      Obaveštenja
+      {count > 0 && (
+        <span className="rounded-full bg-warn-soft px-[7px] text-[11.5px] font-semibold text-warn">
+          {count}
+        </span>
+      )}
     </Link>
   )
 }
@@ -42,50 +50,125 @@ export function NotificationsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [before, setBefore] = useState<string | undefined>()
+  const [show, setShow] = useState<'all' | 'unread'>('all')
   const list = useQuery({
     queryKey: ['notifications', before],
     queryFn: () => notificationsApi.list(before),
   })
   const open = useMutation({
-    mutationFn: async ({ id, link }: { id: string; link: string }) => {
-      await notificationsApi.read(id)
+    mutationFn: async ({ id, link, read }: { id: string; link: string; read: boolean }) => {
+      if (!read) {
+        await notificationsApi.read(id)
+      }
       return link
     },
     onSuccess: async (link) => {
       await queryClient.invalidateQueries({ queryKey: ['notifications-unread'] })
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] })
       navigate(link)
     },
   })
+  const items = (list.data?.items ?? []).filter((n) => show === 'all' || !n.readAt)
+  const unread = (list.data?.items ?? []).filter((n) => !n.readAt).length
+  const days = items.reduce<{ day: string; items: typeof items }[]>((groups, n) => {
+    const day = dayLabel(n.createdAt)
+    const last = groups[groups.length - 1]
+    if (last?.day === day) {
+      last.items.push(n)
+    } else {
+      groups.push({ day, items: [n] })
+    }
+    return groups
+  }, [])
+
   return (
-    <Card title="Obaveštenja">
+    <>
+      <PageHeader
+        eyebrow={
+          unread > 0 ? `${unread} nepročitan${unread === 1 ? 'o' : 'ih'}` : 'Sve je pročitano'
+        }
+        title="Obaveštenja"
+        actions={
+          <Link to="/notification-preferences" className={buttonClass('secondary')}>
+            Podešavanja
+          </Link>
+        }
+      />
+      <Segmented
+        label="Prikaži"
+        value={show}
+        onChange={setShow}
+        options={[
+          { value: 'all', label: 'Sva' },
+          { value: 'unread', label: `Nepročitana${unread > 0 ? ` (${unread})` : ''}` },
+        ]}
+      />
       <ErrorMessage error={list.error ?? open.error} />
-      {list.data?.items.length === 0 && <p className="text-sm">Nema obaveštenja.</p>}
-      <ul className="space-y-2 text-sm">
-        {list.data?.items.map((n) => (
-          <li key={n.id}>
-            <button
-              type="button"
-              className={`text-left underline ${n.readAt ? 'text-slate-500' : 'font-medium'}`}
-              onClick={() => open.mutate({ id: n.id, link: n.link })}
-            >
-              {notificationLabels[n.type] ?? n.type}
-              {n.reference && ` ${n.reference}`}
-            </button>{' '}
-            <span className="text-slate-500">{new Date(n.createdAt).toLocaleString('sr-RS')}</span>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-4 flex gap-4 text-sm">
-        {list.data?.next && (
+      {list.isSuccess && items.length === 0 && (
+        <div className="flex flex-col items-center gap-2 rounded-lg border border-line bg-surface px-6 py-10 text-center">
+          <KindIcon type="none" />
+          <div className="font-semibold">
+            {show === 'unread' ? 'Nema nepročitanih obaveštenja' : 'Još nema obaveštenja'}
+          </div>
+          <div className="max-w-sm text-[13px] text-ink-2">
+            Ovde stižu nove ponude, koraci posla na kojima ste na potezu, odluke o proverama i
+            bezbednosna upozorenja.
+          </div>
+        </div>
+      )}
+      {days.map((group) => (
+        <section key={group.day} className="flex flex-col gap-2">
+          <h2 className="text-[11.5px] font-semibold tracking-[0.08em] text-ink-3 uppercase">
+            {group.day}
+          </h2>
+          <ul className="overflow-hidden rounded-lg border border-line bg-surface">
+            {group.items.map((n) => {
+              const kind = kindOf(n.type)
+              return (
+                <li key={n.id} className="border-b border-line last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => open.mutate({ id: n.id, link: n.link, read: Boolean(n.readAt) })}
+                    className={`flex w-full items-center gap-3.5 px-4 py-3 text-left hover:bg-surface-2 ${
+                      n.readAt ? '' : 'bg-accent-soft/40'
+                    }`}
+                  >
+                    <KindIcon type={n.type} />
+                    <span className="min-w-0 flex-1">
+                      <span className={`block ${n.readAt ? 'text-ink-2' : 'font-semibold'}`}>
+                        {kind.label}
+                      </span>
+                      <span className="block text-[12.5px] text-ink-3">
+                        {kind.group}
+                        {n.reference && (
+                          <>
+                            {' · '}
+                            <span className="font-mono">{n.reference}</span>
+                          </>
+                        )}
+                      </span>
+                    </span>
+                    <span className="flex flex-none items-center gap-2.5 text-[12.5px] text-ink-3 tabular-nums">
+                      {time(n.createdAt)}
+                      {!n.readAt && (
+                        <span className="size-2 rounded-full bg-accent" aria-label="nepročitano" />
+                      )}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      ))}
+      {list.data?.next && (
+        <div>
           <Button variant="secondary" onClick={() => setBefore(list.data!.next!)}>
-            Starija
+            Starija obaveštenja
           </Button>
-        )}
-        <Link className="underline" to="/notification-preferences">
-          Podešavanja
-        </Link>
-      </div>
-    </Card>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -111,62 +194,88 @@ export function NotificationPreferencesPage() {
     onSuccess: (updated) => queryClient.setQueryData(['notification-preferences'], updated),
   })
   const types = [...new Set(preferences.data?.items.map((i) => i.type))]
+  const groups = [...new Set(types.map((t) => kindOf(t).group))]
   return (
-    <Card title="Podešavanja obaveštenja">
+    <>
+      <div className="flex gap-1.5 text-[12.5px] text-ink-3">
+        <Link to="/notifications" className="text-ink-2 underline underline-offset-2">
+          Obaveštenja
+        </Link>
+        <span>/</span>
+        <span>Podešavanja</span>
+      </div>
+      <PageHeader eyebrow="Obaveštenja" title="Podešavanja obaveštenja" />
       <ErrorMessage error={preferences.error ?? save.error} />
       {preferences.data && (
-        <div className="space-y-3 text-sm">
-          <label className="block">
-            <span className="block font-medium">Jezik mejlova</span>
-            <select
-              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3"
+        <>
+          <Panel title="Jezik mejlova">
+            <Segmented
+              label="Mejlovi stižu na"
               value={preferences.data.language}
-              onChange={(e) => save.mutate({ language: e.target.value })}
+              onChange={(language) => save.mutate({ language })}
+              options={[
+                { value: 'sr', label: 'Srpskom' },
+                { value: 'en', label: 'Engleskom' },
+              ]}
+            />
+          </Panel>
+          {groups.map((group) => (
+            <Panel
+              key={group}
+              title={group}
+              padded={false}
+              actions={
+                <span className="flex gap-6 pr-1 text-[12px] font-semibold text-ink-3">
+                  <span className="w-12 text-center">U aplikaciji</span>
+                  <span className="w-12 text-center">Email</span>
+                </span>
+              }
             >
-              <option value="sr">Srpski</option>
-              <option value="en">English</option>
-            </select>
-          </label>
-          <table className="w-full">
-            <thead>
-              <tr>
-                <th className="text-left">Vrsta</th>
-                <th>U aplikaciji</th>
-                <th>Email</th>
-              </tr>
-            </thead>
-            <tbody>
-              {types.map((type) => (
-                <tr key={type}>
-                  <td>{notificationLabels[type] ?? type}</td>
-                  {(['inapp', 'email'] as const).map((channel) => {
-                    const row = preferences.data.items.find(
-                      (i) => i.type === type && i.channel === channel,
-                    )!
-                    return (
-                      <td key={channel} className="text-center">
-                        <input
-                          type="checkbox"
-                          aria-label={`${type} ${channel}`}
-                          checked={row.enabled}
-                          disabled={row.mandatory || save.isPending}
-                          onChange={(e) =>
-                            save.mutate({ type, channel, enabled: e.target.checked })
-                          }
-                        />
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-slate-600">
-            Bezbednosna obaveštenja i koraci posla ne mogu da se isključe.
+              <ul>
+                {types
+                  .filter((type) => kindOf(type).group === group)
+                  .map((type) => (
+                    <li
+                      key={type}
+                      className="flex items-center gap-3.5 border-b border-line px-4 py-3 last:border-b-0"
+                    >
+                      <KindIcon type={type} />
+                      <span className="min-w-0 flex-1">
+                        {kindOf(type).label}
+                        {preferences.data.items.some((i) => i.type === type && i.mandatory) && (
+                          <span className="ml-2 rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink-3">
+                            obavezno
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex gap-6">
+                        {(['inapp', 'email'] as const).map((channel) => {
+                          const row = preferences.data.items.find(
+                            (i) => i.type === type && i.channel === channel,
+                          )!
+                          return (
+                            <span key={channel} className="flex w-12 justify-center">
+                              <Switch
+                                label={`${kindOf(type).label}: ${channel === 'inapp' ? 'u aplikaciji' : 'email'}`}
+                                checked={row.enabled}
+                                disabled={row.mandatory || save.isPending}
+                                onChange={(enabled) => save.mutate({ type, channel, enabled })}
+                              />
+                            </span>
+                          )
+                        })}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </Panel>
+          ))}
+          <p className="rounded-md bg-surface-2 px-3 py-2.5 text-[12.5px] text-ink-2">
+            Bezbednosna obaveštenja i koraci posla na kojima ste na potezu ne mogu da se isključe.
           </p>
-        </div>
+        </>
       )}
-    </Card>
+    </>
   )
 }
 

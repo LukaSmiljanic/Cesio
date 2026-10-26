@@ -323,3 +323,44 @@ export function Stepper({ steps }: { steps: { label: string; done: boolean }[] }
     </ol>
   )
 }
+
+/** An on/off switch (a checkbox underneath); a disabled one shows a setting that cannot be changed. */
+export function Switch({
+  label,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  disabled?: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <label
+      className={`relative inline-flex h-[22px] w-[38px] flex-none items-center has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus ${
+        disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+      } rounded-full`}
+    >
+      <input
+        type="checkbox"
+        role="switch"
+        aria-label={label}
+        className="peer sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span
+        aria-hidden
+        className={`absolute inset-0 rounded-full transition-colors ${checked ? 'bg-accent' : 'bg-line'}`}
+      />
+      <span
+        aria-hidden
+        className={`absolute top-[3px] size-4 rounded-full bg-surface shadow-panel transition-transform ${
+          checked ? 'translate-x-[19px]' : 'translate-x-[3px]'
+        }`}
+      />
+    </label>
+  )
+}
