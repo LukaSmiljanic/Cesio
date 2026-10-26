@@ -22,6 +22,9 @@ public sealed class ApiApp(TestDatabase database, IDictionary<string, string?>? 
         host.UseSetting($"ConnectionStrings:{PersistenceSetup.ConnectionStringName}", database.ConnectionString);
         host.UseSetting("Auth:BreachCheck:UseOnlineApi", "false");
         host.UseSetting("Auth:RateLimitPerMinute", "100000");
+        // Each test keeps the fake SEF and the secrets in memory, not in the developer's local files.
+        host.UseSetting("Sef:FakePersist", "false");
+        host.UseSetting("Secrets:LocalPersist", "false");
         foreach (var (key, value) in settings ?? new Dictionary<string, string?>())
         {
             host.UseSetting(key, value);

@@ -24,7 +24,12 @@ public static class SefSetup
                 client.MaxResponseContentBufferSize = 25 * 1024 * 1024;
             })
             .AddHttpMessageHandler<SefRetryHandler>();
-        services.AddSingleton<FakeSefClient>();
+        // Locally (Sef:FakePersist = true) the fake keeps its invoices in a file shared by the API and the worker.
+        services.AddSingleton(provider =>
+            provider.GetRequiredService<IConfiguration>().GetValue<bool>("Sef:FakePersist")
+            && FakeEnvironments.Contains(provider.GetRequiredService<IHostEnvironment>().EnvironmentName, StringComparer.OrdinalIgnoreCase)
+                ? new FakeSefClient(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Cesio", "dev", "fake-sef.json"))
+                : new FakeSefClient());
         services.AddScoped<ISefClient>(provider =>
         {
             if (provider.GetRequiredService<IConfiguration>()["Sef:Client"] != "Fake")

@@ -30,6 +30,8 @@ public sealed class WorkerJobsTests(SqlServerContainer server, AzuriteContainer 
             ["ConnectionStrings:Documents"] = azurite.ConnectionString,
             ["ConnectionStrings:AuditDigests"] = azurite.ConnectionString,
             ["Sef:Client"] = "Fake",
+            ["Sef:FakePersist"] = "false",
+            ["Secrets:LocalPersist"] = "false",
         });
         builder.AddWorkerServices();
         // The scheduler and the outbox dispatcher stay off; the test runs each job once.

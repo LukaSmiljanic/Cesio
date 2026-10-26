@@ -1,16 +1,20 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 
 namespace Integrations.Sef;
 
 /// <summary>
 /// In-memory SEF for tests and local development (configuration <c>Sef:Client = Fake</c>). Tests add invoices per key;
-/// locally a key of the form <c>demo-{PIB}</c> sees three generated invoices issued by that PIB.
+/// locally a key of the form <c>demo-{PIB}</c> sees three generated invoices issued by that PIB. Locally the invoices
+/// can be kept in a file (<c>Sef:FakePersist</c>), so they survive an API restart and the worker sees them too.
 /// </summary>
-public sealed class FakeSefClient : ISefClient
+public sealed class FakeSefClient(string? storePath = null) : ISefClient
 {
     private readonly ConcurrentDictionary<string, ConcurrentDictionary<long, (string Status, byte[] Ubl)>> _invoices = new(StringComparer.Ordinal);
+    private readonly Lock _file = new();
+    private DateTime _loadedFrom = DateTime.MinValue;
     // Starts from the clock, so invoice ids of a restarted local API never collide with ones already imported.
     private long _nextId = DateTimeOffset.UtcNow.ToUnixTimeSeconds() * 1_000;
 
@@ -21,8 +25,10 @@ public sealed class FakeSefClient : ISefClient
 
     public long AddInvoice(string apiKey, byte[] ubl, string status = "Sent")
     {
+        Sync();
         var id = Interlocked.Increment(ref _nextId);
         _invoices.GetOrAdd(apiKey, _ => new())[id] = (status, ubl);
+        Save();
         return id;
     }
 
@@ -31,6 +37,7 @@ public sealed class FakeSefClient : ISefClient
     {
         var invoices = For(apiKey);
         invoices[invoiceId] = (status, invoices[invoiceId].Ubl);
+        Save();
     }
 
     public Task CheckKeyAsync(string apiKey, CancellationToken cancellationToken)
@@ -116,6 +123,7 @@ public sealed class FakeSefClient : ISefClient
 
     private ConcurrentDictionary<long, (string Status, byte[] Ubl)> For(string apiKey)
     {
+        Sync();
         if (apiKey.StartsWith("demo-", StringComparison.Ordinal) && !_invoices.ContainsKey(apiKey))
         {
             var pib = apiKey["demo-".Length..];
@@ -127,6 +135,58 @@ public sealed class FakeSefClient : ISefClient
 
         return _invoices.GetOrAdd(apiKey, _ => new());
     }
+
+    /// <summary>Reads the file when another process (the API or the worker) changed it.</summary>
+    private void Sync()
+    {
+        if (storePath is null || !File.Exists(storePath))
+        {
+            return;
+        }
+
+        lock (_file)
+        {
+            var written = File.GetLastWriteTimeUtc(storePath);
+            if (written <= _loadedFrom)
+            {
+                return;
+            }
+
+            var stored = JsonSerializer.Deserialize<Dictionary<string, Dictionary<long, StoredInvoice>>>(File.ReadAllText(storePath)) ?? [];
+            foreach (var (key, invoices) in stored)
+            {
+                var target = _invoices.GetOrAdd(key, _ => new());
+                foreach (var (id, invoice) in invoices)
+                {
+                    target[id] = (invoice.Status, Convert.FromBase64String(invoice.Ubl));
+                    _nextId = Math.Max(_nextId, id);
+                }
+            }
+
+            _loadedFrom = written;
+        }
+    }
+
+    private void Save()
+    {
+        if (storePath is null)
+        {
+            return;
+        }
+
+        lock (_file)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(storePath)!);
+            var snapshot = _invoices.ToDictionary(
+                k => k.Key,
+                k => k.Value.ToDictionary(i => i.Key, i => new StoredInvoice(i.Value.Status, Convert.ToBase64String(i.Value.Ubl))),
+                StringComparer.Ordinal);
+            File.WriteAllText(storePath, JsonSerializer.Serialize(snapshot));
+            _loadedFrom = File.GetLastWriteTimeUtc(storePath);
+        }
+    }
+
+    private sealed record StoredInvoice(string Status, string Ubl);
 
     private void Guard(string apiKey)
     {
