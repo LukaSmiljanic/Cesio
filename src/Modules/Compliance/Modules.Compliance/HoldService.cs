@@ -137,7 +137,8 @@ internal sealed class HoldService(ComplianceDbContext compliance, UnitOfWork uni
         }
 
         var now = timeProvider.GetUtcNow();
-        foreach (var hold in await compliance.Holds.Where(h => h.SubjectType == subject && h.SubjectId == subjectId && h.Kind == kind && h.LiftedAt == null).ToListAsync(cancellationToken))
+        // Only holds the system placed: a hold staff placed by hand stays until staff lift it.
+        foreach (var hold in await compliance.Holds.Where(h => h.SubjectType == subject && h.SubjectId == subjectId && h.Kind == kind && h.LiftedAt == null && h.PlacedBy == Guid.Empty).ToListAsync(cancellationToken))
         {
             hold.LiftedBy = request.UserId ?? Guid.Empty;
             hold.LiftedAt = now;

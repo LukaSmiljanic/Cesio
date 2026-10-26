@@ -68,6 +68,25 @@ public sealed partial class MarketplaceTests
         Assert.Equal("validation_failed", invalid);
     }
 
+    [Fact]
+    public async Task Withdrawing_a_dispute_never_lifts_a_hold_staff_placed()
+    {
+        var (_, factor, dealId, _) = await SignedDealAsync();
+        await factor.Client.StepUpAsync();
+        var account = (await ApiClient.ReadAsync(await Send(factor, HttpMethod.Get, $"/api/v1/deals/{dealId}/funding-accounts")))[0].GetProperty("id").GetGuid();
+        using var officer = await StaffAsync("ComplianceOfficer");
+        await officer.StepUpAsync();
+        await ApiClient.ReadAsync(await officer.PostAsync("/api/v1/admin/holds", new { subjectType = "Deal", subjectId = dealId, kind = "Disputed", reason = "Provera" }));
+
+        var opened = await ApiClient.ReadAsync(await Send(factor, HttpMethod.Post, $"/api/v1/deals/{dealId}/disputes", new { kind = "Other", description = "x" }));
+        await ApiClient.ReadAsync(await Send(factor, HttpMethod.Post, $"/api/v1/disputes/{opened.GetProperty("dispute").GetProperty("id").GetGuid()}/withdraw"));
+        var blocked = await ApiClient.ErrorCodeAsync(await Send(factor, HttpMethod.Post, $"/api/v1/deals/{dealId}/funding-report",
+            new { amount = new { amount = "1150000.00", currency = "RSD" }, valueDate = Today, paymentReference = "97-4", payeeBankAccountId = account }));
+
+        Assert.Equal("hold_active", blocked);
+        Assert.Equal(1, await CountAsync($"SELECT COUNT(*) FROM compliance.holds WHERE subject_id = '{dealId}' AND lifted_at IS NULL"));
+    }
+
     [Theory]
     [InlineData("ComplianceHold")]
     [InlineData("Disputed")]

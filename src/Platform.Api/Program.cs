@@ -40,6 +40,7 @@ builder.Services
 
 var app = builder.Build();
 
+app.UseKnownForwardedHeaders();
 app.UseSecurityHeaders();
 app.UseExceptionHandler();
 app.UseStatusCodePages();

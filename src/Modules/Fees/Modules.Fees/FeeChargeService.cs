@@ -214,8 +214,14 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
     /// <c>POST /admin/fees/charges/{id}/withdraw-reversal</c> (task 021 follow-up): Finance withdraws a reversal that is
     /// still pending, e.g. proposed by mistake; the charge can then be reversed again.
     /// </summary>
-    public async Task<IResult> WithdrawReversalAsync(Guid id, CancellationToken cancellationToken)
+    public async Task<IResult> WithdrawReversalAsync(Guid id, ReverseRequest body, CancellationToken cancellationToken)
     {
+        var reason = body.Reason?.Trim();
+        if (string.IsNullOrEmpty(reason) || reason.Length > 400)
+        {
+            return Problems.Error(StatusCodes.Status400BadRequest, "validation_failed", "Give the reason (at most 400 characters).");
+        }
+
         if (await fees.FeeCharges.SingleOrDefaultAsync(c => c.Id == id && c.Kind == FeeCharge.ReversalKind, cancellationToken) is not { } reversal)
         {
             return NotFound();
@@ -234,7 +240,7 @@ internal sealed class FeeChargeService(FeesDbContext fees, UnitOfWork unitOfWork
                 {
                     await fees.SaveChangesAsync(ct);
                     await audit.WriteAsync(new AuditEntry("FeeCharge.ReversalWithdrawn", "FeeCharge", reversal.Id, reversal.PayerOrgId,
-                        PreviousState: "PendingApproval", NewState: "Withdrawn", Related: [new AuditReference("FeeCharge", reversal.ReversesId!.Value)]), ct);
+                        PreviousState: "PendingApproval", NewState: "Withdrawn", Reason: reason, Related: [new AuditReference("FeeCharge", reversal.ReversesId!.Value)]), ct);
                 },
                 cancellationToken);
         }

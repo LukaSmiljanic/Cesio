@@ -4,13 +4,28 @@
     {
       "name": "api",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "src/Platform.Api", "--launch-profile", "Platform.Api"],
-      "port": 5080
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/Platform.Api",
+        "--launch-profile",
+        "Platform.Api"
+      ],
+      "port": 5180
     },
     {
       "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "web", "run", "dev", "--", "--port", "5173", "--strictPort"],
+      "runtimeArgs": [
+        "--prefix",
+        "web",
+        "run",
+        "dev",
+        "--",
+        "--port",
+        "5173",
+        "--strictPort"
+      ],
       "port": 5173
     }
   ]

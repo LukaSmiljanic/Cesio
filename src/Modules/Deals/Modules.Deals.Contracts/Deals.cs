@@ -87,14 +87,17 @@ public interface IDealQuery
 
 public sealed record MaturityBucket(string Bucket, int Count, IReadOnlyList<Shared.Kernel.Money> FaceValue);
 
-/// <param name="AverageDiscountRate">Discount ÷ face value over the funded deals (indicative cost), or null.</param>
+/// <summary>Discount ÷ face value over the funded deals of one currency (indicative cost; never across currencies).</summary>
+public sealed record CurrencyRate(string Currency, decimal Rate);
+
+/// <param name="AverageDiscountRate">One rate per currency of the funded deals; empty when none.</param>
 public sealed record OrganizationDealStats(
     int Open, IReadOnlyList<Shared.Kernel.Money> FundedThisMonth, IReadOnlyList<Shared.Kernel.Money> FundedThisYear,
-    decimal? AverageDiscountRate, int OverdueOutcomes, IReadOnlyList<MaturityBucket> Portfolio);
+    IReadOnlyList<CurrencyRate> AverageDiscountRate, int OverdueOutcomes, IReadOnlyList<MaturityBucket> Portfolio);
 
 public sealed record StuckDeals(DealState State, int Count);
 
-/// <param name="Gmv">Purchase prices of the deals funded this month; <paramref name="PlatformFees"/> their platform fees (take rate = fees ÷ GMV).</param>
+/// <param name="Gmv">Face values of the deals funded this month (financial-model.md §3); <paramref name="PlatformFees"/> their platform fees (take rate = fees ÷ GMV).</param>
 public sealed record PlatformDealStats(IReadOnlyList<StuckDeals> Stuck, int FundedThisMonth, IReadOnlyList<Shared.Kernel.Money> Gmv, IReadOnlyList<Shared.Kernel.Money> PlatformFees);
 
 /// <summary>Read-only figures for the dashboards (task 022), computed from the deal rows.</summary>

@@ -3,6 +3,7 @@ using Azure.Storage.Blobs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Shared.Infrastructure;
 using Shared.Infrastructure.Jobs;
 
 namespace Modules.Audit;
@@ -44,7 +45,7 @@ internal sealed partial class AuditDigestJob(IServiceScopeFactory scopeFactory, 
 
         var connectionString = services.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName)
             ?? throw new InvalidOperationException($"Connection string '{ConnectionStringName}' is not configured.");
-        var container = new BlobContainerClient(connectionString, ContainerName);
+        var container = BlobContainers.Create(connectionString, ContainerName);
         await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
         await container.UploadBlobAsync($"{now:yyyy-MM-dd'T'HHmmss'Z'}.json", BinaryData.FromString(digest), cancellationToken);
     }

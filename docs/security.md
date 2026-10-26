@@ -60,7 +60,7 @@ Signatory requires a link to an APR legal representative or a verified power of 
 ## 5. Encryption & secrets
 - TLS 1.2+ everywhere, HSTS. DB and Blob encryption at rest (platform-managed keys in the MVP; customer-managed keys later if required).
 - Key Vault for all secrets; managed identities; no secrets in config or repo (secret scanning in CI). SEF API keys: one secret per organization, write-only from the UI (never displayed again), and access is logged.
-- ASP.NET data protection keys are persisted to Blob and protected by Key Vault.
+- ASP.NET data protection keys are to be persisted to Blob and protected by Key Vault (target; a task 024 follow-up waiting for package approval, until then one API replica).
 
 ## 6. API security
 - Same-origin SPA with cookies + anti-forgery tokens for state-changing requests. CORS is locked to our origins.

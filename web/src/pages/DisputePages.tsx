@@ -15,7 +15,7 @@ const kindLabels: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   Open: 'otvoren',
-  Resolved: 'rešen',
+  Resolved: 'zatvoren',
   Withdrawn: 'povučen',
 }
 
@@ -55,7 +55,7 @@ function PartyDispute({ id, organizationId }: { id: string; organizationId: stri
       <p>
         {kindLabels[d.kind] ?? d.kind} · {statusLabels[d.status] ?? d.status} · {d.description}
       </p>
-      {d.resolutionSummary && <p>Rešenje: {d.resolutionSummary}</p>}
+      {d.resolutionSummary && <p>Zaključak pri zatvaranju: {d.resolutionSummary}</p>}
       <Thread view={view.data!} />
       {d.status === 'Open' && (
         <form className="space-y-2" onSubmit={(e) => (e.preventDefault(), comment.mutate())}>
@@ -139,7 +139,9 @@ export function DealDisputes({
           onChange={(e) => setDescription(e.target.value)}
         />
         <p className="text-slate-600">
-          Spor (osim spora o naknadi) zaustavlja dalje korake posla dok ga Cesio ne reši.
+          Spor (osim spora o naknadi) zaustavlja dalje korake posla dok se ne zatvori. Cesio ne
+          odlučuje ko je u pravu; spor se zatvara na osnovu dogovora strana ili odluke van
+          platforme.
         </p>
         <ErrorMessage error={open.error ?? list.error} />
         <Button type="submit" variant="secondary" disabled={open.isPending}>
@@ -194,7 +196,7 @@ function StaffDispute({ id }: { id: string }) {
       </label>
       <Field
         id={`summary-${id}`}
-        label="Rešenje (za zatvaranje)"
+        label="Zaključak (dogovor strana ili spoljna odluka)"
         value={summary}
         onChange={(e) => setSummary(e.target.value)}
       />
@@ -213,7 +215,7 @@ function StaffDispute({ id }: { id: string }) {
           </Button>
         )}
         <Button onClick={() => resolve.mutate()} disabled={!summary.trim() || resolve.isPending}>
-          Reši
+          Zatvori spor
         </Button>
       </div>
     </li>

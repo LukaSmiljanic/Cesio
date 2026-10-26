@@ -64,7 +64,7 @@ internal static class DashboardEndpoints
         return Results.Ok(new
         {
             activeOffers = offers.Active,
-            winRate = offers.Total == 0 ? (decimal?)null : Math.Round((decimal)offers.Accepted / offers.Total, 4, MidpointRounding.ToEven),
+            winRate = offers.Total == 0 ? (decimal?)null : Math.Round((decimal)offers.Accepted / offers.Total, 4, MidpointRounding.AwayFromZero),
             dealsNeedingAction = dealStats.Open,
             portfolio = dealStats.Portfolio,
             overdueOutcomes = dealStats.OverdueOutcomes,
@@ -116,14 +116,26 @@ internal static class DashboardEndpoints
         });
     }
 
-    /// <summary>Any platform staff role; anyone else gets 404 (security.md §3).</summary>
+    private static readonly string[] AdminDashboardRoles =
+        [PlatformRoles.PlatformAdmin, PlatformRoles.ComplianceOfficer, PlatformRoles.Operations, PlatformRoles.Finance];
+
+    /// <summary>The operating staff roles; anyone else, Auditors included (audit log only), gets 404 (security.md §3).</summary>
     private static async ValueTask<object?> RequireStaff(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
         var http = context.HttpContext;
         var roles = http.RequestServices.GetRequiredService<IPlatformRoles>();
-        return Guid.TryParse(http.User.FindFirst(CesioClaims.UserId)?.Value, out var userId) && await roles.IsStaffAsync(userId, http.RequestAborted)
-            ? await next(context)
-            : NotFound();
+        if (Guid.TryParse(http.User.FindFirst(CesioClaims.UserId)?.Value, out var userId))
+        {
+            foreach (var role in AdminDashboardRoles)
+            {
+                if (await roles.HasRoleAsync(userId, role, http.RequestAborted))
+                {
+                    return await next(context);
+                }
+            }
+        }
+
+        return NotFound();
     }
 
     private static IResult NotFound() =>

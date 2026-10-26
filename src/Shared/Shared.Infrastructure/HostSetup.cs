@@ -28,11 +28,12 @@ public static class HostSetup
         return services;
     }
 
-    /// <summary>Persistence, the system request context, the outbox dispatcher and the platform jobs for Platform.Worker.</summary>
+    /// <summary>Persistence, the system request context, email, the outbox dispatcher and the platform jobs for Platform.Worker.</summary>
     public static IServiceCollection AddWorkerInfrastructure(this IServiceCollection services)
     {
         services.AddPersistence();
         services.AddScoped<IRequestContext, SystemRequestContext>();
+        services.AddEmail();
         services.AddSecrets();
         services.AddHostedService<OutboxDispatcherService>();
         services.AddHostedService<IdempotencyCleanupJob>();

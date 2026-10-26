@@ -20,8 +20,12 @@ internal sealed class DealStats(DealsDbContext deals, IReceivableMarket receivab
         var monthStart = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
         var yearStart = new DateTimeOffset(now.Year, 1, 1, 0, 0, 0, TimeSpan.Zero);
         var funded = mine.Where(d => FundedOrLater.Contains(d.State) && fundedAt.ContainsKey(d.Id)).ToList();
-        var faceSum = funded.Sum(d => d.FaceValue.Amount);
-        decimal? rate = faceSum == 0 ? null : Math.Round(funded.Sum(d => d.FaceValue.Amount - d.PurchasePriceAmount) / faceSum, 4, MidpointRounding.ToEven);
+        // D = F − P as Money, per currency; a ratio, so rounded to 4 places for display only.
+        var rates = funded.GroupBy(d => d.FaceValue.Currency)
+            .Select(g => (Currency: g.Key, Face: g.Sum(d => d.FaceValue.Amount), Discount: g.Sum(d => d.FaceValue.Subtract(new Money(d.PurchasePriceAmount, g.Key)).Amount)))
+            .Where(r => r.Face != 0)
+            .Select(r => new CurrencyRate(r.Currency.Code, Math.Round(r.Discount / r.Face, 4, MidpointRounding.AwayFromZero)))
+            .ToList();
 
         var today = BusinessDayCalendar.Today(timeProvider);
         var buckets = new Dictionary<string, (int Count, List<Money> Face)>();
@@ -49,7 +53,7 @@ internal sealed class DealStats(DealsDbContext deals, IReceivableMarket receivab
             mine.Count(d => !Ended.Contains(d.State) && d.State != DealState.Funded),
             Sum(funded.Where(d => fundedAt[d.Id] >= monthStart).Select(d => new Money(d.PurchasePriceAmount, d.FaceValue.Currency))),
             Sum(funded.Where(d => fundedAt[d.Id] >= yearStart).Select(d => new Money(d.PurchasePriceAmount, d.FaceValue.Currency))),
-            rate,
+            rates,
             overdue,
             buckets.Select(b => new MaturityBucket(b.Key, b.Value.Count, Sum(b.Value.Face))).OrderBy(b => b.Bucket, StringComparer.Ordinal).ToList());
     }
@@ -71,7 +75,7 @@ internal sealed class DealStats(DealsDbContext deals, IReceivableMarket receivab
         return new PlatformDealStats(
             stuck,
             funded.Count,
-            Sum(funded.Select(d => new Money(d.PurchasePriceAmount, d.FaceValue.Currency))),
+            Sum(funded.Select(d => d.FaceValue)),
             Sum(funded.Select(d => new Money(d.PlatformFeeAmount, d.FaceValue.Currency))));
     }
 

@@ -1,4 +1,5 @@
 using System.Net;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace Platform.Api.Tests;
@@ -18,7 +19,9 @@ public sealed class ApiSmokeTests(WebApplicationFactory<Program> factory) : ICla
     [Fact]
     public async Task Readiness_is_unavailable_without_a_database()
     {
-        using var client = factory.CreateClient();
+        // An unreachable server, so a developer's user secrets with a running local database do not change the result.
+        using var client = factory.WithWebHostBuilder(host => host.UseSetting("ConnectionStrings:Cesio", "Server=127.0.0.1,1;Database=none;Connect Timeout=1;TrustServerCertificate=True"))
+            .CreateClient();
 
         using var response = await client.GetAsync(new Uri("/health/ready", UriKind.Relative), TestContext.Current.CancellationToken);
 

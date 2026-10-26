@@ -42,6 +42,31 @@ public sealed partial class MarketplaceTests
     }
 
     [Fact]
+    public async Task A_pending_reversal_can_be_withdrawn_and_the_charge_reversed_again_but_not_an_effective_one()
+    {
+        var (_, factor, _) = await FundedDealAsync();
+        await DeliverDealFundedAsync();
+        var chargeId = (await ApiClient.ReadAsync(await Send(factor, HttpMethod.Get, "/api/v1/fees/charges")))[0].GetProperty("id").GetGuid();
+        using var finance = await StaffAsync("Finance");
+        using var second = await StaffAsync("Finance");
+        await finance.StepUpAsync();
+        await second.StepUpAsync();
+
+        var first = (await ApiClient.ReadAsync(await finance.PostAsync($"/api/v1/admin/fees/charges/{chargeId}/reverse", new { reason = "Greška" }))).GetProperty("id").GetGuid();
+        var withdrawn = await ApiClient.ReadAsync(await finance.PostAsync($"/api/v1/admin/fees/charges/{first}/withdraw-reversal", new { reason = "Pogrešno predloženo" }));
+        var again = (await ApiClient.ReadAsync(await finance.PostAsync($"/api/v1/admin/fees/charges/{chargeId}/reverse", new { reason = "Ispravno" }))).GetProperty("id").GetGuid();
+        await ApiClient.ReadAsync(await second.PostAsync($"/api/v1/admin/fees/charges/{again}/approve-reversal"));
+        var effective = await ApiClient.ErrorCodeAsync(await finance.PostAsync($"/api/v1/admin/fees/charges/{again}/withdraw-reversal", new { reason = "Pogrešno predloženo" }));
+        var notAReversal = await ApiClient.ErrorCodeAsync(await finance.PostAsync($"/api/v1/admin/fees/charges/{chargeId}/withdraw-reversal", new { reason = "Pogrešno predloženo" }));
+
+        Assert.Equal("Withdrawn", withdrawn.GetProperty("status").GetString());
+        Assert.NotEqual(first, again);
+        Assert.Equal("conflict_state", effective);
+        Assert.Equal("not_found", notAReversal);
+        Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM audit.audit_events WHERE action = 'FeeCharge.ReversalWithdrawn'"));
+    }
+
+    [Fact]
     public async Task Finance_invoices_records_payment_reverses_with_four_eyes_and_exports_the_month()
     {
         var (_, factor, _) = await FundedDealAsync();

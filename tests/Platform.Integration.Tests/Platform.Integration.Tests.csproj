@@ -18,6 +18,8 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Platform.Api/Platform.Api.csproj" />
+    <!-- The worker composition itself (not the worker project: both hosts have a public Program). -->
+    <Compile Include="../../src/Platform.Worker/WorkerComposition.cs" Link="Infrastructure/WorkerComposition.cs" />
     <ProjectReference Include="../../src/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Modules/Audit/Modules.Audit/Modules.Audit.csproj" />
     <ProjectReference Include="../../src/Modules/Identity/Modules.Identity/Modules.Identity.csproj" />

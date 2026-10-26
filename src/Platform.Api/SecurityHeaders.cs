@@ -20,6 +20,12 @@ internal static class SecurityHeaders
                 headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=(), usb=()";
                 headers["Cross-Origin-Opener-Policy"] = "same-origin";
                 headers["Cross-Origin-Resource-Policy"] = "same-origin";
+                // Responses carry tenant data (exports, documents); nothing is cached unless an endpoint says otherwise.
+                if (string.IsNullOrEmpty(headers.CacheControl))
+                {
+                    headers.CacheControl = "no-store";
+                }
+
                 return Task.CompletedTask;
             });
             await next(http);

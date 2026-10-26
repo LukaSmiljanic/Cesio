@@ -35,7 +35,7 @@ interface SellerBoard {
   dealsNeedingAction: number
   fundedThisMonth: Money[]
   fundedThisYear: Money[]
-  averageDiscountRate: number | null
+  averageDiscountRate: { currency: string; rate: number }[]
   feesOutstanding: Money[]
 }
 
@@ -84,7 +84,11 @@ export function DashboardPage({ type }: { type: 'Seller' | 'Factor' }) {
             ['Poslovi koji čekaju', b.dealsNeedingAction],
             ['Finansirano ovog meseca', money(b.fundedThisMonth)],
             ['Finansirano ove godine', money(b.fundedThisYear)],
-            ['Prosečan diskont (okvirno)', percent(b.averageDiscountRate)],
+            [
+              'Prosečan diskont (okvirno)',
+              b.averageDiscountRate.map((r) => `${percent(r.rate)} (${r.currency})`).join(', ') ||
+                '—',
+            ],
             ['Neplaćene naknade', money(b.feesOutstanding)],
           ]}
         />

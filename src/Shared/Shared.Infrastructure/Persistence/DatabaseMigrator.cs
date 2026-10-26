@@ -25,6 +25,25 @@ public static class DatabaseMigrator
     }
 
     /// <summary>
+    /// Adds a Microsoft Entra application (a managed identity, by its client ID) as a database user in <c>app_rw</c>.
+    /// Azure SQL only; idempotent.
+    /// </summary>
+    public static async Task AddApplicationPrincipalAsync(string connectionString, string name, Guid clientId, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var quoted = $"[{name.Replace("]", "]]", StringComparison.Ordinal)}]";
+        var literal = name.Replace("'", "''", StringComparison.Ordinal);
+        var sql = $"IF DATABASE_PRINCIPAL_ID('{literal}') IS NULL " +
+            $"BEGIN DECLARE @sql nvarchar(max) = N'CREATE USER {quoted.Replace("'", "''", StringComparison.Ordinal)} WITH SID = ' + CONVERT(nvarchar(64), CONVERT(varbinary(16), @clientId), 1) + N', TYPE = E;'; EXEC (@sql); END; " +
+            $"ALTER ROLE app_rw ADD MEMBER {quoted};";
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@clientId", clientId);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// Creates <c>app_rw</c>, <c>migrator</c> and <c>readonly_reporting</c> if missing and grants them per schema.
     /// <c>app_rw</c> gets INSERT and SELECT only on append-only schemas, with UPDATE and DELETE denied; TRUNCATE needs
     /// ALTER, which no application role has. Idempotent. Needs a principal that may manage roles (database.md §6).

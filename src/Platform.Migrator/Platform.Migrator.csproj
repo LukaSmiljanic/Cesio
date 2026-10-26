@@ -16,6 +16,7 @@
     <ProjectReference Include="../Modules/Fees/Modules.Fees/Modules.Fees.csproj" />
     <ProjectReference Include="../Modules/Compliance/Modules.Compliance/Modules.Compliance.csproj" />
     <ProjectReference Include="../Modules/Deals/Modules.Deals/Modules.Deals.csproj" />
+    <ProjectReference Include="../Modules/Notifications/Modules.Notifications/Modules.Notifications.csproj" />
   </ItemGroup>
 
 </Project>

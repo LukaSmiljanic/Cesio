@@ -19,9 +19,12 @@ public sealed partial class MarketplaceTests
         using var operations = await StaffAsync("Operations");
         var admin = await ApiClient.ReadAsync(await operations.GetAsync("/api/v1/admin/dashboard"));
         using var customerAdmin = await seller.Client.GetAsync("/api/v1/admin/dashboard");
+        using var auditor = await StaffAsync("Auditor");
+        using var auditorAdmin = await auditor.GetAsync("/api/v1/admin/dashboard");
 
         Assert.Equal("1150000.00", sellerBoard.GetProperty("fundedThisMonth")[0].GetProperty("amount").GetString());
-        Assert.Equal(0.0417m, sellerBoard.GetProperty("averageDiscountRate").GetDecimal());
+        Assert.Equal(0.0417m, sellerBoard.GetProperty("averageDiscountRate")[0].GetProperty("rate").GetDecimal());
+        Assert.Equal("RSD", sellerBoard.GetProperty("averageDiscountRate")[0].GetProperty("currency").GetString());
         Assert.Equal(1, sellerBoard.GetProperty("receivablesByState").GetProperty("Funded").GetInt32());
         Assert.Equal(1m, factorBoard.GetProperty("winRate").GetDecimal());
         Assert.Equal(1, factorBoard.GetProperty("portfolio").EnumerateArray().Sum(b => b.GetProperty("count").GetInt32()));
@@ -31,6 +34,7 @@ public sealed partial class MarketplaceTests
         Assert.True(admin.GetProperty("month").GetProperty("funded").GetInt32() >= 1);
         Assert.True(admin.GetProperty("integrationHealth").GetProperty("jobs").GetArrayLength() > 0);
         Assert.Equal(HttpStatusCode.NotFound, customerAdmin.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, auditorAdmin.StatusCode);
     }
 
     [Fact]
@@ -51,6 +55,8 @@ public sealed partial class MarketplaceTests
         var history = (await ApiClient.ReadAsync(await admin.GetAsync("/api/v1/admin/parameters/marketplace.maxListingDays"))).EnumerateArray().ToList();
         using var operations = await StaffAsync("Operations");
         using var hidden = await operations.GetAsync("/api/v1/admin/parameters");
+        var recased = await ApiClient.ErrorCodeAsync(await admin.SendAsync(HttpMethod.Put, "/api/v1/admin/parameters/FEES.paymentTermsDays", new { value = 1 }));
+        var unknown = await ApiClient.ErrorCodeAsync(await admin.SendAsync(HttpMethod.Put, "/api/v1/admin/parameters/fees.somethingNew", new { value = 1 }));
 
         Assert.Equal(HttpStatusCode.Unauthorized, noStepUp.StatusCode);
         Assert.Equal(changed.GetProperty("version").GetInt32() + 1, again.GetProperty("version").GetInt32());
@@ -59,6 +65,8 @@ public sealed partial class MarketplaceTests
         Assert.Equal("50000", approved.GetProperty("value").GetString());
         Assert.Equal(2, history.Count);
         Assert.Equal(HttpStatusCode.NotFound, hidden.StatusCode);
+        Assert.Equal("validation_failed", recased);
+        Assert.Equal("validation_failed", unknown);
         Assert.Equal(1, await CountAsync("SELECT COUNT(*) FROM audit.audit_events WHERE action = 'BusinessParameter.Approved'"));
     }
 

@@ -15,6 +15,13 @@ public static class PlatformDefaults
     {
         ArgumentNullException.ThrowIfNull(builder);
 
+        // Links in emails and confirmations are built from it; outside Development a missing value would send localhost links.
+        if (!builder.Environment.IsDevelopment()
+            && !(Uri.TryCreate(builder.Configuration["Auth:PublicBaseUrl"], UriKind.Absolute, out var publicBase) && publicBase.Scheme == Uri.UriSchemeHttps && publicBase.AbsolutePath == "/"))
+        {
+            throw new InvalidOperationException("Auth:PublicBaseUrl must be an https:// origin outside Development.");
+        }
+
         builder.Services.AddSingleton(TimeProvider.System);
 
         // Console export is for local work only; the Azure Monitor exporter is added with the deployment (task 024).

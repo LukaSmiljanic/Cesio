@@ -1,0 +1,134 @@
+# One environment's deployment, called by deploy.yml. The GitHub environment holds the approval rule and the variables
+# (no secrets: Azure login is OIDC federation, the apps use managed identities). Images are deployed by digest after
+# their signature is verified. Migrations run before the new apps (expand/contract, cesio-migration skill); rollback is
+# activating the previous Container Apps revision (tasks/024).
+name: Deploy environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      environmentName:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+      # true: take the image staging built for this commit (vars.STAGING_REGISTRY) instead of building one.
+      promote:
+        type: boolean
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      RG: ${{ vars.RESOURCE_GROUP }}
+      SHA: ${{ inputs.sha }}
+      SIGNER: ^https://github.com/${{ github.repository }}/\.github/workflows/deploy-environment\.yml@
+      ISSUER: https://token.actions.githubusercontent.com
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+      - name: A production tag must point at a main commit
+        if: inputs.promote
+        run: git merge-base --is-ancestor "$SHA" origin/main
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - uses: sigstore/cosign-installer@v3.10.0
+
+      - name: Registry
+        id: registry
+        run: |
+          out=$(az deployment group create --resource-group "$RG" --template-file infra/registry.bicep \
+            --parameters environmentName=${{ inputs.environmentName }} --query properties.outputs -o json)
+          echo "server=$(echo "$out" | jq -r .loginServer.value)" >> "$GITHUB_OUTPUT"
+          echo "name=$(echo "$out" | jq -r .name.value)" >> "$GITHUB_OUTPUT"
+
+      - name: Build, scan, push and sign the image
+        id: built
+        if: ${{ !inputs.promote }}
+        run: |
+          ref="${{ steps.registry.outputs.server }}/cesio:$SHA"
+          docker build --tag "$ref" .
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.69.1 \
+            image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$ref"
+          az acr login --name "${{ steps.registry.outputs.name }}"
+          docker push "$ref"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$ref" | cut -d@ -f2)
+          cosign sign --yes "${{ steps.registry.outputs.server }}/cesio@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Promote the image staging built
+        id: promoted
+        if: inputs.promote
+        run: |
+          staging="${{ vars.STAGING_REGISTRY }}"
+          az acr login --name "${staging%%.*}"
+          digest=$(az acr manifest show-metadata --registry "${staging%%.*}" --name "cesio:$SHA" --query digest -o tsv)
+          cosign verify --certificate-identity-regexp "$SIGNER" --certificate-oidc-issuer "$ISSUER" "$staging/cesio@$digest" >/dev/null
+          az acr import --name "${{ steps.registry.outputs.name }}" --source "$staging/cesio@$digest" --image "cesio:$SHA" --force
+          az acr login --name "${{ steps.registry.outputs.name }}"
+          cosign copy --only=sig "$staging/cesio@$digest" "${{ steps.registry.outputs.server }}/cesio@$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the signature of what is deployed
+        id: image
+        run: |
+          digest="${{ steps.built.outputs.digest || steps.promoted.outputs.digest }}"
+          cosign verify --certificate-identity-regexp "$SIGNER" --certificate-oidc-issuer "$ISSUER" \
+            "${{ steps.registry.outputs.server }}/cesio@$digest" >/dev/null
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Migrations
+        run: |
+          params=(environmentName=${{ inputs.environmentName }} imageDigest="${{ steps.image.outputs.digest }}" publicBaseUrl="${{ vars.PUBLIC_BASE_URL }}"
+            sqlAdminGroupObjectId="${{ vars.SQL_ADMIN_GROUP_ID }}" sqlAdminGroupName="${{ vars.SQL_ADMIN_GROUP_NAME }}"
+            sefBaseUrl="${{ vars.SEF_BASE_URL }}" emailSmtpHost="${{ vars.EMAIL_SMTP_HOST }}" emailFrom="${{ vars.EMAIL_FROM }}")
+          job="cesio-${{ inputs.environmentName }}-migrator"
+          if az containerapp job show --name "$job" --resource-group "$RG" >/dev/null 2>&1; then
+            az containerapp job update --name "$job" --resource-group "$RG" --image "${{ steps.registry.outputs.server }}/cesio@${{ steps.image.outputs.digest }}" >/dev/null
+          else
+            # First deployment: the environment and the job do not exist yet; the apps start with the same image and
+            # wait for the database through their readiness probe.
+            az deployment group create --resource-group "$RG" --template-file infra/main.bicep --parameters "${params[@]}" >/dev/null
+          fi
+          execution=$(az containerapp job start --name "$job" --resource-group "$RG" --query name -o tsv)
+          for i in $(seq 1 90); do
+            status=$(az containerapp job execution show --name "$job" --resource-group "$RG" --job-execution-name "$execution" --query properties.status -o tsv)
+            case "$status" in
+              Succeeded) exit 0 ;;
+              Failed|Stopped|Degraded) echo "Migration job $status"; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "Migration job timed out"; exit 1
+
+      - name: Apps
+        id: apps
+        run: |
+          out=$(az deployment group create --resource-group "$RG" --template-file infra/main.bicep \
+            --parameters environmentName=${{ inputs.environmentName }} imageDigest="${{ steps.image.outputs.digest }}" publicBaseUrl="${{ vars.PUBLIC_BASE_URL }}" \
+            sqlAdminGroupObjectId="${{ vars.SQL_ADMIN_GROUP_ID }}" sqlAdminGroupName="${{ vars.SQL_ADMIN_GROUP_NAME }}" \
+            sefBaseUrl="${{ vars.SEF_BASE_URL }}" emailSmtpHost="${{ vars.EMAIL_SMTP_HOST }}" emailFrom="${{ vars.EMAIL_FROM }}" \
+            --query properties.outputs -o json)
+          echo "url=$(echo "$out" | jq -r .apiUrl.value)" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test (health, database, login)
+        run: |
+          url="${{ steps.apps.outputs.url }}"
+          for i in $(seq 1 30); do curl -fsS "$url/health/ready" && break; sleep 10; done
+          curl -fsS "$url/health/ready"
+          curl -fsS -o /dev/null "$url/api/v1/auth/antiforgery"

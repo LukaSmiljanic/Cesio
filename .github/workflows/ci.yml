@@ -77,7 +77,7 @@ jobs:
       - run: docker build --tag cesio:ci .
       - name: Smoke test the image
         run: |
-          docker run -d --name api -p 8080:8080 cesio:ci api
+          docker run -d --name api -p 8080:8080 -e Auth__PublicBaseUrl=https://ci.invalid cesio:ci api
           for i in $(seq 1 30); do curl -fsS http://localhost:8080/health/live && exit 0; sleep 1; done
           docker logs api
           exit 1

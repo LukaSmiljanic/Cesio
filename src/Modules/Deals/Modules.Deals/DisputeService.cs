@@ -87,6 +87,8 @@ internal sealed class DisputeService(
         await unitOfWork.ExecuteInTransactionAsync(
             async ct =>
             {
+                // Serialises opening and closing disputes of one deal, so the hold follows the last open dispute.
+                await deals.Database.ExecuteSqlAsync($"SELECT id FROM deals.deals WITH (UPDLOCK, ROWLOCK) WHERE id = {deal.Id}", ct);
                 await deals.SaveChangesAsync(ct);
                 await audit.WriteAsync(new AuditEntry("Dispute.Opened", "Dispute", dispute.Id, deal.SellerOrgId, NewState: Dispute.Open, Reason: kind,
                     Related: [new AuditReference("Deal", deal.Id)], EvidenceDocumentIds: documentIds), ct);
@@ -126,7 +128,7 @@ internal sealed class DisputeService(
         }
 
         var list = await deals.Disputes.AsNoTracking().Where(d => d.DealId == dealId).OrderByDescending(d => d.OpenedAt).ToListAsync(cancellationToken);
-        return Results.Ok(list.Select(d => Summary(d)));
+        return Results.Ok(list.Select(d => Summary(d, staff: false)));
     }
 
     /// <summary><c>POST /disputes/{id}/comments</c>: parties and staff; only staff may write an internal note.</summary>
@@ -135,6 +137,11 @@ internal sealed class DisputeService(
         if (await VisibleAsync(id, staff, cancellationToken) is not { } dispute)
         {
             return NotFound();
+        }
+
+        if (dispute.Status != Dispute.Open)
+        {
+            return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", $"The dispute is {dispute.Status}.");
         }
 
         var text = body.Text?.Trim();
@@ -191,7 +198,7 @@ internal sealed class DisputeService(
     /// <summary><c>GET /admin/disputes?status=</c>: the staff queue, automatic disputes of task 017 included.</summary>
     public async Task<IResult> QueueAsync(string? status, CancellationToken cancellationToken) =>
         Results.Ok((await deals.Disputes.AsNoTracking().Where(d => d.Status == (status ?? Dispute.Open)).OrderBy(d => d.OpenedAt).Take(200).ToListAsync(cancellationToken))
-            .Select(d => Summary(d)));
+            .Select(d => Summary(d, staff: true)));
 
     /// <summary><c>POST /admin/disputes/{id}/assign</c>: the staff member takes the dispute.</summary>
     public async Task<IResult> AssignAsync(Guid id, CancellationToken cancellationToken)
@@ -209,7 +216,7 @@ internal sealed class DisputeService(
                 await audit.WriteAsync(new AuditEntry("Dispute.Assigned", "Dispute", dispute.Id, null), ct);
             },
             cancellationToken);
-        return Results.Ok(Summary(dispute));
+        return Results.Ok(Summary(dispute, staff: true));
     }
 
     /// <summary>
@@ -250,6 +257,8 @@ internal sealed class DisputeService(
             await unitOfWork.ExecuteInTransactionAsync(
                 async ct =>
                 {
+                    // Serialises opening and closing disputes of one deal, so the hold follows the last open dispute.
+                    await deals.Database.ExecuteSqlAsync($"SELECT id FROM deals.deals WITH (UPDLOCK, ROWLOCK) WHERE id = {deal.Id}", ct);
                     await deals.SaveChangesAsync(ct);
                     await audit.WriteAsync(new AuditEntry($"Dispute.{to}", "Dispute", dispute.Id, deal.SellerOrgId, PreviousState: Dispute.Open, NewState: to, Reason: summary,
                         Related: [new AuditReference("Deal", deal.Id)]), ct);
@@ -270,7 +279,7 @@ internal sealed class DisputeService(
             return Problems.Error(StatusCodes.Status409Conflict, "conflict_state", "The dispute was changed in the meantime.");
         }
 
-        return Results.Ok(Summary(dispute));
+        return Results.Ok(Summary(dispute, staff: to == "Resolved"));
     }
 
     private Task<Deal?> PartyDealAsync(Guid id, CancellationToken cancellationToken) =>
@@ -294,10 +303,11 @@ internal sealed class DisputeService(
             .OrderBy(c => c.CreatedAt)
             .Select(c => new { id = c.Id, authorOrgId = c.AuthorOrgId, byStaff = c.AuthorOrgId == null && c.AuthorUserId != null, text = c.Text, documentId = c.DocumentId, @internal = c.Internal, createdAt = c.CreatedAt })
             .ToListAsync(cancellationToken);
-        return new { dispute = Summary(dispute), comments };
+        return new { dispute = Summary(dispute, staff), comments };
     }
 
-    private static object Summary(Dispute d) => new
+    /// <summary>Parties do not see which staff member handles the dispute.</summary>
+    private static object Summary(Dispute d, bool staff) => new
     {
         id = d.Id,
         dealId = d.DealId,
@@ -306,7 +316,7 @@ internal sealed class DisputeService(
         description = d.Reason,
         openedByOrgId = d.OpenedByOrgId,
         openedAt = d.OpenedAt,
-        assignedTo = d.AssignedTo,
+        assignedTo = staff ? d.AssignedTo : null,
         resolutionSummary = d.ResolutionSummary,
         closedAt = d.ClosedAt,
     };

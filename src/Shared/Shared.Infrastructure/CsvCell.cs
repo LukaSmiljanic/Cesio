@@ -12,6 +12,7 @@ public static class CsvCell
         value ??= string.Empty;
         var safe = value.Length > 0 && "=+-@\t\r".Contains(value[0], StringComparison.Ordinal) ? "'" + value : value;
         return safe.Contains(';', StringComparison.Ordinal) || safe.Contains('"', StringComparison.Ordinal) || safe.Contains('\n', StringComparison.Ordinal)
+            || safe.Contains('\r', StringComparison.Ordinal)
             ? $"\"{safe.Replace("\"", "\"\"", StringComparison.Ordinal)}\""
             : safe;
     }

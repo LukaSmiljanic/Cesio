@@ -37,3 +37,7 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Local demo accounts (scripts/dev-seed.mjs)
+dev-accounts.local.md
+.dev-accounts.local.json

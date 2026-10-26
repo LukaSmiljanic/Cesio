@@ -2,6 +2,7 @@ using System.Text;
 using Azure.Storage.Blobs;
 using Microsoft.Extensions.Configuration;
 using Modules.Documents.Contracts;
+using Shared.Infrastructure;
 
 namespace Modules.Documents;
 
@@ -75,7 +76,7 @@ internal sealed class BlobDocumentStore(IConfiguration configuration) : IDocumen
     {
         var connectionString = configuration.GetConnectionString(ConnectionStringName)
             ?? throw new InvalidOperationException($"Connection string '{ConnectionStringName}' is not configured.");
-        var container = new BlobContainerClient(connectionString, name);
+        var container = BlobContainers.Create(connectionString, name);
         await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
         return container;
     }

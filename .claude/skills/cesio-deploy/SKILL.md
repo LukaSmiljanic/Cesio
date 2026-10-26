@@ -16,9 +16,9 @@ Claude NIKAD ne pokreće komande koje direktno menjaju produkciju (deploy, migra
 |---|---|---|---|
 | lokalno | `docker compose up -d` (sqlserver, azurite, smtp4dev), pa `dotnet run --project src/Platform.Api` i `npm --prefix web run dev` | lokalni SQL Server u Docker-u | lažni klijenti / SEF demo |
 | staging | merge u `main` + jedno odobrenje (task 024) | odvojena Azure SQL baza, test podaci, bez produkcionih podataka | SEF demo |
-| produkcija | posle smoke testa na staging-u + ručno odobrenje u pipeline-u; okidač [POPUNITI: tag `v*` ili isti run iz `main`] | produkciona Azure SQL baza (privatni endpoint) | SEF produkcija |
+| produkcija | posle smoke testa na staging-u + ručno odobrenje u pipeline-u; okidač: tag `v*`; pipeline proverava da je commit na `main` i promoviše sliku koju je staging izgradio za taj commit (bez nje deploy pada) | produkciona Azure SQL baza (privatni endpoint: još nije urađen, task 024) | SEF produkcija |
 
-Hosting: Azure (EU region, ADR-016 Proposed, LQ-35): Azure Container Apps (API, worker, migration job), Azure SQL Database, Storage, Key Vault, Container Registry, Application Insights; infrastruktura u Bicep-u. CI: GitHub Actions (`.github/workflows/ci.yml`, `codeql.yml`, `dependency-review.yml`). Deploy workflow još ne postoji (task 024).
+Hosting: Azure (EU region, ADR-016 Proposed, LQ-35): Azure Container Apps (API, worker, migration job), Azure SQL Database, Storage, Key Vault, Container Registry, Application Insights; infrastruktura u Bicep-u. CI: GitHub Actions (`.github/workflows/ci.yml`, `codeql.yml`, `dependency-review.yml`). Deploy: `.github/workflows/deploy.yml` i `deploy-environment.yml` (task 024); testovi se vrte u `ci.yml`.
 
 ## Pipeline mora da ima, ovim redom
 1. Lint i provera tipova (`dotnet build` sa warnings as errors; `npm run build`, `npm run lint`, `npm run format:check`)
@@ -30,12 +30,12 @@ Hosting: Azure (EU region, ADR-016 Proposed, LQ-35): Azure Container Apps (API, 
 7. Za produkciju: ručno odobrenje pre koraka 4
 
 ## Tajne i konfiguracija
-- Ključevi (SEF, baza, potpis, e-mail) žive u GitHub secrets i Azure Key Vault-u (managed identity, Entra autentifikacija za Azure SQL), nikad u repou ni u `.env` koji se commituje.
+- Ključevi (SEF, potpis, e-mail) žive u Azure Key Vault-u; aplikacije koriste managed identity i Entra autentifikaciju za Azure SQL. Pipeline se prijavljuje na Azure preko OIDC federacije i nema tajni, samo promenljive GitHub okruženja. Nikad u repou ni u `.env` koji se commituje.
 - Postoji `.env.example` sa svim promenljivim i lažnim vrednostima. Kad dodaš promenljivu, dodaj je i tamo.
 - Staging i produkcija nikad ne dele ključeve ni bazu.
 
 ## Rollback
-- Svaki deploy mora moći da se vrati na prethodnu verziju jednim korakom: [POPUNITI: npr. aktiviranje prethodne Container Apps revizije; nije odlučeno u tasku 024].
+- Svaki deploy mora moći da se vrati na prethodnu verziju jednim korakom: aktiviranje prethodne Container Apps revizije (single revision mode, task 024).
 - Zato migracije u istom deployu moraju raditi i sa prethodnom verzijom koda.
 
 ## Kad korisnik traži "okači"

@@ -48,8 +48,8 @@ public static class FeesModule
             service.ReverseAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
         charges.MapPost("/charges/{id:guid}/approve-reversal", (Guid id, FeeChargeService service, CancellationToken ct) =>
             service.ApproveReversalAsync(id, ct)).RequireIdempotency().RequireStepUp();
-        charges.MapPost("/charges/{id:guid}/withdraw-reversal", (Guid id, FeeChargeService service, CancellationToken ct) =>
-            service.WithdrawReversalAsync(id, ct)).RequireIdempotency().RequireStepUp();
+        charges.MapPost("/charges/{id:guid}/withdraw-reversal", (Guid id, ReverseRequest body, FeeChargeService service, CancellationToken ct) =>
+            service.WithdrawReversalAsync(id, body, ct)).RequireIdempotency().RequireStepUp();
         charges.MapGet("/export", (string? period, FeeChargeService service, CancellationToken ct) => service.ExportAsync(period, ct));
 
         var payer = app.MapGroup("/api/v1/fees").RequireAuthorization().RequireOrganization();

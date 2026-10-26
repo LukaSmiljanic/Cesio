@@ -66,15 +66,15 @@ internal sealed class SqlBusinessParameterStore(PlatformDbContext platform, Time
 
     public async Task<ParameterVersion?> ApproveAsync(Guid proposalId, Guid approvedBy, CancellationToken cancellationToken)
     {
-        if (await platform.ParameterProposals.SingleOrDefaultAsync(p => p.Id == proposalId && p.Status == "Pending", cancellationToken) is not { } proposal)
+        // Conditional on Pending, so of two concurrent approvals exactly one wins.
+        var now = timeProvider.GetUtcNow();
+        if (await platform.ParameterProposals.Where(p => p.Id == proposalId && p.Status == "Pending")
+                .ExecuteUpdateAsync(u => u.SetProperty(p => p.Status, "Approved").SetProperty(p => p.ApprovedBy, approvedBy).SetProperty(p => p.ApprovedAt, now), cancellationToken) == 0)
         {
             return null;
         }
 
-        proposal.Status = "Approved";
-        proposal.ApprovedBy = approvedBy;
-        proposal.ApprovedAt = timeProvider.GetUtcNow();
-        await platform.SaveChangesAsync(cancellationToken);
+        var proposal = await platform.ParameterProposals.AsNoTracking().SingleAsync(p => p.Id == proposalId, cancellationToken);
         return await AddVersionAsync(proposal.ParamKey, proposal.Value, proposal.ProposedBy, cancellationToken);
     }
 

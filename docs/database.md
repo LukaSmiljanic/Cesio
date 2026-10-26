@@ -297,7 +297,7 @@ CREATE UNIQUE INDEX ux_fee_charge_once ON fees.fee_charges(deal_id, payer_org_id
 -- and snapshot, has no due_at of its own, and is approved by a second Finance user (approved_by).
 -- One live reversal per charge (unique on reverses_id WHERE status <> 'Withdrawn'); a pending one can be Withdrawn (task 021).
 -- approved_at is set once (trigger); Effective reversals from before the column got approved_at = created_at.
--- Status: a charge Due → Invoiced → Paid; a reversal PendingApproval → Effective; one reversal per charge. Amounts are never negative: a reversal
+-- Status: a charge Due → Invoiced → Paid; a reversal PendingApproval → Effective or → Withdrawn (task 021); one reversal per charge. Amounts are never negative: a reversal
 -- states the amount it takes back. Triggers allow only status, external_invoice_ref, approved_by, approved_at and version to change, and no deletes.
 CREATE TABLE fees.fee_payments (id uniqueidentifier PRIMARY KEY, charge_id uniqueidentifier NOT NULL UNIQUE REFERENCES fees.fee_charges(id),
   paid_on date NOT NULL, reference nvarchar(200) NOT NULL, recorded_by uniqueidentifier NOT NULL, recorded_at datetimeoffset(3) NOT NULL); -- append-only
@@ -373,5 +373,5 @@ Audit tables: see [audit.md](audit.md) §4.
 - Separate DB roles: `app_rw` (no DDL, no UPDATE/DELETE on immutable tables), `migrator` (DDL, used only in the pipeline), `readonly_reporting` (no grants until the reporting scope is defined in task 022; never `compliance`/`orgs` personal-data columns or `platform.idempotency_keys`). Platform.Migrator creates the roles and grants, so the pipeline runs it with a principal that may manage roles (e.g. `db_owner`); the API and worker connect as members of `app_rw` (task 024).
 
 ## 7. Backups & retention
-- Point-in-time restore for 35 days (Azure SQL maximum) + monthly long-term retention backups. Restores are tested quarterly.
+- Point-in-time restore for 35 days (Azure SQL maximum) + long-term retention backups (prod template: weekly 12 weeks, monthly 12 months, yearly 10 years; the yearly period is a working assumption until LQ-47). Restores are tested quarterly.
 - Retention periods per record class follow LQ-47; until it is answered, **nothing financial or compliance-related is purged**.

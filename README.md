@@ -52,7 +52,7 @@ cd web && npm ci && npm run dev
   ```
   dotnet user-secrets --project src/Platform.Api set ConnectionStrings:Cesio "Server=localhost,1433;Database=cesio;User Id=sa;Password=<from .env>;TrustServerCertificate=True"
   ```
-  The same `Cesio` value is needed for `src/Platform.Worker` and `src/Platform.Migrator`; the worker also needs `ConnectionStrings:AuditDigests` = `UseDevelopmentStorage=true` (Azurite), and the API `ConnectionStrings:Documents` = `UseDevelopmentStorage=true` for uploads.
+  The same `Cesio` value is needed for `src/Platform.Worker` and `src/Platform.Migrator`; the worker also needs `ConnectionStrings:AuditDigests` and `ConnectionStrings:Documents` = `UseDevelopmentStorage=true` (Azurite), and the API `ConnectionStrings:Documents` = `UseDevelopmentStorage=true` for uploads. Use `Server=127.0.0.1,1433` rather than `localhost` if another SQL Server listens on the IPv6 loopback.
 - Database: `dotnet run --project src/Platform.Migrator` applies every module's migrations and the `app_rw` / `migrator` / `readonly_reporting` roles. New migration: `dotnet tool restore && dotnet ef migrations add <Name> --project <module project> --context <Module>DbContext --output-dir Persistence/Migrations`.
 - API: `dotnet run --project src/Platform.Api` → `https://localhost:7080/health/live`, `/health/ready` (includes the database). The session cookies are Secure and SameSite=Strict, so the API runs on HTTPS: trust the development certificate once with `dotnet dev-certs https --trust`.
 - SPA: `cd web && npm run dev` → `http://localhost:5173`; Vite proxies `/api` to the API. Confirmation and password-reset emails arrive in smtp4dev (`http://localhost:5000`).

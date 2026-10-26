@@ -394,6 +394,22 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 **Šta želimo:** kada isti broj računa prijave dve firme, automatski blokiramo proveru i upozoravamo službenika, bez objašnjenja firmama.
 **Pitanje:** Smemo li tako da postupimo, moramo li sumnju nekome da prijavimo i šta smemo da kažemo firmama?
 
+### 77. Uloga zaposlenih platforme u sporu (LQ-83 · P1)
+**Šta želimo:** kada prodavac ili faktor prijavi spor, posao se zadržava; zaposleni platforme vode spor, beleže interne napomene i zatvaraju ga uz rezime, čime se zadrška skida. Ne odlučujemo ko je u pravu.
+**Pitanje:** Da li je to i dalje samo olakšavanje? Treba li osnov u Uslovima korišćenja za zadržavanje i oslobađanje posla? Odgovaramo li za štetu zbog skidanja ili postavljanja zadrške? Smeju li interne napomene biti nedostupne stranama i koliko čuvamo zapis o sporu?
+
+### 78. Spor o našoj naknadi (LQ-84 · P1)
+**Šta želimo:** faktor može da ospori naknadu platforme; o storniranju odlučuju naši zaposleni (Finance).
+**Pitanje:** Postoji li sukob interesa i šta moramo faktoru da obezbedimo (obaveštenje, rok, nezavisan pregled)? Sme li spor o naknadi da ide istim tokom kao spor o poslu?
+
+### 79. Pretraga i izvoz audit zapisa (LQ-85 · P1)
+**Šta želimo:** službenici za usklađenost i revizori pretražuju i izvoze audit zapise svih firmi (bez IP adrese i uređaja); svaki pristup se beleži. Firme mogu da izvezu svoje poslove u CSV, faktor i sa podacima o dužniku.
+**Pitanje:** Na kom pravnom osnovu? Ako je revizor spoljno lice, treba li ugovor o obradi? Kakva pravila važe za izvezene fajlove?
+
+### 80. Probno vraćanje baze u test okruženje (LQ-86 · P1)
+**Šta želimo:** jednom kvartalno vraćamo produkcionu bazu u test okruženje da proverimo rezervne kopije, pa kopiju brišemo.
+**Pitanje:** Da li je to dozvoljeno i koje mere zaštite moramo imati? Kako se rezervne kopije i nepromenljivi audit zapisi uklapaju u pravo na brisanje?
+
 ---
 
 ## Dokumenti koje vas molimo da pripremite

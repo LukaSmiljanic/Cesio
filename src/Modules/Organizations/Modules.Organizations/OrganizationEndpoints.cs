@@ -1,4 +1,5 @@
 using System.Globalization;
+using Integrations.Sef;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -28,6 +29,13 @@ public static class OrganizationEndpoints
         if (includeDevelopmentEndpoints)
         {
             api.MapPost("/dev/factor-organizations", (CreateFactorOrganizationRequest body, OrganizationService service, CancellationToken ct) => service.CreateFactorAsync(body, ct))
+                .RequireIdempotency();
+            // Puts an invoice into the fake SEF so a local seller has something to import (scripts/dev-seed.mjs).
+            api.MapPost("/dev/sef/invoices", (DevSefInvoiceRequest body, FakeSefClient sef) =>
+                Results.Ok(new
+                {
+                    sefInvoiceId = sef.AddInvoice(body.ApiKey, FakeSefClient.Ubl(body.SupplierPib, body.BuyerPib, body.Number, body.Net, body.Vat, dueDate: body.DueDate), body.Status ?? "Approved"),
+                }))
                 .RequireIdempotency();
             api.MapPost("/dev/organizations/{id:guid}/approve", (Guid id, OrganizationService service, CancellationToken ct) => service.ApproveForDevelopmentAsync(id, ct))
                 .RequireOrganization(OrganizationRouteValue)
@@ -131,3 +139,6 @@ public static class OrganizationEndpoints
     private static int? IfMatch(HttpContext http) =>
         int.TryParse(http.Request.Headers.IfMatch.ToString().Trim('"', 'W', '/'), NumberStyles.None, CultureInfo.InvariantCulture, out var version) ? version : null;
 }
+
+/// <summary>Development only: an invoice for the fake SEF.</summary>
+public sealed record DevSefInvoiceRequest(string ApiKey, string SupplierPib, string BuyerPib, string Number, decimal Net, decimal Vat, DateOnly? DueDate, string? Status);

@@ -24,12 +24,12 @@ Task 023. Security model: [security.md](security.md). Deployment: task 024 and t
 | Secret | Where | Rotation | Steps |
 |--------|-------|----------|-------|
 | SEF API key (per organization) | Key Vault secret, the database keeps only its name | When the seller rotates it in SEF, on suspicion, or when the person who knew it leaves | The seller's owner enters the new key under SEF connection (step-up); the platform tests it against SEF and overwrites the secret; the seller then revokes the old key in SEF. Platform staff never see or type the key. |
-| ASP.NET data protection keys (cookies, anti-forgery, confirmation links) | Persisted to Blob, protected by a Key Vault key (task 024) | Automatic every 90 days (framework default); manually on suspicion | Manual: create a new key version in Key Vault and revoke the data protection key ring entry; every user is signed out and outstanding confirmation links stop working. Announce it. |
+| ASP.NET data protection keys (cookies, anti-forgery, confirmation links) | Target: persisted to Blob, protected by a Key Vault key (task 024 follow-up; until then in the container, lost on restart) | Automatic every 90 days (framework default); manually on suspicion | Manual: create a new key version in Key Vault and revoke the data protection key ring entry; every user is signed out and outstanding confirmation links stop working. Announce it. |
 | SQL, Blob, Key Vault access | Managed identities, no passwords | Not applicable | On suspicion: remove the role assignment and redeploy through the pipeline. |
 | Email provider, screening, signature provider credentials | Key Vault secrets read at start | Per the provider's policy, at least yearly | Add the new value as a new secret version, restart through the pipeline, verify a test message or call, disable the old credential at the provider. |
 
 ## 3. Backup restore drill
-Azure SQL point-in-time restore and long-term retention; Blob soft delete and versioning (task 024). Quarterly (task 024). The drill proves that a restore is complete and that the audit chain still verifies.
+Azure SQL point-in-time restore and long-term retention; Blob soft delete and versioning (task 024). Quarterly (task 024), once LQ-86 is answered: until then no production data is copied into staging. The drill proves that a restore is complete and that the audit chain still verifies.
 
 Steps:
 1. Restore the production database to a new database in the staging environment at a chosen time.

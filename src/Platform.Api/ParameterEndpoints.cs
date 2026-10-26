@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Modules.Audit.Contracts;
 using Modules.Identity.Contracts;
 using Shared.Infrastructure.Idempotency;
@@ -25,20 +26,71 @@ internal static class ParameterEndpoints
         return app;
     }
 
-    /// <summary>Money-related keys (amount limits and fee terms) need a second person.</summary>
-    public static bool IsMoneyRelated(string key) =>
-        key.StartsWith("fees.", StringComparison.Ordinal) || key.EndsWith("FaceValue", StringComparison.Ordinal) || key.EndsWith("Amount", StringComparison.Ordinal);
+    /// <summary>
+    /// The parameters the modules read, and whether a change needs a second person (fee terms and amount limits). Only
+    /// these keys can be changed, spelled exactly so; SQL compares keys case-insensitively, so a differently cased key
+    /// must never reach the store as a new, unchecked parameter. The fee share is not here: the fee schedule (task 017a,
+    /// four-eyes) is its only source.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<string, (bool Money, ValueKind Kind)> Known = new Dictionary<string, (bool, ValueKind)>(StringComparer.Ordinal)
+    {
+        ["fees.paymentTermsDays"] = (true, ValueKind.PositiveInteger),
+        ["receivables.minFaceValue"] = (true, ValueKind.PositiveNumber),
+        ["receivables.maxFaceValue"] = (true, ValueKind.PositiveNumber),
+        ["receivables.autoApproveMaxFaceValue"] = (true, ValueKind.PositiveNumber),
+        ["receivables.minDaysAtListing"] = (false, ValueKind.PositiveInteger),
+        ["receivables.maxTenorDays"] = (false, ValueKind.PositiveInteger),
+        ["receivables.warnOnNewDebtor"] = (false, ValueKind.Boolean),
+        ["marketplace.maxListingDays"] = (false, ValueKind.PositiveInteger),
+        ["marketplace.maxAcceptanceWindowHours"] = (false, ValueKind.PositiveInteger),
+        ["deals.signatureDeadlineBusinessDays"] = (false, ValueKind.PositiveInteger),
+        ["deals.fundingConfirmationAlertBusinessDays"] = (false, ValueKind.PositiveInteger),
+        ["cef.operationalFrom"] = (false, ValueKind.Date),
+        ["cef.blockFundingUntilRegistered"] = (false, ValueKind.Boolean),
+        ["screening.threshold"] = (false, ValueKind.Share),
+        ["confirmations.tokenHours"] = (false, ValueKind.PositiveInteger),
+        ["security.stepUpBlockHoursAfterMfaReset"] = (false, ValueKind.PositiveInteger),
+        ["orgs.maxSellerMembers"] = (false, ValueKind.PositiveInteger),
+        ["orgs.draftClaimDays"] = (false, ValueKind.PositiveInteger),
+    };
+
+    public enum ValueKind
+    {
+        /// <summary>A decimal above 0 and at most 1, such as the fee share of the discount.</summary>
+        Share,
+        PositiveNumber,
+        PositiveInteger,
+        Boolean,
+        /// <summary>An ISO date or date-time string.</summary>
+        Date,
+    }
+
+    public static bool IsMoneyRelated(string key) => !Known.TryGetValue(key, out var known) || known.Money;
+
+    /// <summary>Whether the value has the type and range the key needs; decimals are read as decimal, never as floating point.</summary>
+    public static bool IsValid(ValueKind kind, JsonElement value) => kind switch
+    {
+        ValueKind.Share => value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var share) && share > 0m && share <= 1m,
+        ValueKind.PositiveNumber => value.ValueKind == JsonValueKind.Number && value.TryGetDecimal(out var number) && number > 0m,
+        ValueKind.PositiveInteger => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var integer) && integer > 0,
+        ValueKind.Boolean => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
+        ValueKind.Date => value.ValueKind == JsonValueKind.String
+            && DateTimeOffset.TryParse(value.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out _),
+        _ => false,
+    };
 
     private static async Task<IResult> ChangeAsync(string key, ParameterChangeRequest body, IRequestContext request, IBusinessParameterStore store,
         UnitOfWork unitOfWork, IAuditWriter audit, CancellationToken ct)
     {
-        if (key.Length is 0 or > 200 || !key.Contains('.', StringComparison.Ordinal) || body.Value.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null)
+        if (!Known.TryGetValue(key, out var known) || !IsValid(known.Kind, body.Value))
         {
-            return Problems("validation_failed", StatusCodes.Status400BadRequest, "Give a key like module.name and a JSON value.");
+            return Problems("validation_failed", StatusCodes.Status400BadRequest, "Give a known parameter key and a value of its type and range.");
         }
 
         var value = body.Value.GetRawText();
         var userId = request.UserId!.Value;
+        // The audit keeps the old and the new value of every change.
+        var previous = (await store.CurrentAsync(ct)).SingleOrDefault(p => p.Key == key);
         if (IsMoneyRelated(key))
         {
             ParameterProposalInfo? proposal = null;
@@ -47,21 +99,30 @@ internal static class ParameterEndpoints
                 {
                     proposal = await store.ProposeAsync(key, value, userId, c);
                     await audit.WriteAsync(new AuditEntry("BusinessParameter.Proposed", "BusinessParameter", proposal.Id,
-                        Changes: new Dictionary<string, string?> { ["key"] = key, ["value"] = value }), c);
+                        Changes: new Dictionary<string, string?> { ["key"] = key, ["previousValue"] = previous?.Value, ["value"] = value }), c);
                 },
                 ct);
             return Results.Accepted(value: proposal);
         }
 
         ParameterVersion? version = null;
-        await unitOfWork.ExecuteInTransactionAsync(
-            async c =>
-            {
-                version = await store.AddVersionAsync(key, value, userId, c);
-                await audit.WriteAsync(new AuditEntry("BusinessParameter.Changed", "BusinessParameter", Guid.Empty,
-                    Changes: new Dictionary<string, string?> { ["key"] = key, ["version"] = version.Version.ToString(System.Globalization.CultureInfo.InvariantCulture), ["value"] = value }), c);
-            },
-            ct);
+        try
+        {
+            await unitOfWork.ExecuteInTransactionAsync(
+                async c =>
+                {
+                    version = await store.AddVersionAsync(key, value, userId, c);
+                    await audit.WriteAsync(new AuditEntry("BusinessParameter.Changed", "BusinessParameter", Guid.Empty,
+                        Changes: new Dictionary<string, string?> { ["key"] = key, ["version"] = version.Version.ToString(System.Globalization.CultureInfo.InvariantCulture), ["previousValue"] = previous?.Value, ["value"] = value }), c);
+                },
+                ct);
+        }
+        catch (DbUpdateException)
+        {
+            // Another change of the same key took this version number first.
+            return Problems("conflict_state", StatusCodes.Status409Conflict, "The parameter changed at the same time; try again.");
+        }
+
         return Results.Ok(version);
     }
 
@@ -83,11 +144,18 @@ internal static class ParameterEndpoints
             async c =>
             {
                 version = await store.ApproveAsync(id, userId, c);
+                if (version is null)
+                {
+                    return;
+                }
+
                 await audit.WriteAsync(new AuditEntry("BusinessParameter.Approved", "BusinessParameter", id,
                     Changes: new Dictionary<string, string?> { ["key"] = proposal.Key, ["value"] = proposal.Value }), c);
             },
             ct);
-        return Results.Ok(version);
+        return version is null
+            ? Problems("conflict_state", StatusCodes.Status409Conflict, "The proposal was approved at the same time.")
+            : Results.Ok(version);
     }
 
     private static async ValueTask<object?> RequireParameterAdmin(EndpointFilterInvocationContext context, EndpointFilterDelegate next)

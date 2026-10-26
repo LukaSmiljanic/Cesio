@@ -1,6 +1,6 @@
 # 021 — Disputes & Holds UI
 
-**Blocked by:** LQ-41 (platform role in disputes). The MVP records and facilitates; it does not adjudicate.
+**Blocked by:** LQ-41 (platform role in disputes); also open: LQ-83 (staff role and holds), LQ-84 (fee disputes), LQ-39. The MVP records and facilitates; it does not adjudicate. Until LQ-41 and LQ-83 are answered, staff do not decide who is right: they record, route and close the dispute record and lift the hold on the parties' own agreement or an outside decision; a staff "resolution" only closes the record.
 
 # Goal
 Parties can raise disputes on deals; disputes place holds, notify parties and compliance, and are tracked to resolution with an audit trail.
@@ -41,7 +41,7 @@ Dispute → hold blocks the next deal transition; resolve → unblocked; interna
 
 # Follow-ups from the phase 2–3 review (2026-10-24)
 - A `FundingDiscrepancy` dispute opened by a differing funding amount holds the deal (task 017): resolving it must let the seller confirm receipt, or end the deal.
-- A pending fee reversal cannot be withdrawn yet; add a way for Finance to withdraw or reject it.
+- [done 2026-10-24] A pending fee reversal can be withdrawn by Finance (`POST /admin/fees/charges/{id}/withdraw-reversal`, with a reason).
 
 # Out of Scope
 Mediation, arbitration, debtor participation.

@@ -39,6 +39,7 @@ public sealed class SecurityHardeningTests(SqlServerContainer server) : IAsyncLi
         Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
         Assert.Equal("no-referrer", response.Headers.GetValues("Referrer-Policy").Single());
         Assert.Contains("camera=()", response.Headers.GetValues("Permissions-Policy").Single(), StringComparison.Ordinal);
+        Assert.True(response.Headers.CacheControl?.NoStore);
     }
 
     [Fact]
@@ -85,12 +86,12 @@ public sealed class SecurityHardeningTests(SqlServerContainer server) : IAsyncLi
         var auditUpdate = await TryAsync(connection, "EXECUTE AS USER = 'grant_probe'; UPDATE audit.audit_events SET reason = 'x'; REVERT;");
         var auditDelete = await TryAsync(connection, "EXECUTE AS USER = 'grant_probe'; DELETE FROM audit.audit_events; REVERT;");
         var feeDelete = await TryAsync(connection, "EXECUTE AS USER = 'grant_probe'; DELETE FROM fees.fee_charges; REVERT;");
-        var auditInsertAllowed = await TryAsync(connection, "EXECUTE AS USER = 'grant_probe'; SELECT COUNT(*) FROM audit.audit_events; REVERT;");
+        var auditReadAllowed = await TryAsync(connection, "EXECUTE AS USER = 'grant_probe'; SELECT COUNT(*) FROM audit.audit_events; REVERT;");
 
         Assert.Contains("permission was denied", auditUpdate, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("permission was denied", auditDelete, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("permission was denied", feeDelete, StringComparison.OrdinalIgnoreCase);
-        Assert.Equal(string.Empty, auditInsertAllowed);
+        Assert.Equal(string.Empty, auditReadAllowed);
     }
 
     private static async Task ExecAsync(SqlConnection connection, string sql)
