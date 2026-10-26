@@ -300,7 +300,7 @@ export function AppShell({ me, children }: { me: Me; children: ReactNode }) {
             </button>
           </div>
         </header>
-        <main className="flex w-full max-w-[1240px] flex-col gap-6 px-4 py-5 lg:px-7 lg:py-7">
+        <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-5 lg:px-7 lg:py-7">
           <InShell.Provider value={true}>{children}</InShell.Provider>
         </main>
       </div>
