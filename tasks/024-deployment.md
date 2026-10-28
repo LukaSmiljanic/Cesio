@@ -75,15 +75,18 @@ Multi-region DR, Kubernetes, CDN optimisation.
   - The Azure login is OIDC federation, so there are no secrets in the pipeline.
   - GitHub environment variables:
     - Azure: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `RESOURCE_GROUP`;
-    - application: `PUBLIC_BASE_URL`, `SEF_BASE_URL`;
     - database: `SQL_ADMIN_GROUP_ID`, `SQL_ADMIN_GROUP_NAME`;
-    - email: `EMAIL_SMTP_HOST`, `EMAIL_FROM`;
     - production only: `STAGING_REGISTRY`, the staging registry's login server.
+  - Application settings that are not resource addresses live in the repository (2026-10-28):
+    - `src/Platform.Api/appsettings.{Staging,Production}.json` and the same for the worker hold `Auth:PublicBaseUrl`, `Sef:BaseUrl` (demo for staging, production SEF for production), `Email:*` and, for the API, `ForwardedHeaders:KnownNetworks`;
+    - `ASPNETCORE_ENVIRONMENT` set by Bicep chooses the file;
+    - the domains and SMTP host there are `.invalid` placeholders until they are known;
+    - Bicep keeps only resource addresses, the identity and the Application Insights connection string; secrets never go into these files.
   - The environment `staging-plan` carries the same variables for the PR what-if. It runs PR code, so its identity is read-only (Reader on the staging resource group), is federated to that environment only and is not the deployer.
 - **Gaps and limits:**
   - The IaC scan fails on HIGH/CRITICAL findings. Expected findings are public network access on SQL, Key Vault and Storage and the `AllowAzureServices` rule. They are accepted risks until private endpoints exist, and each one goes into `.trivyignore` with its reason after the first run lists the rule IDs.
   - Production has `CanNotDelete` locks on the audit storage account, the SQL server and the Key Vault.
-  - `ingressNetwork` defaults to `0.0.0.0/0` (one hop). This is safe only while the container is reachable through the Container Apps ingress alone. Set the ingress range or the front door's range when a VNet or front door is added.
+  - `ForwardedHeaders:KnownNetworks` is `0.0.0.0/0` in the Staging and Production settings (one hop). This is safe only while the container is reachable through the Container Apps ingress alone. Set the ingress range or the front door's range when a VNet or front door is added.
   - The smoke test does not cover the SPA login page until the SPA hosting exists.
 - **Rollback:** activate the previous Container Apps revision (single revision mode). This is why migrations must stay backward compatible.
 - **Application changes:**

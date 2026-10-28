@@ -56,8 +56,7 @@ jobs:
         run: >
           az deployment group what-if --resource-group "${{ vars.RESOURCE_GROUP }}" --template-file infra/main.bicep
           --parameters environmentName=staging imageDigest=sha256:0000000000000000000000000000000000000000000000000000000000000000
-          publicBaseUrl="${{ vars.PUBLIC_BASE_URL }}" sqlAdminGroupObjectId="${{ vars.SQL_ADMIN_GROUP_ID }}" sqlAdminGroupName="${{ vars.SQL_ADMIN_GROUP_NAME }}"
-          sefBaseUrl="${{ vars.SEF_BASE_URL }}" emailSmtpHost="${{ vars.EMAIL_SMTP_HOST }}" emailFrom="${{ vars.EMAIL_FROM }}"
+          sqlAdminGroupObjectId="${{ vars.SQL_ADMIN_GROUP_ID }}" sqlAdminGroupName="${{ vars.SQL_ADMIN_GROUP_NAME }}"
 
   staging:
     if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'

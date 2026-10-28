@@ -94,9 +94,8 @@ jobs:
 
       - name: Migrations
         run: |
-          params=(environmentName=${{ inputs.environmentName }} imageDigest="${{ steps.image.outputs.digest }}" publicBaseUrl="${{ vars.PUBLIC_BASE_URL }}"
-            sqlAdminGroupObjectId="${{ vars.SQL_ADMIN_GROUP_ID }}" sqlAdminGroupName="${{ vars.SQL_ADMIN_GROUP_NAME }}"
-            sefBaseUrl="${{ vars.SEF_BASE_URL }}" emailSmtpHost="${{ vars.EMAIL_SMTP_HOST }}" emailFrom="${{ vars.EMAIL_FROM }}")
+          params=(environmentName=${{ inputs.environmentName }} imageDigest="${{ steps.image.outputs.digest }}"
+            sqlAdminGroupObjectId="${{ vars.SQL_ADMIN_GROUP_ID }}" sqlAdminGroupName="${{ vars.SQL_ADMIN_GROUP_NAME }}")
           job="cesio-${{ inputs.environmentName }}-migrator"
           if az containerapp job show --name "$job" --resource-group "$RG" >/dev/null 2>&1; then
             az containerapp job update --name "$job" --resource-group "$RG" --image "${{ steps.registry.outputs.server }}/cesio@${{ steps.image.outputs.digest }}" >/dev/null
@@ -120,9 +119,8 @@ jobs:
         id: apps
         run: |
           out=$(az deployment group create --resource-group "$RG" --template-file infra/main.bicep \
-            --parameters environmentName=${{ inputs.environmentName }} imageDigest="${{ steps.image.outputs.digest }}" publicBaseUrl="${{ vars.PUBLIC_BASE_URL }}" \
+            --parameters environmentName=${{ inputs.environmentName }} imageDigest="${{ steps.image.outputs.digest }}" \
             sqlAdminGroupObjectId="${{ vars.SQL_ADMIN_GROUP_ID }}" sqlAdminGroupName="${{ vars.SQL_ADMIN_GROUP_NAME }}" \
-            sefBaseUrl="${{ vars.SEF_BASE_URL }}" emailSmtpHost="${{ vars.EMAIL_SMTP_HOST }}" emailFrom="${{ vars.EMAIL_FROM }}" \
             --query properties.outputs -o json)
           echo "url=$(echo "$out" | jq -r .apiUrl.value)" >> "$GITHUB_OUTPUT"
 

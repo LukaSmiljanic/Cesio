@@ -11,21 +11,12 @@ param location string = resourceGroup().location
 @description('Digest of the signed image (sha256:…); images are deployed by digest, never by a mutable tag.')
 param imageDigest string
 
-@description('Public HTTPS origin of the SPA and the API, e.g. https://staging.cesio.rs (Auth:PublicBaseUrl).')
-param publicBaseUrl string
-
 @description('Object ID and display name of the Entra group that administers the SQL server (no SQL logins).')
 param sqlAdminGroupObjectId string
 param sqlAdminGroupName string
 
-@description('SEF environment the integration talks to: the demo system outside production.')
-param sefBaseUrl string
-
-@description('Networks the ingress proxy forwards from (ForwardedHeaders:KnownNetworks). The container is reachable only through the Container Apps ingress, which appends the client address, and the app reads one hop.')
-param ingressNetwork string = '0.0.0.0/0'
-
-param emailSmtpHost string
-param emailFrom string
+// Application settings that are not resource addresses (public URL, SEF environment, email, forwarded headers) are in
+// src/Platform.Api|Worker/appsettings.{Staging,Production}.json, chosen by ASPNETCORE_ENVIRONMENT below.
 
 var prod = environmentName == 'prod'
 var prefix = 'cesio-${environmentName}'
@@ -255,12 +246,6 @@ var commonEnv = [
   { name: 'ConnectionStrings__Documents', value: documents.properties.primaryEndpoints.blob }
   { name: 'ConnectionStrings__AuditDigests', value: audit.properties.primaryEndpoints.blob }
   { name: 'KeyVault__Uri', value: vault.properties.vaultUri }
-  { name: 'Auth__PublicBaseUrl', value: publicBaseUrl }
-  { name: 'Sef__BaseUrl', value: sefBaseUrl }
-  { name: 'Email__SmtpHost', value: emailSmtpHost }
-  { name: 'Email__SmtpPort', value: '587' }
-  { name: 'Email__EnableSsl', value: 'true' }
-  { name: 'Email__From', value: emailFrom }
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: insights.properties.ConnectionString }
 ]
 var registries = [{ server: registry.properties.loginServer, identity: identity.id }]
@@ -287,9 +272,7 @@ resource api 'Microsoft.App/containerApps@2024-03-01' = {
           image: image
           args: ['api']
           resources: { cpu: json('0.5'), memory: '1Gi' }
-          env: concat(commonEnv, [
-            { name: 'ForwardedHeaders__KnownNetworks__0', value: ingressNetwork }
-          ])
+          env: commonEnv
           probes: [
             { type: 'Liveness', httpGet: { path: '/health/live', port: 8080 } }
             { type: 'Readiness', httpGet: { path: '/health/ready', port: 8080 } }
