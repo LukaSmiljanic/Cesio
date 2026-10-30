@@ -5,6 +5,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Platform.Integration.Tests.Infrastructure;
+using Shared.Infrastructure.Persistence;
 
 namespace Platform.Integration.Tests;
 
@@ -96,6 +97,53 @@ public sealed class SecurityHardeningTests(SqlServerContainer server) : IAsyncLi
         Assert.Contains("permission was denied", auditDelete, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("permission was denied", feeDelete, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(string.Empty, auditReadAllowed);
+    }
+
+    [Fact]
+    public async Task The_migrator_creates_the_application_login_in_app_rw_and_rotates_its_password()
+    {
+        var login = $"cesio_app_{Guid.NewGuid():N}"[..24];
+        const string first = "Prva'Lozinka-2026!x";
+        const string second = "Druga-Lozinka-2026!y";
+        try
+        {
+            await DatabaseMigrator.AddApplicationLoginAsync(_database.ConnectionString, login, first, TestContext.Current.CancellationToken);
+            var asApp = new SqlConnectionStringBuilder(_database.ConnectionString) { UserID = login, Password = first }.ConnectionString;
+            var denied = await TryAsAsync(asApp, "DELETE FROM fees.fee_charges;");
+            var allowed = await TryAsAsync(asApp, "SELECT COUNT(*) FROM audit.audit_events;");
+
+            await DatabaseMigrator.AddApplicationLoginAsync(_database.ConnectionString, login, second, TestContext.Current.CancellationToken);
+            var oldPassword = await TryAsAsync(asApp, "SELECT 1;");
+            var newPassword = await TryAsAsync(new SqlConnectionStringBuilder(asApp) { Password = second }.ConnectionString, "SELECT 1;");
+
+            Assert.Contains("permission was denied", denied, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(string.Empty, allowed);
+            Assert.Contains("Login failed", oldPassword, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(string.Empty, newPassword);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await using var connection = new SqlConnection(_database.ConnectionString);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await ExecAsync(connection, $"IF DATABASE_PRINCIPAL_ID('{login}') IS NOT NULL DROP USER [{login}]; IF SUSER_ID('{login}') IS NOT NULL DROP LOGIN [{login}];");
+        }
+    }
+
+    /// <summary>The SQL error message as that login, or empty when the statement ran.</summary>
+    private static async Task<string> TryAsAsync(string connectionString, string sql)
+    {
+        try
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await ExecAsync(connection, sql);
+            return string.Empty;
+        }
+        catch (SqlException exception)
+        {
+            return exception.Message;
+        }
     }
 
     private static async Task ExecAsync(SqlConnection connection, string sql)

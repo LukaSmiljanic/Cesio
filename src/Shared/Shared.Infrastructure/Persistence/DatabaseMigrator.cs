@@ -25,21 +25,31 @@ public static class DatabaseMigrator
     }
 
     /// <summary>
-    /// Adds a Microsoft Entra application (a managed identity, by its client ID) as a database user in <c>app_rw</c>.
-    /// Azure SQL only; idempotent.
+    /// The SQL login the API and worker sign in with (ADR-023): created, or its password rotated, and made a database user
+    /// in <c>app_rw</c>, nothing more. Needs a server administrator (the migrator's own login). Idempotent. The name and
+    /// password are passed as parameters and quoted in SQL, never concatenated as given.
     /// </summary>
-    public static async Task AddApplicationPrincipalAsync(string connectionString, string name, Guid clientId, CancellationToken cancellationToken)
+    public static async Task AddApplicationLoginAsync(string connectionString, string login, string password, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        var quoted = $"[{name.Replace("]", "]]", StringComparison.Ordinal)}]";
-        var literal = name.Replace("'", "''", StringComparison.Ordinal);
-        var sql = $"IF DATABASE_PRINCIPAL_ID('{literal}') IS NULL " +
-            $"BEGIN DECLARE @sql nvarchar(max) = N'CREATE USER {quoted.Replace("'", "''", StringComparison.Ordinal)} WITH SID = ' + CONVERT(nvarchar(64), CONVERT(varbinary(16), @clientId), 1) + N', TYPE = E;'; EXEC (@sql); END; " +
-            $"ALTER ROLE app_rw ADD MEMBER {quoted};";
+        ArgumentException.ThrowIfNullOrWhiteSpace(login);
+        ArgumentException.ThrowIfNullOrWhiteSpace(password);
+        const string sql = """
+            DECLARE @statement nvarchar(max) = CASE WHEN SUSER_ID(@login) IS NULL THEN N'CREATE LOGIN ' ELSE N'ALTER LOGIN ' END
+                + QUOTENAME(@login) + N' WITH PASSWORD = N''' + REPLACE(@password, N'''', N'''''') + N'''';
+            EXEC (@statement);
+            IF DATABASE_PRINCIPAL_ID(@login) IS NULL
+            BEGIN
+                SET @statement = N'CREATE USER ' + QUOTENAME(@login) + N' FOR LOGIN ' + QUOTENAME(@login);
+                EXEC (@statement);
+            END;
+            SET @statement = N'ALTER ROLE app_rw ADD MEMBER ' + QUOTENAME(@login);
+            EXEC (@statement);
+            """;
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = new SqlCommand(sql, connection);
-        command.Parameters.AddWithValue("@clientId", clientId);
+        command.Parameters.AddWithValue("@login", login);
+        command.Parameters.AddWithValue("@password", password);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Modules.Documents.Contracts;
 using Modules.Documents.Persistence;
 using Shared.Infrastructure.Idempotency;
@@ -33,7 +34,13 @@ public static class DocumentsModule
         services.AddSingleton<IDocumentStore, FileSystemDocumentStore>();
         services.AddSingleton<IMalwareScanner>(provider =>
         {
-            if (provider.GetRequiredService<IConfiguration>()["Documents:Scanner"] != "Fake")
+            var configuration = provider.GetRequiredService<IConfiguration>();
+            if (configuration["Documents:Scanner"] == "ClamAV")
+            {
+                return new ClamAvScanner(configuration["ClamAV:Host"] ?? "clamav", configuration.GetValue("ClamAV:Port", 3310), provider.GetRequiredService<ILogger<ClamAvScanner>>());
+            }
+
+            if (configuration["Documents:Scanner"] != "Fake")
             {
                 return new DeferredMalwareScanner();
             }

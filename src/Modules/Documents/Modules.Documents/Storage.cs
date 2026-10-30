@@ -1,6 +1,9 @@
+using System.Buffers.Binary;
+using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Modules.Documents.Contracts;
 using Shared.Infrastructure;
 
@@ -87,8 +90,7 @@ internal sealed class FileSystemDocumentStore(IConfiguration configuration, IHos
 
 /// <summary>
 /// Local and test scanner (configuration <c>Documents:Scanner = Fake</c>): a file containing the EICAR test string is
-/// infected. Production uses Microsoft Defender
-/// for Storage scan results (task 024).
+/// infected. On the server <see cref="ClamAvScanner"/> scans (ADR-023).
 /// </summary>
 internal sealed class FakeMalwareScanner : IMalwareScanner
 {
@@ -103,8 +105,71 @@ internal sealed class FakeMalwareScanner : IMalwareScanner
 }
 
 /// <summary>
-/// The scanner outside local development until Defender for Storage is wired in (task 024): it gives no verdict, so
-/// every upload stays Pending in quarantine and cannot be downloaded (fail closed).
+/// ClamAV (<c>clamd</c>) over TCP with the INSTREAM command (ADR-023; <c>Documents:Scanner = ClamAV</c>): "OK" is clean,
+/// "FOUND" is infected. No answer, an error or a timeout gives no verdict, so the file stays Pending in quarantine and
+/// cannot be downloaded (fail closed); the user uploads it again once the scanner is back.
+/// </summary>
+internal sealed partial class ClamAvScanner(string host, int port, ILogger<ClamAvScanner> logger) : IMalwareScanner
+{
+    private const int ChunkSize = 64 * 1024;
+
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
+
+    public async Task<ScanStatus> ScanAsync(Stream content, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(Timeout);
+        try
+        {
+            using var client = new TcpClient();
+            await client.ConnectAsync(host, port, timeout.Token);
+            await using var stream = client.GetStream();
+            await stream.WriteAsync("zINSTREAM\0"u8.ToArray(), timeout.Token);
+            var buffer = new byte[ChunkSize];
+            var length = new byte[4];
+            int read;
+            while ((read = await content.ReadAsync(buffer, timeout.Token)) > 0)
+            {
+                BinaryPrimitives.WriteInt32BigEndian(length, read);
+                await stream.WriteAsync(length, timeout.Token);
+                await stream.WriteAsync(buffer.AsMemory(0, read), timeout.Token);
+            }
+
+            BinaryPrimitives.WriteInt32BigEndian(length, 0);
+            await stream.WriteAsync(length, timeout.Token);
+            using var reader = new StreamReader(stream, Encoding.ASCII);
+            var reply = (await reader.ReadToEndAsync(timeout.Token)).TrimEnd('\0', '\n');
+            if (reply.EndsWith("OK", StringComparison.Ordinal))
+            {
+                return ScanStatus.Clean;
+            }
+
+            if (reply.EndsWith("FOUND", StringComparison.Ordinal))
+            {
+                return ScanStatus.Infected;
+            }
+
+            LogNoVerdict(logger, reply.Length > 120 ? reply[..120] : reply);
+            return ScanStatus.Pending;
+        }
+        catch (Exception exception) when (exception is SocketException or IOException || (exception is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            LogUnavailable(logger, exception.GetType().Name);
+            return ScanStatus.Pending;
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "ClamAV gave no verdict: {Reply}")]
+    private static partial void LogNoVerdict(ILogger logger, string reply);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "ClamAV is not reachable ({Error}); the upload stays quarantined.")]
+    private static partial void LogUnavailable(ILogger logger, string error);
+}
+
+/// <summary>
+/// The scanner when none is configured outside local development: it gives no verdict, so every upload stays Pending in
+/// quarantine and cannot be downloaded (fail closed).
 /// </summary>
 internal sealed class DeferredMalwareScanner : IMalwareScanner
 {

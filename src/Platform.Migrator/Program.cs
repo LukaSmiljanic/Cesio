@@ -37,10 +37,13 @@ builder.Services
 using var host = builder.Build();
 await DatabaseMigrator.MigrateAsync(host.Services, PersistenceSetup.ConnectionString(builder.Configuration), CancellationToken.None);
 
-// In Azure SQL the API and worker sign in with their managed identity (task 024). Each one configured here becomes a
-// database user of type E (from its client ID, no directory lookup needed) and a member of app_rw, nothing more.
-foreach (var principal in builder.Configuration.GetSection("Database:AppPrincipals").GetChildren())
+// The API and worker sign in with a SQL login in app_rw (ADR-023); its password comes from the environment
+// (Database__AppLogin__Password), never from a settings file.
+if (builder.Configuration["Database:AppLogin:Name"] is { Length: > 0 } login)
 {
-    await DatabaseMigrator.AddApplicationPrincipalAsync(
-        PersistenceSetup.ConnectionString(builder.Configuration), principal["Name"]!, Guid.Parse(principal["ClientId"]!), CancellationToken.None);
+    await DatabaseMigrator.AddApplicationLoginAsync(
+        PersistenceSetup.ConnectionString(builder.Configuration),
+        login,
+        builder.Configuration["Database:AppLogin:Password"] ?? throw new InvalidOperationException("Database:AppLogin:Password must be set with Database:AppLogin:Name."),
+        CancellationToken.None);
 }

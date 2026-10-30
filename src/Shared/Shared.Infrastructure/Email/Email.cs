@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Mail;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -12,7 +13,7 @@ public interface IEmailSender
 
 public sealed record EmailMessage(string To, string Subject, string Body);
 
-/// <summary>SMTP settings; locally smtp4dev on port 5025 (docker-compose.yml), in Azure ACS Email (task 024).</summary>
+/// <summary>SMTP settings; locally smtp4dev on port 5025 (docker-compose.yml), on the server any SMTP with a login (ADR-023).</summary>
 public sealed class EmailOptions
 {
     public string SmtpHost { get; set; } = "localhost";
@@ -22,6 +23,12 @@ public sealed class EmailOptions
     public bool EnableSsl { get; set; }
 
     public string From { get; set; } = "no-reply@cesio.local";
+
+    /// <summary>The SMTP login; empty for a server without authentication (smtp4dev).</summary>
+    public string? UserName { get; set; }
+
+    /// <summary>From an environment variable or user secrets (<c>Email__Password</c>), never from a settings file.</summary>
+    public string? Password { get; set; }
 }
 
 internal sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSender
@@ -31,6 +38,11 @@ internal sealed class SmtpEmailSender(IOptions<EmailOptions> options) : IEmailSe
         ArgumentNullException.ThrowIfNull(message);
         var settings = options.Value;
         using var client = new SmtpClient(settings.SmtpHost, settings.SmtpPort) { EnableSsl = settings.EnableSsl };
+        if (!string.IsNullOrEmpty(settings.UserName))
+        {
+            client.Credentials = new NetworkCredential(settings.UserName, settings.Password);
+        }
+
         using var mail = new MailMessage(settings.From, message.To, message.Subject, message.Body);
         await client.SendMailAsync(mail, cancellationToken);
     }
