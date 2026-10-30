@@ -1,8 +1,11 @@
-# Deployment (task 024, cesio-deploy skill).
-# - staging: after CI succeeds on main, and one approval;
-# - production: a v* tag on a main commit that staging already built, after a manual approval. Production promotes
-#   that same signed image by digest; it never builds its own.
-# Approvals are GitHub environment protection rules on "staging" and "production"; the Azure login is OIDC (no secrets).
+# Deployment to our own servers (ADR-023, cesio-deploy skill).
+# - staging: after CI succeeds on a push to main: build, scan, push and sign both images to GHCR, then deploy after one
+#   approval;
+# - production: a v* tag on a main commit that staging already built, after a manual approval. Production deploys the
+#   same signed images by digest; it never builds its own.
+# Approvals are GitHub environment protection rules on "staging" and "production". Each environment holds the
+# variables DEPLOY_HOST, DEPLOY_USER, DEPLOY_PATH, DEPLOY_KNOWN_HOSTS and CESIO_DOMAIN and the secret DEPLOY_SSH_KEY
+# (deploy/README.md).
 name: Deploy
 
 on:
@@ -13,73 +16,140 @@ on:
   push:
     tags: ['v*']
   pull_request:
-    paths: ['infra/**', '.github/workflows/deploy*.yml']
+    paths: ['deploy/**', 'Dockerfile', 'web/Dockerfile', '.github/workflows/deploy.yml']
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.event_name == 'push' && 'production' || 'staging' }}
+  group: deploy-${{ github.event_name == 'pull_request' && github.ref || github.event_name == 'push' && 'production' || 'staging' }}
   cancel-in-progress: false
 
+env:
+  # GHCR names are lower case; the server's .env names the same owner (GHCR_OWNER).
+  REGISTRY: ghcr.io/lukasmiljanic
+  # Only images signed by this workflow running on main are deployed.
+  SIGNER: https://github.com/LukaSmiljanic/Cesio/.github/workflows/deploy.yml@refs/heads/main
+  ISSUER: https://token.actions.githubusercontent.com
+
 jobs:
-  iac-scan:
+  config-scan:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Scan infrastructure templates and the Dockerfile (accepted risks in .trivyignore)
+      - name: Scan the Dockerfiles and configuration
         run: >
           docker run --rm -v "${{ github.workspace }}:/repo" -w /repo aquasec/trivy:0.69.1
           config --exit-code 1 --severity HIGH,CRITICAL /repo
 
-  # Read-only identity (Reader on the staging resource group, federated to the staging-plan environment only), because
-  # PR code runs here.
-  what-if:
-    if: github.event_name == 'pull_request'
-    needs: iac-scan
+  build:
+    # Only CI runs of pushes to main in this repository (a fork's PR branch can also be called main).
+    if: >-
+      github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository
+    needs: config-scan
     runs-on: ubuntu-latest
-    environment: staging-plan
     permissions:
       contents: read
+      packages: write
       id-token: write
+    outputs:
+      api: ${{ steps.push.outputs.api }}
+      web: ${{ steps.push.outputs.web }}
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha }}
     steps:
       - uses: actions/checkout@v7
-      - uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: What-if against staging
-        run: >
-          az deployment group what-if --resource-group "${{ vars.RESOURCE_GROUP }}" --template-file infra/main.bicep
-          --parameters environmentName=staging imageDigest=sha256:0000000000000000000000000000000000000000000000000000000000000000
-          sqlAdminGroupObjectId="${{ vars.SQL_ADMIN_GROUP_ID }}" sqlAdminGroupName="${{ vars.SQL_ADMIN_GROUP_NAME }}"
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: sigstore/cosign-installer@v3.10.0
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build, scan, push and sign both images
+        id: push
+        run: |
+          for image in cesio:Dockerfile cesio-web:web/Dockerfile; do
+            name="${image%%:*}"; ref="$REGISTRY/$name:$SHA"
+            docker build --file "${image#*:}" --tag "$ref" .
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.69.1 \
+              image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$ref"
+            docker push "$ref"
+            digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$ref" | cut -d@ -f2)
+            cosign sign --yes "$REGISTRY/$name@$digest"
+            [ "$name" = cesio ] && echo "api=$digest" >> "$GITHUB_OUTPUT" || echo "web=$digest" >> "$GITHUB_OUTPUT"
+          done
 
-  staging:
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-    needs: iac-scan
-    uses: ./.github/workflows/deploy-environment.yml
-    with:
-      environment: staging
-      environmentName: staging
-      sha: ${{ github.event.workflow_run.head_sha }}
-      promote: false
-    permissions:
-      contents: read
-      id-token: write
-
-  production:
+  # The images of the tagged commit, which staging built and signed.
+  promote:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: iac-scan
-    uses: ./.github/workflows/deploy-environment.yml
-    with:
-      environment: production
-      environmentName: prod
-      sha: ${{ github.sha }}
-      promote: true
+    needs: config-scan
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      packages: read
+    outputs:
+      api: ${{ steps.find.outputs.api }}
+      web: ${{ steps.find.outputs.web }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: A production tag must point at a main commit
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Find the digests
+        id: find
+        run: |
+          for name in cesio cesio-web; do
+            digest=$(docker buildx imagetools inspect "$REGISTRY/$name:$GITHUB_SHA" --format '{{json .Manifest.Digest}}' | tr -d '"') || true
+            if [ -z "$digest" ]; then
+              echo "::error::No $name image for $GITHUB_SHA: staging must have built this main commit first."; exit 1
+            fi
+            [ "$name" = cesio ] && echo "api=$digest" >> "$GITHUB_OUTPUT" || echo "web=$digest" >> "$GITHUB_OUTPUT"
+          done
+
+  deploy:
+    if: ${{ !cancelled() && (needs.build.result == 'success' || needs.promote.result == 'success') }}
+    needs: [build, promote]
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'push' && 'production' || 'staging' }}
+    permissions:
+      contents: read
+      packages: read
+    env:
+      API: ${{ needs.build.outputs.api || needs.promote.outputs.api }}
+      WEB: ${{ needs.build.outputs.web || needs.promote.outputs.web }}
+      TARGET: ${{ vars.DEPLOY_USER }}@${{ vars.DEPLOY_HOST }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+      DOMAIN: ${{ vars.CESIO_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: sigstore/cosign-installer@v3.10.0
+      - run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Verify the signatures of what is deployed
+        run: |
+          cosign verify --certificate-identity "$SIGNER" --certificate-oidc-issuer "$ISSUER" "$REGISTRY/cesio@$API" >/dev/null
+          cosign verify --certificate-identity "$SIGNER" --certificate-oidc-issuer "$ISSUER" "$REGISTRY/cesio-web@$WEB" >/dev/null
+      - name: SSH key
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host *\n  StrictHostKeyChecking yes\n' > ~/.ssh/config
+      - name: Copy the compose files and release
+        run: |
+          scp deploy/compose.yml deploy/release.sh "$TARGET:$DEPLOY_PATH/"
+          ssh "$TARGET" "chmod +x '$DEPLOY_PATH/release.sh' && '$DEPLOY_PATH/release.sh' '$API' '$WEB'"
+      - name: Smoke test (health, database, login)
+        run: |
+          url="https://$DOMAIN"
+          for i in $(seq 1 30); do curl -fsS "$url/health/ready" && break; sleep 10; done
+          curl -fsS "$url/health/ready"
+          curl -fsS -o /dev/null "$url/api/v1/auth/antiforgery"

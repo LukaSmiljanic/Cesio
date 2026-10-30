@@ -19,16 +19,6 @@ services:
       retries: 12
       start_period: 20s
 
-  azurite:
-    image: mcr.microsoft.com/azure-storage/azurite
-    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --location /data --skipApiVersionCheck
-    ports:
-      - "127.0.0.1:10000:10000"
-      - "127.0.0.1:10001:10001"
-      - "127.0.0.1:10002:10002"
-    volumes:
-      - azurite-data:/data
-
   smtp4dev:
     image: rnwood/smtp4dev
     ports:
@@ -39,5 +29,4 @@ services:
 
 volumes:
   sqlserver-data:
-  azurite-data:
   smtp4dev-data:

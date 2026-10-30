@@ -31,7 +31,7 @@ Rules: one task at a time. Read [CLAUDE.md](../CLAUDE.md) first. A task is done 
 | 021 | [Disputes & holds UI](021-disputes.md) | 017 | LQ-41 |
 | 022 | [Dashboards & admin back office](022-dashboards-admin.md) | 018 | — |
 | 023 | [Security hardening & pen-test readiness](023-security-hardening.md) | all | — |
-| 024 | [Azure infrastructure & deployment](024-deployment.md) | 001 (can start early) | LQ-35 |
+| 024 | [Server infrastructure & deployment](024-deployment.md) | 001 (can start early) | LQ-35 |
 
 Each feature task includes its API, persistence, tests **and** the minimal UI screens listed in it.
 

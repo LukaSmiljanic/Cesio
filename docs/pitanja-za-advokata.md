@@ -140,7 +140,7 @@ Ako radite u fazama, molimo prvo ova pitanja, od kojih zavisi da li je model uop
 
 ### 21. Da li je za banke korišćenje platforme eksternalizacija? (LQ-65 · P1)
 **Šta želimo:** da banke koriste platformu kao kanal za nove klijente.
-**Pitanje:** Da li banke i društva za faktoring korišćenje platforme smatraju eksternalizacijom (npr. po odluci NBS za banke)? Ako da, koje odredbe moramo da prihvatimo u ugovoru: pravo revizije, lokaciju podataka, plan izlaska, podizvođače kao što je Microsoft Azure?
+**Pitanje:** Da li banke i društva za faktoring korišćenje platforme smatraju eksternalizacijom (npr. po odluci NBS za banke)? Ako da, koje odredbe moramo da prihvatimo u ugovoru: pravo revizije, lokaciju podataka, plan izlaska, podizvođače kao što je pružalac hostinga ili van-sajt skladišta rezervnih kopija? Ima li uticaja to što sami upravljamo serverom?
 
 ## G. SEF i uvoz faktura
 
@@ -292,9 +292,9 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 **Šta želimo:** da podatke o zastupnicima i kontakt osobama delimo sa faktorima kada je potrebno.
 **Pitanje:** Ko je rukovalac, a ko obrađivač: platforma ili faktor? Ovo se odnosi na podatke o zastupnicima prodavaca i na kontakt osobe dužnika.
 
-### 53. Smemo li čuvati podatke u Azure-u u EU? (LQ-35 · P0)
-**Šta želimo:** da platforma radi u Microsoft Azure-u, u nekom od EU regiona.
-**Pitanje:** Da li je prenos podataka u EU dozvoljen po ZZPL i da li su potrebne standardne ugovorne klauzule? Moraju li se finansijski podaci čuvati u Srbiji?
+### 53. Gde smemo da čuvamo podatke? (LQ-35 · P0)
+**Šta želimo:** da platforma radi na sopstvenom ili iznajmljenom serveru, u Srbiji ili u inostranstvu (lokacija još nije određena).
+**Pitanje:** Koja pravila po ZZPL važe za server u Srbiji, u EU i u trećoj zemlji (primerena zaštita, standardne ugovorne klauzule)? Moraju li se finansijski podaci, dokumenti i kopije rezervnih kopija čuvati u Srbiji?
 
 ### 54. Da li nam trebaju lice za zaštitu podataka i procena uticaja? (LQ-37 · P1)
 **Šta želimo:** usklađenost sa ZZPL od prvog dana.
@@ -325,8 +325,8 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 **Pitanje:** Kako uskladiti pravo na brisanje sa obaveznim čuvanjem podataka?
 
 ### 61. Da li moramo koristiti kvalifikovano elektronsko čuvanje? (LQ-70 · P1)
-**Šta želimo:** potpisane ugovore i dokaze čuvamo kod sebe, zaštićene od izmena (digitalni otisci i zapisi koji se ne mogu menjati).
-**Pitanje:** Da li to čuva njihovu dokaznu snagu, ili moramo koristiti pružaoca usluge kvalifikovanog elektronskog čuvanja (zakon o elektronskom dokumentu)? Da li se primenjuju i propisi o arhivskoj građi?
+**Šta želimo:** potpisane ugovore i dokaze čuvamo kod sebe, na disku našeg servera, zaštićene digitalnim otiscima i heš lancem, sa dnevnom kopijom van servera. Nemamo skladište koje tehnički sprečava izmenu (WORM), pa administrator servera može da menja fajlove na serveru.
+**Pitanje:** Da li to čuva njihovu dokaznu snagu, i u sporu i pred NBS i Upravom za sprečavanje pranja novca, ili moramo koristiti pružaoca usluge kvalifikovanog elektronskog čuvanja (zakon o elektronskom dokumentu)? Da li se primenjuju i propisi o arhivskoj građi?
 
 ## N. Marketing i brend
 
@@ -408,7 +408,15 @@ Da li je ograničenje odgovornosti moguće i punovažno?
 
 ### 80. Probno vraćanje baze u test okruženje (LQ-86 · P1)
 **Šta želimo:** jednom kvartalno vraćamo produkcionu bazu u test okruženje da proverimo rezervne kopije, pa kopiju brišemo.
-**Pitanje:** Da li je to dozvoljeno i koje mere zaštite moramo imati? Kako se rezervne kopije i nepromenljivi audit zapisi uklapaju u pravo na brisanje?
+**Pitanje:** Da li je to dozvoljeno i koje mere zaštite moramo imati? Sme li se kopija vraćati na računar van servera? Kako se rezervne kopije i audit zapisi sa kopijama van servera uklapaju u pravo na brisanje?
+
+### 81. Pružalac hostinga kao obrađivač (LQ-87 · P0)
+**Šta želimo:** da platforma radi na iznajmljenom serveru (VPS ili kolokacija); pružalac ima fizički pristup serveru.
+**Pitanje:** Da li je pružalac obrađivač po ZZPL, treba li ugovor o obradi i koje mere zaštite? Šta se menja ako je pružalac u inostranstvu?
+
+### 82. Čuvanje SEF ključeva prodavaca (LQ-88 · P1)
+**Šta želimo:** SEF API ključeve prodavaca čuvamo šifrovane u našoj bazi; ključevi za šifrovanje su odvojeno na serveru, zaštićeni sertifikatom.
+**Pitanje:** Da li čuvanje tuđih pristupnih podataka zahteva posebne mere po ZZPL ili Zakonu o informacionoj bezbednosti? Ko odgovara za zloupotrebu ključa ako server bude kompromitovan?
 
 ---
 

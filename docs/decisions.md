@@ -21,7 +21,7 @@ Changing an Accepted decision requires a new ADR that supersedes it. AI agents m
 | ADR-014 | Holds are an overlay, not lifecycle states | Accepted | — |
 | ADR-015 | Deal includes a factor CDD gate before contract | Accepted | LQ-29 |
 | ADR-016 | Azure EU region hosting | Superseded by ADR-023 | LQ-35 |
-| ADR-017 | Audit: same-transaction writes, hash chain, daily WORM digests | Accepted | — |
+| ADR-017 | Audit: same-transaction writes, hash chain, daily digests (read-only files, copied off the server since ADR-023) | Accepted | — |
 | ADR-018 | Contract = factor's own agreement, signed externally with QES, validated by the platform | Proposed | LQ-24, LQ-27 |
 | ADR-019 | Production launch waits for an operational CEF; build and test everything before that | Proposed | CEF bylaw/API, LQ-17, LQ-18 |
 | ADR-021 | SQL Server (Azure SQL Database) instead of PostgreSQL | Accepted (Azure SQL replaced by SQL Server on the own server, ADR-023) | — |
@@ -75,7 +75,7 @@ The MVP does not generate legal contracts: the factor uploads its own agreement 
 ## ADR-021 SQL Server instead of PostgreSQL
 **Context (product owner, 2026-10-19):** the product owner prefers Microsoft SQL Server; it fits the .NET/Azure stack and the team's tooling. No code exists yet, so the switch costs only documentation. Supersedes the database part of ADR-001 and amends the key format of ADR-003.
 
-**Decision:** SQL Server 2022+ compatible; **Azure SQL Database** (General Purpose, zone-redundant in production) in Azure; SQL Server Developer edition in Docker for local work; `Testcontainers.MsSql` for integration tests; EF Core SQL Server provider.
+**Decision:** SQL Server 2022+ compatible; **Azure SQL Database** (General Purpose, zone-redundant in production) in Azure (*superseded by ADR-023: SQL Server Express in a container on our own server*); SQL Server Developer edition in Docker for local work; `Testcontainers.MsSql` for integration tests; EF Core SQL Server provider.
 
 **Translation rules** (details in [database.md](database.md)):
 - Partial unique indexes → **filtered unique indexes**; predicates use only simple comparisons with `AND` (INV-R1: `state <> 'Cancelled' AND state <> 'Terminated'`). Nullable unique columns are filtered with `IS NOT NULL`, because SQL Server treats `NULL`s as equal in unique indexes.
@@ -86,7 +86,7 @@ The MVP does not generate legal contracts: the factor uploads its own agreement 
 - Immutability: append-only tables get `DENY UPDATE, DELETE` + INSTEAD OF triggers; tables with changing state get column-level `DENY UPDATE` + AFTER UPDATE triggers on fixed columns; every trigger is declared in the EF mapping (`HasTrigger`); TRUNCATE requires ALTER, which the app role lacks.
 - Application locks: owner `Transaction` for the audit hash chain, owner `Session` (dedicated connection) for singleton jobs.
 
-**Consequences:** the integration-test container is heavier (≈ 1.5 GB image, slower start); Azure SQL pricing differs from PostgreSQL Flexible Server (to check in task 024); Microsoft Entra authentication with managed identity is straightforward.
+**Consequences:** the integration-test container is heavier (≈ 1.5 GB image, slower start); (the Azure consequences no longer apply since ADR-023: the application signs in with a SQL login).
 
 ## ADR-020 Minimal seller onboarding
 **Context (product owner, 2026-10-19):** the MVP should start with as little friction as possible and add complexity later. A market check ([market-analysis.md](market-analysis.md)) shows that a comparable marketplace (PlatiMe, Croatia) asks sellers only for company data. It relies on the e-invoice channel, debtor confirmation, contractual warranties and payment to the company's own account, not on a heavy identity check. On Cesio only licensed factors buy, and they run their own CDD and check who signs the agreement (ADR-015, ADR-018).

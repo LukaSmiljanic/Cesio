@@ -96,7 +96,7 @@ Source: `https://demoefaktura.mfin.gov.rs/swagger/index.html` → `/swagger/publ
 | Legal | LQ-24 (required level), Serbian trust list source (Ministry's register of qualified trust service providers, *verify the format*) |
 
 ## 8. Email / SMS
-- Email: transactional provider (Azure Communication Services Email) with SPF/DKIM/DMARC on our domain. Templates in Serbian (Latin) + English. No confidential document contents in emails, only links into the app.
+- Email: any transactional SMTP provider with a login (ADR-023) with SPF/DKIM/DMARC on our domain. Templates in Serbian (Latin) + English. No confidential document contents in emails, only links into the app.
 - SMS: not in the MVP (MFA uses TOTP/WebAuthn). Future security alerts via a local SMS gateway.
 
 ## 9. Accounting (platform's own invoicing)

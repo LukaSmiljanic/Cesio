@@ -58,7 +58,7 @@ All live in `.claude/agents/`. They are read-only and give an independent review
 ## Commands
 ```
 cp .env.example .env         # once; set a local SA password
-docker compose up -d         # sqlserver, azurite, smtp4dev
+docker compose up -d         # sqlserver, smtp4dev
 dotnet build                 # warnings as errors
 dotnet test
 cd web && npm ci && npm run dev

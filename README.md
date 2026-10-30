@@ -35,32 +35,32 @@ A digital marketplace where Serbian businesses (sellers) offer verified SEF e-in
 Product requirements change only through steps 1–4, never silently during implementation.
 
 ## Stack
-.NET 10 · ASP.NET Core · EF Core · SQL Server (Azure SQL) · React + TypeScript · Docker · Azure (Container Apps, Azure SQL Database, Blob, Key Vault).
+.NET 10 · ASP.NET Core · EF Core · SQL Server · React + TypeScript · Docker on our own Linux server (ADR-023, `deploy/`).
 
 ## Local development
 Prerequisites: .NET SDK 10, Node.js 22.13+ (see `web/.nvmrc`), Docker.
 
 ```
 cp .env.example .env         # then set a local-only MSSQL_SA_PASSWORD in .env (never commit it)
-docker compose up -d         # SQL Server 2022 Developer, Azurite, smtp4dev (UI: http://localhost:5000)
+docker compose up -d         # SQL Server 2022 Developer, smtp4dev (UI: http://localhost:5000)
 dotnet build
 dotnet test
 cd web && npm ci && npm run dev
 ```
 
-- Connection strings are not in config files. Set them once per project with user secrets (or `ConnectionStrings__Cesio` / `ConnectionStrings__AuditDigests` environment variables), using the SA password from `.env`:
+- Connection strings are not in config files. Set them once per project with user secrets (or the `ConnectionStrings__Cesio` environment variable), using the SA password from `.env`:
   ```
   dotnet user-secrets --project src/Platform.Api set ConnectionStrings:Cesio "Server=localhost,1433;Database=cesio;User Id=sa;Password=<from .env>;TrustServerCertificate=True"
   ```
-  The same `Cesio` value is needed for `src/Platform.Worker` and `src/Platform.Migrator`; the worker also needs `ConnectionStrings:AuditDigests` and `ConnectionStrings:Documents` = `UseDevelopmentStorage=true` (Azurite), and the API `ConnectionStrings:Documents` = `UseDevelopmentStorage=true` for uploads. Use `Server=127.0.0.1,1433` rather than `localhost` if another SQL Server listens on the IPv6 loopback.
+  The same `Cesio` value is needed for `src/Platform.Worker` and `src/Platform.Migrator`; uploaded documents and audit digests go to `%LOCALAPPDATA%/Cesio/dev/files` and the data protection keys to `%LOCALAPPDATA%/Cesio/dev/keys` (`Storage:Root`, `DataProtection:KeysPath` elsewhere). Use `Server=127.0.0.1,1433` rather than `localhost` if another SQL Server listens on the IPv6 loopback.
 - Database: `dotnet run --project src/Platform.Migrator` applies every module's migrations and the `app_rw` / `migrator` / `readonly_reporting` roles. New migration: `dotnet tool restore && dotnet ef migrations add <Name> --project <module project> --context <Module>DbContext --output-dir Persistence/Migrations`.
-- Locally the fake SEF and the test secrets (SEF keys) are kept in `%LOCALAPPDATA%/Cesio/dev` (`Sef:FakePersist`, `Secrets:LocalPersist` in the Development settings), so they survive restarts and the worker sees them. `node scripts/dev-deal-walkthrough.mjs <offerId>` takes a demo offer through a whole deal (test signatures for the local signature check).
-- Demo accounts (local only, with the API, worker and web running): `node scripts/dev-seed.mjs` creates a seller with three imported invoices, an authorized factor and two staff users, and writes `dev-accounts.local.md` (gitignored). Then `node scripts/dev-seed-market.mjs` lists two receivables and adds a factor offer. Run both again after an API restart, because the fake SEF lives in memory. `node scripts/dev-totp.mjs` prints the current MFA codes.
+- Locally the fake SEF and the test secrets (SEF keys) are kept in `%LOCALAPPDATA%/Cesio/dev` (`Sef:FakePersist` in the Development settings; the SEF keys are encrypted in `platform.secrets`), so they survive restarts and the worker sees them. `node scripts/dev-deal-walkthrough.mjs <offerId>` takes a demo offer through a whole deal (test signatures for the local signature check).
+- Demo accounts (local only, with the API, worker and web running): `node scripts/dev-seed.mjs` creates a seller with three imported invoices, an authorized factor and two staff users, and writes `dev-accounts.local.md` (gitignored). Then `node scripts/dev-seed-market.mjs` lists two receivables and adds a factor offer. `node scripts/dev-totp.mjs` prints the current MFA codes.
 - API: `dotnet run --project src/Platform.Api` → `https://localhost:7080/health/live`, `/health/ready` (includes the database). The session cookies are Secure and SameSite=Strict, so the API runs on HTTPS: trust the development certificate once with `dotnet dev-certs https --trust`.
 - SPA: `cd web && npm run dev` → `http://localhost:5173`; Vite proxies `/api` to the API. Confirmation and password-reset emails arrive in smtp4dev (`http://localhost:5000`).
 - Worker: `dotnet run --project src/Platform.Worker` (outbox dispatcher, idempotency cleanup, daily audit chain digest).
 - Container: `docker build -t cesio .` then `docker run cesio api`, `docker run cesio worker` or `docker run cesio migrator`.
-- SEF locally: `Sef:Client = Fake` (appsettings.Development.json). Connect any seller with the API key `demo-{its PIB}` to get three demo invoices to import; remove the setting to use the SEF demo environment with a real key. Outside Development the key goes to Key Vault (`KeyVault:Uri`).
+- SEF locally: `Sef:Client = Fake` (appsettings.Development.json). Connect any seller with the API key `demo-{its PIB}` to get three demo invoices to import; remove the setting to use the SEF demo environment with a real key. The key is stored encrypted in the database (`platform.secrets`, ADR-023).
 - Signatures locally: `Signatures:Validator = Fake` (appsettings.Development.json) reads `%CESIO-FAKE-SIGNATURE {"signer":"…","covers":"<agreed sha256>"}` lines from an uploaded PDF instead of real PAdES signatures (ADR-011 is Proposed); outside local environments no deal can become Signed yet.
 - Integration tests (`tests/Platform.Integration.Tests`) start their own SQL Server with Testcontainers, so Docker must be running for `dotnet test`.
 - Rules checked in CI: web lint and format, architecture tests (`tests/Architecture.Tests`), `scripts/check-no-float.sh` (ADR-008), gitleaks, CodeQL, dependency review.

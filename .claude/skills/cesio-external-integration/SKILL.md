@@ -8,7 +8,7 @@ description: Koristi u Cesio projektu kad pišeš ili menjaš kod koji komunicir
 ## Struktura
 - Svaki spoljni sistem ima svoj projekat u `src/Integrations/Integrations.<Sistem>/` (postoje `Integrations.Sef`, `Integrations.Cef`, `Integrations.Screening`, `Integrations.Signatures`).
 - Moduli zavise od interfejsa, ne od konkretnog klijenta, da bi testovi koristili lažnu implementaciju.
-- Ključevi i URL-ovi dolaze iz konfiguracije (lokalno), odnosno Key Vault-a (Azure), nikad iz koda. Odvojeno za demo i produkciju (SEF ima demo okruženje).
+- Ključevi i URL-ovi dolaze iz konfiguracije (lokalno), odnosno šifrovano iz baze (`platform.secrets`, ADR-023), nikad iz koda. Odvojeno za demo i produkciju (SEF ima demo okruženje).
 - **SEF klijent je samo za čitanje:** nema metoda koje šalju, menjaju ili otkazuju dokumente.
 
 ## Obavezno za svaki poziv

@@ -75,9 +75,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: docker build --tag cesio:ci .
-      - name: Smoke test the image
+      - run: docker build --file web/Dockerfile --tag cesio-web:ci .
+      - name: Smoke test the image with the Production settings (ADR-023)
         run: |
-          docker run -d --name api -p 8080:8080 -e Auth__PublicBaseUrl=https://ci.invalid cesio:ci api
+          mkdir certs
+          openssl req -x509 -newkey rsa:2048 -nodes -subj /CN=ci -days 1 -keyout certs/key.pem -out certs/cert.pem
+          openssl pkcs12 -export -inkey certs/key.pem -in certs/cert.pem -out certs/dataprotection.pfx -passout pass:ci
+          chmod 644 certs/dataprotection.pfx
+          docker run -d --name api -p 8080:8080 -e ASPNETCORE_ENVIRONMENT=Production -e Auth__PublicBaseUrl=https://ci.invalid \
+            -e DataProtection__CertificatePassword=ci -v "$PWD/certs/dataprotection.pfx:/run/secrets/dataprotection.pfx:ro" \
+            -e ConnectionStrings__Cesio="Server=nowhere;Database=cesio;User Id=ci;Password=ci" cesio:ci api
           for i in $(seq 1 30); do curl -fsS http://localhost:8080/health/live && exit 0; sleep 1; done
           docker logs api
           exit 1

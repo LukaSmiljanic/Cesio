@@ -22,15 +22,14 @@ public interface ISecretStore
 /// <summary>
 /// Secrets in <c>platform.secrets</c>, encrypted with ASP.NET Core data protection. The keys are in the data protection
 /// key directory (encrypted with a certificate outside Development, <see cref="PlatformDefaults"/>), so a database backup
-/// alone never reveals a secret. Inside a unit-of-work transaction the write joins it.
+/// alone never reveals a secret. The protector is bound to the secret's name, so a ciphertext copied to another row does
+/// not decrypt. Inside a unit-of-work transaction the write joins it.
 /// </summary>
 internal sealed class DatabaseSecretStore(PlatformDbContext platform, IDataProtectionProvider dataProtection, TimeProvider timeProvider) : ISecretStore
 {
-    private readonly IDataProtector _protector = dataProtection.CreateProtector("Cesio.Secrets.v1");
-
     public async Task SetAsync(string name, string value, CancellationToken cancellationToken)
     {
-        var ciphertext = _protector.Protect(value);
+        var ciphertext = Protector(name).Protect(value);
         if (await platform.Secrets.SingleOrDefaultAsync(s => s.Name == name, cancellationToken) is { } existing)
         {
             existing.Ciphertext = ciphertext;
@@ -46,8 +45,10 @@ internal sealed class DatabaseSecretStore(PlatformDbContext platform, IDataProte
 
     public async Task<string?> GetAsync(string name, CancellationToken cancellationToken) =>
         await platform.Secrets.AsNoTracking().Where(s => s.Name == name).Select(s => s.Ciphertext).SingleOrDefaultAsync(cancellationToken) is { } ciphertext
-            ? _protector.Unprotect(ciphertext)
+            ? Protector(name).Unprotect(ciphertext)
             : null;
+
+    private IDataProtector Protector(string name) => dataProtection.CreateProtector("Cesio.Secrets.v1", name);
 
     public async Task DeleteAsync(string name, CancellationToken cancellationToken) =>
         await platform.Secrets.Where(s => s.Name == name).ExecuteDeleteAsync(cancellationToken);

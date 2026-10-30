@@ -18,6 +18,8 @@ COPY --from=build /app/api ./api
 COPY --from=build /app/worker ./worker
 COPY --from=build /app/migrator ./migrator
 COPY --chmod=755 docker/entrypoint.sh ./entrypoint.sh
+# Files and data protection keys live on volumes mounted here (ADR-023); the app user owns them.
+RUN mkdir -p /var/cesio/files /var/cesio/keys && chown -R $APP_UID:$APP_UID /var/cesio
 USER app
 EXPOSE 8080
 ENTRYPOINT ["/app/entrypoint.sh"]

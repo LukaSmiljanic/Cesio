@@ -1,0 +1,107 @@
+# One Cesio environment (staging or production) on one Linux server with Docker (ADR-023).
+# Put this folder on the server (the deploy workflow copies it), create .env from .env.example and the data protection
+# certificate in ./secrets (deploy/README.md); deploy/release.sh starts a version.
+name: cesio
+
+x-app: &app
+  image: ghcr.io/${GHCR_OWNER:?Set GHCR_OWNER in .env}/cesio@${CESIO_IMAGE_DIGEST:?Set by the deploy workflow}
+  restart: unless-stopped
+  environment: &app-env
+    ASPNETCORE_ENVIRONMENT: ${CESIO_ENVIRONMENT:?Set CESIO_ENVIRONMENT (Staging or Production) in .env}
+    DOTNET_ENVIRONMENT: ${CESIO_ENVIRONMENT}
+    Auth__PublicBaseUrl: https://${CESIO_DOMAIN:?Set CESIO_DOMAIN in .env}
+    ConnectionStrings__Cesio: Server=sqlserver,1433;Database=cesio;User Id=cesio_app;Password=${APP_DB_PASSWORD:?Set APP_DB_PASSWORD in .env};Encrypt=True;TrustServerCertificate=True
+    DataProtection__CertificatePassword: ${DATA_PROTECTION_CERT_PASSWORD:?Set DATA_PROTECTION_CERT_PASSWORD in .env}
+    Email__UserName: ${EMAIL_USERNAME:-}
+    Email__Password: ${EMAIL_PASSWORD:-}
+  volumes:
+    - files:/var/cesio/files
+    - keys:/var/cesio/keys
+    - ./secrets/dataprotection.pfx:/run/secrets/dataprotection.pfx:ro
+  depends_on:
+    sqlserver:
+      condition: service_healthy
+  networks: [cesio]
+
+services:
+  api:
+    <<: *app
+    command: ["api"]
+
+  worker:
+    <<: *app
+    command: ["worker"]
+
+  # Runs before every new version (expand/contract migrations), with the administrator login; also creates or rotates
+  # the application login cesio_app.
+  migrator:
+    <<: *app
+    profiles: ["migrate"]
+    restart: "no"
+    command: ["migrator"]
+    environment:
+      <<: *app-env
+      ConnectionStrings__Cesio: Server=sqlserver,1433;Database=cesio;User Id=sa;Password=${MSSQL_SA_PASSWORD:?Set MSSQL_SA_PASSWORD in .env};Encrypt=True;TrustServerCertificate=True
+      Database__AppLogin__Name: cesio_app
+      Database__AppLogin__Password: ${APP_DB_PASSWORD}
+
+  # Serves the SPA, terminates HTTPS (certificates from Let's Encrypt, renewed automatically) and forwards /api and
+  # /health to the API. The only service with published ports.
+  web:
+    image: ghcr.io/${GHCR_OWNER}/cesio-web@${CESIO_WEB_IMAGE_DIGEST:?Set by the deploy workflow}
+    restart: unless-stopped
+    environment:
+      CESIO_DOMAIN: ${CESIO_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [api]
+    networks:
+      cesio:
+        # The one address the API trusts for forwarded headers (ForwardedHeaders:KnownNetworks).
+        ipv4_address: 172.30.0.10
+
+  # SQL Server Express (ADR-023): 10 GB per database; switch MSSQL_PID to Standard with a licence, no code change.
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-CU16-ubuntu-22.04
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    volumes:
+      - sqldata:/var/opt/mssql
+      - ./backups:/var/opt/mssql/backups
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks: [cesio]
+
+  # Malware scanning of uploads (ADR-023); the signatures update themselves (freshclam).
+  clamav:
+    image: clamav/clamav:1.4.1
+    restart: unless-stopped
+    volumes:
+      - clamav:/var/lib/clamav
+    networks: [cesio]
+
+# A fixed subnet, so that Caddy keeps its address 172.30.0.10.
+networks:
+  cesio:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  files:
+  keys:
+  sqldata:
+  clamav:
+  caddy-data:
+  caddy-config:

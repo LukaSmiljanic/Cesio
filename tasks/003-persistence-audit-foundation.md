@@ -13,7 +13,7 @@ Provide the shared infrastructure that guarantees atomic state change + audit + 
 4. Outbox: `IOutbox.Add(event)` inside the transaction; a worker dispatcher claiming batches with `WITH (UPDLOCK, READPAST, ROWLOCK)`, at-least-once delivery, retry with backoff, dead-letter after N attempts (visible in logs and metrics); consumers keyed by `(event_id, consumer)` in a `processed_events` table for idempotency.
 5. Idempotency filter for endpoints marked `.RequireIdempotency()`: header required (400 if missing), body SHA-256, stored response replay, 422 on body mismatch, row inserted in the same transaction as the command; 30-day expiry with a cleanup job.
 6. `audit` schema + `IAuditWriter` exactly as in audit.md §2/§4: hash chain under an application lock (`sp_getapplock`, owner `Transaction`), an INSTEAD OF trigger blocking UPDATE/DELETE (declared in the EF mapping with `HasTrigger`), DB grants (`app_rw` INSERT/SELECT only; TRUNCATE impossible without ALTER). Separate `access_log` table.
-7. Daily chain-verification job + digest written to Blob (Azurite locally; WORM configured in 024).
+7. Daily chain-verification job + digest written as a read-only file under `Storage:Root` (ADR-023; copied off the server, task 024).
 8. Migration strategy: per-module migrations folder; a migration runner console command used by CI/CD with the `migrator` role.
 9. Application-lock helper (`sp_getapplock`, owner `Session`, dedicated open connection) for singleton jobs.
 10. `/health/ready` includes the DB.
@@ -29,7 +29,7 @@ Testcontainers SQL Server (`Testcontainers.MsSql`) integration test base class (
 None (filters and infrastructure only).
 
 # Database Changes
-Schemas `platform`, `audit`; roles `app_rw`, `migrator`, `readonly_reporting` (created by Platform.Migrator; identities and IaC in 024).
+Schemas `platform`, `audit`; roles `app_rw`, `migrator`, `readonly_reporting` (created by Platform.Migrator; the application login also by the migrator, ADR-023, task 024).
 
 # Security Considerations
 Audit `changes` masking helper (account numbers, emails partially masked). Idempotency keys are scoped by org (or by user outside an organization, task 005) + endpoint so a key cannot replay another tenant's or user's response.
@@ -44,4 +44,4 @@ Audit `changes` masking helper (account numbers, emails partially masked). Idemp
 - [x] Sample command in a test module demonstrates state change + audit + outbox in one transaction (`tests/Platform.Integration.Tests/SampleCommandTests.cs`).
 
 # Out of Scope
-Business tables; Azure WORM policy (024).
+Business tables; The off-site copy of the digests (024).

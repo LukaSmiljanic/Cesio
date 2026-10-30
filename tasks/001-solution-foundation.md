@@ -10,7 +10,7 @@ Create the empty, buildable modular-monolith solution, local environment and CI,
 - .NET 10 solution with the folder layout from architecture.md §3: `Platform.Api`, `Platform.Worker`, one project set per module (`Modules.X`, `Modules.X.Contracts`), `Shared.Kernel`, `Shared.Infrastructure`, `Integrations.*` (empty), and test projects.
 - `Directory.Build.props`: nullable enabled, `TreatWarningsAsErrors`, analyzers on, central package management (`Directory.Packages.props`).
 - Health endpoints `/health/live` and `/health/ready` (DB check added in 003).
-- `docker-compose.yml`: SQL Server 2022 Developer (`mcr.microsoft.com/mssql/server`), Azurite, smtp4dev (ADR-021).
+- `docker-compose.yml`: SQL Server 2022 Developer (`mcr.microsoft.com/mssql/server`), smtp4dev (ADR-021; Azurite removed by ADR-023).
 - Multi-stage `Dockerfile` producing one image; the entrypoint argument selects the API or the worker.
 - `web/`: Vite React TS scaffold with ESLint, Prettier, Vitest; build only (UI shell in 004).
 - CI pipeline (GitHub Actions): restore, build, test, `npm ci && npm run build && npm test`, CodeQL, dependency review.

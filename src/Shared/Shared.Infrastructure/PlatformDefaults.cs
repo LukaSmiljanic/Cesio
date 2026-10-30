@@ -27,7 +27,7 @@ public static class PlatformDefaults
         builder.Services.AddSingleton(TimeProvider.System);
         AddKeyRing(builder);
 
-        // Console export is for local work only; the Azure Monitor exporter is added with the deployment (task 024).
+        // Console export is for local work only; elsewhere logs go to standard output as JSON and nothing else is exported (ADR-023).
         var exportToConsole = builder.Environment.IsDevelopment();
 
         builder.Logging.AddOpenTelemetry(logging =>

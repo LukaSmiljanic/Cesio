@@ -1,0 +1,30 @@
+# The SPA and the API on one origin (ADR-023). Caddy gets and renews the HTTPS certificate for CESIO_DOMAIN itself.
+{$CESIO_DOMAIN} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy api:8080
+	}
+
+	handle /health/* {
+		reverse_proxy api:8080
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+
+		# The SPA's own headers (task 023: the API sets its own). No inline scripts; styles may be inline (Tailwind).
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+			Strict-Transport-Security "max-age=31536000; includeSubDomains"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "no-referrer"
+			Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		}
+	}
+
+	header -Server
+}

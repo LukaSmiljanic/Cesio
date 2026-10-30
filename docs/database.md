@@ -1,6 +1,6 @@
 # Database Design (SQL Server)
 
-Target: Microsoft SQL Server 2022+ compatible, hosted as **Azure SQL Database** (ADR-021). Local development and tests use the SQL Server Developer edition in Docker. Access via EF Core (`Microsoft.EntityFrameworkCore.SqlServer`), with migrations kept per module.
+Target: Microsoft SQL Server 2022+ compatible, running in a container on our own server, Express edition for the MVP (ADR-021, ADR-023). Local development and tests use the SQL Server Developer edition in Docker. Access via EF Core (`Microsoft.EntityFrameworkCore.SqlServer`), with migrations kept per module.
 
 ## 1. Conventions
 - **Schemas per module:** `auth` (identity; `identity` is a reserved word in T-SQL), `orgs`, `compliance`, `receivables`, `marketplace`, `deals`, `fees`, `documents`, `notifications`, `audit`, `platform` (config, outbox, processed events, idempotency). A module never writes another module's schema; cross-schema foreign keys are allowed **only** to stable reference rows (organization, user, receivable IDs) to protect integrity.
@@ -359,7 +359,7 @@ Audit tables: see [audit.md](audit.md) §4.
 ## 4. Concurrency & transaction boundaries
 - **Optimistic concurrency** (`version`) on every aggregate. A conflict returns HTTP 409, and the client re-fetches.
 - **Offer acceptance** = one transaction: `SELECT … WITH (UPDLOCK, ROWLOCK)` on the listing and receivable rows (pessimistic locking at the hottest point), update offer/others/listing/receivable, insert deal + outbox + audit. The filtered unique indexes are the last line of defence: even a code bug cannot create two live deals.
-- Isolation level: `READ COMMITTED` with `READ_COMMITTED_SNAPSHOT ON` (the Azure SQL default: readers don't block writers) + explicit `UPDLOCK` row locks + unique indexes (we do not rely on `SERIALIZABLE` retries).
+- Isolation level: `READ COMMITTED` with `READ_COMMITTED_SNAPSHOT ON` (readers don't block writers; on SQL Server in a container this is off by default and the migrator does not set it yet, an ADR-023 follow-up) + explicit `UPDLOCK` row locks + unique indexes (we do not rely on `SERIALIZABLE` retries).
 - **Outbox** rows are written in the same transaction as the state change. A background dispatcher claims batches with `WITH (UPDLOCK, READPAST, ROWLOCK)` and publishes them (at-least-once; consumers are idempotent by event ID).
 - **Idempotency:** every financial or state-changing POST requires an `Idempotency-Key` header (except the sign-in, account-recovery and session endpoints `/auth/*`, `/me/sessions`, `/me/step-up-check`, which are rate limited instead; product owner 2026-10-22, api.md §1). The row is inserted within the same transaction as the command. Replay with the same key and body hash → stored response; same key with a different body → 422. Retention: 30 days.
 - Scheduled jobs (expiry of listings and offers, SEF re-polling, authorization expiry) run as hosted services. An application lock per job (`sp_getapplock` with `@LockOwner = 'Session'`, on a connection held open for the whole run) ensures a single runner across instances.
@@ -368,10 +368,10 @@ Audit tables: see [audit.md](audit.md) §4.
 - `marketplace.listings (state, closes_at)` for the marketplace feed; `receivables.receivables (seller_org_id, state)`; `deals.deals (seller_org_id, state)`, `(factor_org_id, state)`; `receivables.invoices (debtor_id)` for exposure queries; `audit.audit_events (entity_type, entity_id, occurred_at)`.
 
 ## 6. Data protection in the DB
-- Azure-managed encryption at rest. Highly sensitive fields (SEF API keys) are **not** stored in the DB: they go to Key Vault, and the DB holds only the secret name.
+- Highly sensitive fields (SEF API keys) are stored only as ciphertext in `platform.secrets`, encrypted by the application with data protection; the key ring and its certificate live outside the database (ADR-023), so a database backup alone does not reveal them. `readonly_reporting` is denied that table. Disk encryption of the server is an operations measure.
 - Personal data (BO date of birth, representatives) lives in `compliance` and `orgs` only. Read access goes through the application role; reporting replicas exclude these columns.
-- Separate DB roles: `app_rw` (no DDL, no UPDATE/DELETE on immutable tables), `migrator` (DDL, used only in the pipeline), `readonly_reporting` (no grants until the reporting scope is defined in task 022; never `compliance`/`orgs` personal-data columns or `platform.idempotency_keys`). Platform.Migrator creates the roles and grants, so the pipeline runs it with a principal that may manage roles (e.g. `db_owner`); the API and worker connect as members of `app_rw` (task 024).
+- Separate DB roles: `app_rw` (no DDL, no UPDATE/DELETE on immutable tables), `migrator` (DDL, used only in the pipeline), `readonly_reporting` (no grants until the reporting scope is defined in task 022; never `compliance`/`orgs` personal-data columns or `platform.idempotency_keys`). Platform.Migrator creates the roles and grants, so it runs with an administrative login (`sa` in the compose file); it also creates or rotates the SQL login `cesio_app` (`Database:AppLogin`) as a member of `app_rw`, with which the API and worker connect (ADR-023).
 
 ## 7. Backups & retention
-- Point-in-time restore for 35 days (Azure SQL maximum) + long-term retention backups (prod template: weekly 12 weeks, monthly 12 months, yearly 10 years; the yearly period is a working assumption until LQ-47). Restores are tested quarterly.
+- Nightly full backups with transaction log backups in between, copied off the server (ADR-023, runbooks.md §3); kept weekly 12 weeks, monthly 12 months, yearly 10 years (the yearly period is a working assumption until LQ-47). Restores are tested quarterly.
 - Retention periods per record class follow LQ-47; until it is answered, **nothing financial or compliance-related is purged**.

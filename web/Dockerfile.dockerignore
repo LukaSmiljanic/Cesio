@@ -1,0 +1,8 @@
+# Used instead of the root .dockerignore when building web/Dockerfile (BuildKit): the SPA needs web/ and the Caddyfile.
+**
+!web/
+!deploy/Caddyfile
+web/node_modules/
+web/dist/
+web/coverage/
+web/.env*

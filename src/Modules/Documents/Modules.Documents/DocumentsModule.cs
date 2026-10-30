@@ -26,7 +26,7 @@ public static class DocumentsModule
     private const int RequestsPerMinute = 120;
 
     /// <summary>Environments where the fake scanner may run (tasks/README, Phase 2 stubs).</summary>
-    private static readonly string[] FakeScannerEnvironments = ["Development", "local", "dev", "staging"];
+    private static readonly string[] FakeScannerEnvironments = ["Development", "local", "dev"];
 
     public static IServiceCollection AddDocumentsModule(this IServiceCollection services)
     {

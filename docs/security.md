@@ -52,15 +52,15 @@ Signatory requires a link to an APR legal representative or a verified power of 
 - Integration tests include a **cross-tenant access suite** for every endpoint (e.g. factor B tries to read factor A's offer → 404).
 
 ## 4. Documents
-- Private Blob containers. Downloads go through an authorized API endpoint that streams the file or issues a **user-delegation SAS valid ≤ 60 s**, single blob, read-only, after the authorization check. Every download is audited.
-- Upload: allow-list of types (PDF, XML, PNG/JPG), magic-byte check, ≤ 20 MB, filename sanitised, stored under a random key. Files stay in `quarantine` until the malware scan (Defender for Storage) is clean, then move to `clean`. Infected files are blocked and the uploader is notified.
+- Files on the server's disk under `Storage:Root`, never served directly (ADR-023). Downloads go through an authorized API endpoint that streams the file after the authorization check. Every download is audited.
+- Upload: allow-list of types (PDF, XML, PNG/JPG), magic-byte check, ≤ 20 MB, filename sanitised, stored under a random key. Files stay in `quarantine` until the malware scan (ClamAV, ADR-023) is clean; without a verdict they stay there, then move to `clean`. Infected files are blocked and the uploader is notified.
 - PDFs shown to factors are watermarked with the factor org and timestamp (MVP: on download).
 - Every stored document keeps its SHA-256. The contract hash is fixed at the terms-checklist step; signatures must match it.
 
 ## 5. Encryption & secrets
-- TLS 1.2+ everywhere, HSTS. DB and Blob encryption at rest (platform-managed keys in the MVP; customer-managed keys later if required).
-- Key Vault for all secrets; managed identities; no secrets in config or repo (secret scanning in CI). SEF API keys: one secret per organization, write-only from the UI (never displayed again), and access is logged.
-- ASP.NET data protection keys are to be persisted to Blob and protected by Key Vault (target; a task 024 follow-up waiting for package approval, until then one API replica).
+- TLS 1.2+ everywhere, HSTS. Disk encryption on the server is an operations measure (ADR-023); the stored secrets are encrypted by the application in any case.
+- No secrets in config or repo (secret scanning in CI); server passwords come from the environment (`deploy/.env` on the server, never committed). SEF API keys: one secret per organization, stored encrypted in `platform.secrets` (ADR-023), write-only from the UI (never displayed again), and access is logged; the reporting role is denied that table.
+- ASP.NET data protection keys are persisted in a directory on a volume (`DataProtection:KeysPath`) and, outside Development, encrypted with an X.509 certificate (`DataProtection:CertificatePath`). The certificate is kept and backed up apart from the database (deploy/README.md).
 
 ## 6. API security
 - Same-origin SPA with cookies + anti-forgery tokens for state-changing requests. CORS is locked to our origins.
@@ -86,7 +86,7 @@ Signatory requires a link to an APR legal representative or a verified power of 
 - Security event log is retained ≥ 1 year online (subject to LQ-38/LQ-47).
 
 ## 9. Secure SDLC
-Dependency scanning, SAST (CodeQL), container image scanning, IaC scanning; threat model review per major feature; external **penetration test before production**; incident response runbook; backup restore drills.
+Dependency scanning, SAST (CodeQL), container image and configuration scanning (Trivy); threat model review per major feature; external **penetration test before production**; incident response runbook; backup restore drills.
 Runbooks (incident response, key rotation, backup restore drill), the rate-limit review and the scan record: [runbooks.md](runbooks.md).
 
 ## Appendix A. Threat model (STRIDE per module, task 023)
@@ -94,14 +94,14 @@ S = spoofing, T = tampering, R = repudiation, I = information disclosure, D = de
 
 | Module | S | T | R | I | D | E |
 |--------|---|---|---|---|---|---|
-| Identity | Password + mandatory TOTP MFA, step-up for sensitive actions, session revocation | Anti-forgery tokens on cookie requests; sessions server-side | Login, MFA and session events audited | No user enumeration on login/reset; generic errors; no passwords or tokens in logs (tested) | Per-IP auth rate limit (gap: the client IP behind the proxy, task 024) | Staff roles are claims from the staff realm; customer users cannot hold them (admin endpoints return 404 to customers, tested) |
+| Identity | Password + mandatory TOTP MFA, step-up for sensitive actions, session revocation | Anti-forgery tokens on cookie requests; sessions server-side | Login, MFA and session events audited | No user enumeration on login/reset; generic errors; no passwords or tokens in logs (tested) | Per-IP auth rate limit (client IP from the trusted proxy, ADR-023) | Staff roles are claims from the staff realm; customer users cannot hold them (admin endpoints return 404 to customers, tested) |
 | Organizations | Ownership claim by SEF key or the APR official-email link; bank accounts verified with a 72 h cool-down | Changes of official data go through confirmation; payout accounts audited | Every change audited with the actor | Members see only their organizations (generated cross-tenant suite) | Claim and bank-account limits of 10 per hour per user | Owner and Signatory checked per organization; four-eyes for an existing official email change is open |
 | Compliance | Factor authorization verified by two officers against the official source | Screening results and holds are append-only | Holds, reviews and decisions audited | Compliance data staff-only | Screening jobs serialised by a job lock | Only ComplianceOfficer verifies or lifts; FraudInvestigation holds cannot be lifted by the system |
-| Receivables | Invoices only from SEF with the seller as issuer | The invoice is immutable SEF evidence (ADR-012); triggers block updates | Import and state changes audited | Seller-only visibility; SEF keys in Key Vault, write-only | SEF polling per organization in background jobs | State machine enforced in the domain; INV-R1…R6 unique indexes |
+| Receivables | Invoices only from SEF with the seller as issuer | The invoice is immutable SEF evidence (ADR-012); triggers block updates | Import and state changes audited | Seller-only visibility; SEF keys encrypted in the database, write-only | SEF polling per organization in background jobs | State machine enforced in the domain; INV-R1…R6 unique indexes |
 | Marketplace | Only authorized factors make offers | Offer amounts as `Money`, snapshot at acceptance | Offers and acceptance audited | A factor never sees competing offers; audience control (tested) | Per-user marketplace read limit 120/min (anti-scraping) | Acceptance single transaction (ADR-006) |
 | Deals | Parties are the seller and the winning factor only | Signed documents hashed; funding report and confirmation by both sides | Deal steps, disputes and comments audited | Internal dispute notes staff-only | — | Holds block the next step (tested for every hold kind) |
 | Fees | — | Fee charges immutable; reversals are compensating rows | Charges, reversals and withdrawals audited | A factor sees only its own charges | — | Fee and money parameters need four-eyes |
 | Documents | Upload by the owning organization only | SHA-256 per file; malware scan before use | Downloads access-logged | No public blob URLs; short-lived streamed downloads | Per-user document limit 120/min; size limits | Visibility checked per document (cross-tenant suite) |
 | Notifications | Links point at our origin only (`Auth:PublicBaseUrl` is required outside Development and set per environment in appsettings) | Outbox rows written in the business transaction | Deliveries recorded | No PII in subjects beyond what the recipient owns | Deduplicated reminders | — |
 | Audit | — | Append-only: app role has no UPDATE/DELETE (tested), hash chain verified daily | This is the record | Search and export for ComplianceOfficer and Auditor only, access-logged | Export is step-up | — |
-| Platform / hosts | Managed identity to Key Vault, SQL and Blob | Migrations by a separate principal; CI deploys only | Job runs recorded in `platform.job_runs` | Security headers and strict CSP on the API (tested); SPA CSP is hosting config (task 024) | Jobs serialised by locks | Data protection keys (gap: persisted to Blob + Key Vault, task 024) |
+| Platform / hosts | The application signs in to SQL Server with the login `cesio_app` (member of the role `app_rw`); SSH deploy key per environment | Migrations by a separate (administrative) login; CI deploys only | Job runs recorded in `platform.job_runs` | Security headers and strict CSP on the API (tested); SPA CSP in the Caddyfile (`deploy/Caddyfile`) | Jobs serialised by locks | Data protection keys on a volume, encrypted with a certificate (ADR-023) |

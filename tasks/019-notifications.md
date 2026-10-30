@@ -11,7 +11,7 @@ Users receive in-app and email notifications for the events listed in the produc
 # Requirements
 - `notifications` schema: notifications (recipient user, org, type, payload JSON, read_at), preferences (user, type, channel, enabled), delivery attempts.
 - Outbox event consumers map domain events → recipients (by org role) → notifications. Mandatory types (security, deal step required, funding, holds) cannot be disabled.
-- Email: `IEmailSender` (ACS Email in Azure, smtp4dev locally); templates in Serbian Latin + English (user language preference); **no confidential details** in emails (no amounts, no debtor names; only "action required on deal DL-…" + a link).
+- Email: `IEmailSender` (an SMTP server with a login, ADR-023; smtp4dev locally); templates in Serbian Latin + English (user language preference); **no confidential details** in emails (no amounts, no debtor names; only "action required on deal DL-…" + a link).
 - In-app: `GET /notifications` (cursor), `POST /notifications/{id}/read`, unread count; a UI bell + list; a preferences page.
 - Factor digest: "new listings matching your filters" at most hourly (appetite filters stored per factor org; simple amount/tenor ranges).
 - Retry email sending (3x backoff); failures visible in admin integration health.

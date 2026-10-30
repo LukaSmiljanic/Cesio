@@ -5,7 +5,7 @@ description: Koristi u Cesio projektu kad menjaš šemu baze ili podatke u njoj 
 
 # Izmena baze
 
-Baza je SQL Server (Azure SQL u produkciji, ADR-021). Svaki modul ima svoju šemu i svoj `DbContext` izveden iz `ModuleDbContext`, i svoje migracije (ADR-003, `docs/database.md`). Konvencije (snake_case, `decimal(19,4)`, `datetimeoffset(3)`, `version`) primenjuje `ModuleDbContext` automatski.
+Baza je SQL Server (SQL Server u kontejneru na serveru, ADR-021, ADR-023). Svaki modul ima svoju šemu i svoj `DbContext` izveden iz `ModuleDbContext`, i svoje migracije (ADR-003, `docs/database.md`). Konvencije (snake_case, `decimal(19,4)`, `datetimeoffset(3)`, `version`) primenjuje `ModuleDbContext` automatski.
 
 ## Koraci
 1. Napravi migraciju alatom projekta (EF Core, lokalni alat iz `dotnet-tools.json`). Nikad ne menjaj šemu ručno.

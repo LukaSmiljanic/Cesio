@@ -11,7 +11,7 @@ Close the security checklist before an external penetration test and the product
 - Security headers: CSP (no inline scripts), HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, frame-ancestors none.
 - Rate-limit review for all endpoints; anti-scraping limits on the marketplace.
 - Log scrubbing tests (no secrets, tokens, account numbers or emails in plaintext logs).
-- Dependency, container and IaC scans clean (or accepted with a documented rationale).
+- Dependency, container and configuration scans clean (or accepted with a documented rationale).
 - Threat model document update (STRIDE per module) in `docs/security.md` appendix.
 - Incident response runbook, key rotation runbook (SEF keys, data protection keys), backup restore drill record.
 - Verify DB grants in a deployed environment (app role cannot UPDATE/DELETE audit or financial immutable columns).
@@ -44,7 +44,7 @@ Implementation notes (2026-10-24):
   - the `app_rw` role being refused UPDATE and DELETE on the audit log, and DELETE on fee charges, as a real database user.
 - STRIDE appendix: [security.md](../docs/security.md) Appendix A. Runbooks, the rate-limit review and the scan record: [runbooks.md](../docs/runbooks.md).
 - Open:
-  - forwarded client IP for the auth limiter, persisted data protection keys, container and IaC scans, the first restore drill and DB grants in a deployed environment: all task 024;
+  - forwarded client IP for the auth limiter, persisted data protection keys, container and configuration scans, the first restore drill and DB grants in a deployed environment: all task 024;
   - a staff "sign out user" action (none exists; noted in the runbook);
   - the external penetration test, which the product owner engages.
 

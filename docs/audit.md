@@ -5,7 +5,7 @@ Goal: for any receivable, deal, organization or fee, we can reconstruct **who di
 ## 1. Principles
 1. **Write in the same DB transaction** as the business change. If the audit write fails, the business change fails.
 2. **Append-only.** The application DB role has `INSERT, SELECT` only on `audit.*`. Updates and deletes are denied, and an INSTEAD OF trigger raises on any attempt (EF mapping declares it with `HasTrigger`).
-3. **Tamper-evident.** Each event stores `hash = SHA-256(prev_hash || canonical_json(event))` in a single chain (serialised by an application lock, `sp_getapplock` with `@LockOwner = 'Transaction'`, so the lock is held until the event commits; volume is low). A daily job verifies the chain and writes a signed daily digest to **immutable (WORM) Azure Blob storage** with a time-based retention policy.
+3. **Tamper-evident.** Each event stores `hash = SHA-256(prev_hash || canonical_json(event))` in a single chain (serialised by an application lock, `sp_getapplock` with `@LockOwner = 'Transaction'`, so the lock is held until the event commits; volume is low). A daily job verifies the chain and writes a signed daily digest as a read-only file under `Storage:Root/audit-digests`; a daily copy off the server, where it cannot be overwritten, keeps it immutable (ADR-023, runbooks.md §3).
 4. **Business intent, not only row diffs.** Events are named actions (`OfferAccepted`), not just `UPDATE deals`.
 5. **Financial records are never deleted.** Corrections are new records (reversals, compensating events).
 
@@ -65,7 +65,7 @@ CREATE INDEX ix_audit_org ON audit.audit_events(on_behalf_of_org_id, occurred_at
 -- related, changes, evidence_document_ids: JSON with CHECK (ISJSON(...) = 1)
 CREATE TABLE audit.access_log (...)  -- high-volume reads (listing views, downloads), same append-only rules, no hash chain
 ```
-Partition by month (SQL Server table partitioning) when volume requires it. Retention ≥ 10 years pending LQ-47. Archive older partitions to WORM Blob (Parquet/JSONL with digests) rather than delete.
+Partition by month (SQL Server table partitioning) when volume requires it. Retention ≥ 10 years pending LQ-47. Archive older partitions to write-once storage off the server (JSONL with digests) rather than delete.
 
 ## 5. Access to audit data
 - Organizations see the audit history of **their own** entities (with staff identities shown as "Platform compliance").

@@ -1,7 +1,7 @@
 # Architecture
 
 ## 1. Summary
-A **modular monolith**: one deployable ASP.NET Core application (API + background workers in the same codebase, two process roles), one SQL Server database (Azure SQL Database, ADR-021) with a schema per module, and a React + TypeScript SPA. Hosted on Azure in an EU region.
+A **modular monolith**: one deployable ASP.NET Core application (API + background workers in the same codebase, two process roles), one SQL Server database (ADR-021) with a schema per module, and a React + TypeScript SPA. Hosted on our own Linux server with Docker (ADR-023).
 
 Expected load (≈ 5–50 deals/business day, hundreds of organizations) is tiny. The risks are **correctness, security and auditability**, not scale. Every architectural choice optimises for those.
 
@@ -10,17 +10,17 @@ Expected load (≈ 5–50 deals/business day, hundreds of organizations) is tiny
 |---------|--------|-------|
 | Runtime | .NET 10 (LTS), ASP.NET Core minimal APIs or controllers (pick one, ADR-002) | C# nullable enabled, warnings as errors |
 | Persistence | EF Core + `Microsoft.EntityFrameworkCore.SqlServer`; raw SQL allowed for locking/reporting | One `DbContext` per module, each mapped to its own schema |
-| DB | SQL Server 2022+ compatible: Azure SQL Database (General Purpose, zone-redundant in production); SQL Server Developer edition in Docker locally | ADR-021 |
-| Frontend | React + TypeScript + Vite; TanStack Query; React Router; a form library + zod; shadcn/ui + Tailwind + TanStack Table (ADR-010) | The SPA is served by Azure Static Web Apps or from the API container |
+| DB | SQL Server 2022 in a container: Express edition for the MVP (Standard later, no code change); Developer edition in Docker locally | ADR-021, ADR-023 |
+| Frontend | React + TypeScript + Vite; TanStack Query; React Router; a form library + zod; shadcn/ui + Tailwind + TanStack Table (ADR-010) | Caddy serves the SPA and proxies `/api` on the same origin (ADR-023) |
 | Auth | ASP.NET Core Identity (own user store) + mandatory TOTP/WebAuthn MFA, cookie auth for the SPA (same-site, BFF pattern) | ADR-005. Entra External ID was considered |
-| Files | Azure Blob Storage (private containers only), Defender for Storage malware scanning | No public URLs ever |
-| Secrets | Azure Key Vault + managed identity | SEF API keys stored per organization as Key Vault secrets |
-| Email | Azure Communication Services Email (or another transactional provider) behind `IEmailSender` | |
+| Files | The server's disk under `Storage:Root` (quarantine and clean folders), ClamAV malware scanning | No public URLs ever (ADR-023) |
+| Secrets | Encrypted in the database (`platform.secrets`) with ASP.NET Core data protection; the key ring is protected by an X.509 certificate | SEF API keys stored per organization (ADR-023) |
+| Email | Any SMTP server with a login, behind `IEmailSender` | |
 | Background jobs | `BackgroundService` + database outbox + application locks (`sp_getapplock`) | No Hangfire/Redis until a need is documented |
-| Observability | OpenTelemetry → Azure Monitor / Application Insights; structured logging (Serilog or MEL) with PII scrubbing | |
-| Hosting | Azure Container Apps (API + worker as two apps from one image) | App Service for Containers is an equal alternative |
-| IaC / CI | Bicep; GitHub Actions or Azure DevOps; Docker multi-stage build | |
-| Local dev | `docker compose` (SQL Server Developer, Azurite, smtp4dev) | |
+| Observability | OpenTelemetry; JSON console logs (MEL) collected by Docker, with PII scrubbing | A log server (Seq, Loki) later |
+| Hosting | One Linux server with Docker per environment; `docker compose` runs API, worker, migrator, SQL Server, ClamAV and Caddy; one application image plus a web image (`deploy/`) | ADR-023 |
+| CI / CD | GitHub Actions; Docker multi-stage build; images in GitHub Container Registry, deployed over SSH | ADR-023 |
+| Local dev | `docker compose` (SQL Server Developer, smtp4dev) | |
 
 **Not used** (no documented requirement): microservices, Kafka/Service Bus, Kubernetes, Elasticsearch, Redis, MediatR-style frameworks (allowed only if ADR'd), CQRS with separate stores.
 
@@ -43,7 +43,7 @@ src/
     Audit/                      -- append-only audit store, query API
   Shared/
     Shared.Kernel/              -- Money, Currency, Pib, Mb, AccountNumber, Result, clock, IDs, domain events
-    Shared.Infrastructure/      -- outbox, idempotency, EF conventions, blob storage, Key Vault, business-day calendar
+    Shared.Infrastructure/      -- outbox, idempotency, EF conventions, file storage, secret store, business-day calendar
   Integrations/
     Integrations.Sef/           -- SEF API client (read-only operations only)
     Integrations.Cef/           -- interface + "not operational" implementation (MVP)
@@ -88,9 +88,9 @@ Integrations.* ← used by Receivables (SEF), Deals (CEF, Signatures), Complianc
 - **Configuration:** business parameters live in the DB (versioned, audited), not in appsettings.
 
 ## 6. Environments & deployment
-- `local` (compose), `dev`, `staging` (SEF **demo** environment), `prod` (SEF production). Separate Azure subscriptions or resource groups; no prod data outside prod.
-- Pipeline: build → unit tests → integration tests (Testcontainers) → architecture tests → SAST/dependency scan → container image (signed) → deploy to staging → smoke tests → manual approval → prod. DB migrations are applied by a dedicated migration job (Platform.Migrator) whose principal holds the `migrator` DDL role and may manage roles and grants (database.md §6), and must be backward compatible (expand/contract).
-- Region: an EU region (e.g. Germany West Central / West Europe), pending LQ-35. Backups stay in the paired EU region.
+- `local` (compose), `dev`, `staging` (SEF **demo** environment), `prod` (SEF production). A separate server per environment; no prod data outside prod.
+- Pipeline: build → unit tests → integration tests (Testcontainers) → architecture tests → SAST/dependency scan → container image (signed) → deploy to staging → smoke tests → manual approval → prod. DB migrations are applied by a dedicated migration job (Platform.Migrator) which runs with an administrative login that may manage roles, grants and the application login (database.md §6), and must be backward compatible (expand/contract).
+- Location of the server and of off-site backups: not decided (ADR-023), pending LQ-35.
 
 ## 7. Scaling path (only when needed)
-Scale the API horizontally (stateless; data protection keys in Blob + Key Vault). Move reporting to a read replica. If outbox throughput ever becomes a bottleneck, introduce Azure Service Bus, documented as an ADR.
+Scale the API horizontally (stateless; the data protection key directory shared by the replicas). Move reporting to a read replica. If outbox throughput ever becomes a bottleneck, introduce a message broker, documented as an ADR.

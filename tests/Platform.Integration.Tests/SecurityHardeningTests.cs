@@ -1,11 +1,13 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Security.Cryptography;
 using Integrations.Sef;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Platform.Integration.Tests.Infrastructure;
 using Shared.Infrastructure.Persistence;
+using Shared.Infrastructure.Secrets;
 
 namespace Platform.Integration.Tests;
 
@@ -79,6 +81,28 @@ public sealed class SecurityHardeningTests(SqlServerContainer server) : IAsyncLi
         // ADR-023: the SEF key is stored only encrypted.
         Assert.Equal(1, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM platform.secrets WHERE name = 'sef-key-{org:N}'"));
         Assert.Equal(0, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM platform.secrets WHERE ciphertext LIKE '%{key}%'"));
+    }
+
+    [Fact]
+    public async Task A_secret_copied_to_another_name_does_not_decrypt()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        await using (var scope = _app.Services.CreateAsyncScope())
+        {
+            var secrets = scope.ServiceProvider.GetRequiredService<ISecretStore>();
+            await secrets.SetAsync("sef-key-a", "key of organization A", ct);
+            await secrets.SetAsync("sef-key-b", "key of organization B", ct);
+            Assert.Equal("key of organization A", await secrets.GetAsync("sef-key-a", ct));
+        }
+
+        await using (var connection = new SqlConnection(_database.ConnectionString))
+        {
+            await connection.OpenAsync(ct);
+            await ExecAsync(connection, "UPDATE platform.secrets SET ciphertext = (SELECT ciphertext FROM platform.secrets WHERE name = 'sef-key-a') WHERE name = 'sef-key-b'");
+        }
+
+        await using var readScope = _app.Services.CreateAsyncScope();
+        await Assert.ThrowsAnyAsync<CryptographicException>(() => readScope.ServiceProvider.GetRequiredService<ISecretStore>().GetAsync("sef-key-b", ct));
     }
 
     [Fact]
