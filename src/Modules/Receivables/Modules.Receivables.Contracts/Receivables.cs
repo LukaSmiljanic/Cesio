@@ -41,6 +41,9 @@ public sealed record MarketReceivable(
     Guid UblDocumentId,
     IReadOnlyList<Guid> EvidenceDocumentIds);
 
+/// <summary>What a marketplace feed card shows about a receivable, read for a whole page at once.</summary>
+public sealed record MarketReceivableSummary(Guid Id, string DebtorLegalName, string SefStatus);
+
 /// <summary>The buyer approval in SEF as far as it is known now (INV-R4).</summary>
 public enum SefApproval
 {
@@ -54,6 +57,9 @@ public interface IReceivableMarket
 {
     /// <summary>The receivable for any organization; the caller decides who may see it.</summary>
     Task<MarketReceivable?> GetAsync(Guid receivableId, CancellationToken cancellationToken);
+
+    /// <summary>The feed summaries of <paramref name="receivableIds"/> for any organization; the caller decides who may see them.</summary>
+    Task<IReadOnlyDictionary<Guid, MarketReceivableSummary>> SummariesAsync(IReadOnlyCollection<Guid> receivableIds, CancellationToken cancellationToken);
 
     /// <summary>
     /// INV-R4: the stored SEF status if it was checked within <paramref name="maxAge"/>, otherwise a fresh poll (saved

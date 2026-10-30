@@ -48,6 +48,14 @@ internal sealed class ReceivableMarket(
             evidence);
     }
 
+    public async Task<IReadOnlyDictionary<Guid, MarketReceivableSummary>> SummariesAsync(IReadOnlyCollection<Guid> receivableIds, CancellationToken cancellationToken) =>
+        await (from receivable in receivables.Receivables.IgnoreQueryFilters().AsNoTracking()
+               join invoice in receivables.Invoices.IgnoreQueryFilters().AsNoTracking() on receivable.InvoiceId equals invoice.Id
+               join debtor in receivables.Debtors.AsNoTracking() on receivable.DebtorId equals debtor.Id
+               where receivableIds.Contains(receivable.Id)
+               select new MarketReceivableSummary(receivable.Id, debtor.LegalName, invoice.SefStatus))
+            .ToDictionaryAsync(summary => summary.Id, cancellationToken);
+
     public async Task<SefApproval> EnsureFreshApprovalAsync(Guid receivableId, TimeSpan maxAge, CancellationToken cancellationToken)
     {
         var receivable = await receivables.Receivables.IgnoreQueryFilters().AsNoTracking().SingleAsync(r => r.Id == receivableId, cancellationToken);

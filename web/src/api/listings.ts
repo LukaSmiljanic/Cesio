@@ -30,7 +30,11 @@ export interface FeedItem {
   maturityDate: string
   daysToMaturity: number
   debtorPib: string
+  debtorName: string | null
+  sefStatus: string | null
   closesAt: string
+  /** The viewer's own Active offer on this listing; competing offers are never sent (api.md §3.4). */
+  ownOffer: { id: string; purchasePrice: Money } | null
 }
 
 export interface FeedFilters {
@@ -40,6 +44,7 @@ export interface FeedFilters {
   maxDays?: string
   debtorPib?: string
   sort?: 'closesAt' | 'amount'
+  withoutOwnOffer?: 'true'
 }
 
 export interface ListingDetail {

@@ -12,7 +12,7 @@ Sellers publish verified receivables as time-boxed listings to all or selected v
 - `POST /receivables/{id}/listings` ♻ per api.md §3.3 (audience, exclusions, closesAt, optional reserve price).
 - `POST /listings/{id}/withdraw` ♻ (seller; only if no accepted offer) → Withdrawn; receivable → Verified; Active offers → Superseded (implemented in 013; here emit `ListingWithdrawn`).
 - Admin suspend/resume listing (Operations, with reason).
-- `GET /marketplace/listings` (cursor pagination; filters: amount range, days to maturity, debtor PIB, sort by closesAt/amount) and `GET /marketplace/listings/{id}` with visibility rules: factor authorized; audience includes it; not excluded; not related (shared PIB/MB/BO flag → hidden pending review).
+- `GET /marketplace/listings` (cursor pagination; filters: amount range, days to maturity, debtor PIB, `withoutOwnOffer`, sort by closesAt/amount; the summary carries the debtor name, SEF status and the factor's own Active offer, added 2026-10-30 for the card view) and `GET /marketplace/listings/{id}` with visibility rules: factor authorized; audience includes it; not excluded; not related (shared PIB/MB/BO flag → hidden pending review).
 - Listing detail exposes the data in api.md §3.4; never the reserve price or other offers.
 - Document downloads for listing attachments via 006 with watermarking + access log (MVP 2026-10-23: access log only; the watermark is deferred until task 006 provides one).
 - UI: seller "publish listing" dialog; seller listing page; factor marketplace feed + detail.

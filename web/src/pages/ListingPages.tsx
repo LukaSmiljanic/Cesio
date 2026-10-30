@@ -1,8 +1,8 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { download } from '../api/client'
-import { listingsApi, type AudienceType, type FeedFilters } from '../api/listings'
+import { listingsApi, type AudienceType, type FeedFilters, type FeedItem } from '../api/listings'
 import { formatMoney } from '../api/receivables'
 import { Segmented } from '../components/inputs'
 import {
@@ -179,11 +179,119 @@ export function SellerListingsPage() {
   )
 }
 
-/** The factor marketplace feed with filters and cursor paging (task 012). */
+type MarketView = 'cards' | 'table'
+
+const viewKey = 'cesio.marketView'
+
+function storedView(): MarketView {
+  try {
+    return localStorage.getItem(viewKey) === 'table' ? 'table' : 'cards'
+  } catch {
+    return 'cards'
+  }
+}
+
+/** Quick filters on top of the detailed form; each sets one feed filter. */
+const quickFilters: { label: string; filter: FeedFilters }[] = [
+  { label: 'Dospeće do 90 dana', filter: { maxDays: '90' } },
+  { label: 'Od 1 mil. RSD', filter: { minAmount: '1000000' } },
+  { label: 'Bez moje ponude', filter: { withoutOwnOffer: 'true' } },
+]
+
+function isOn(filters: FeedFilters, quick: FeedFilters): boolean {
+  return Object.entries(quick).every(([key, value]) => filters[key as keyof FeedFilters] === value)
+}
+
+function toggle(filters: FeedFilters, quick: FeedFilters): FeedFilters {
+  const next = { ...filters }
+  for (const [key, value] of Object.entries(quick)) {
+    const name = key as keyof FeedFilters
+    if (isOn(filters, quick)) {
+      delete next[name]
+    } else {
+      Object.assign(next, { [name]: value })
+    }
+  }
+  return next
+}
+
+/** Time left to offer: hours under a day (warning), days otherwise. */
+function timeLeft(closesAt: string, now: number): { text: string; urgent: boolean } {
+  const hours = Math.max(0, (new Date(closesAt).getTime() - now) / 3_600_000)
+  if (hours < 24) {
+    return { text: hours < 1 ? 'manje od 1 h' : `${Math.floor(hours)} h`, urgent: true }
+  }
+  const days = Math.floor(hours / 24)
+  return { text: days === 1 ? '1 dan' : `${days} dana`, urgent: false }
+}
+
+function ListingCard({ item, longest, now }: { item: FeedItem; longest: number; now: number }) {
+  const left = timeLeft(item.closesAt, now)
+  const share = longest > 0 ? Math.max(4, Math.round((item.daysToMaturity / longest) * 100)) : 0
+  return (
+    <article className="flex flex-col gap-3.5 rounded-lg border border-line bg-surface p-4 transition-colors hover:border-ink-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-[15px] font-semibold" title={item.debtorName ?? undefined}>
+            {item.debtorName ?? 'Dužnik'}
+          </h3>
+          <div className="font-mono text-xs text-ink-3">PIB {item.debtorPib}</div>
+        </div>
+        <span title={`Ponude do ${dateTime(item.closesAt)}`}>
+          <Chip tone={left.urgent ? 'warn' : 'neutral'}>{left.text}</Chip>
+        </span>
+      </div>
+      <div>
+        <div className="text-xs text-ink-3">Iznos potraživanja</div>
+        <div className="text-[22px] font-semibold tracking-tight">
+          {formatMoney(item.faceValue)}
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex justify-between text-xs text-ink-3">
+          <span>Dospeće {formatDate(item.maturityDate)}</span>
+          <span>{item.daysToMaturity} dana</span>
+        </div>
+        <div className="h-1 overflow-hidden rounded-full bg-surface-2" aria-hidden>
+          <div className="h-full rounded-full bg-accent" style={{ width: `${share}%` }} />
+        </div>
+      </div>
+      {item.sefStatus && (
+        <div>
+          <Chip tone={item.sefStatus === 'Approved' ? 'pos' : 'warn'}>
+            SEF: {item.sefStatus === 'Approved' ? 'prihvaćena' : item.sefStatus}
+          </Chip>
+        </div>
+      )}
+      <div className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-3">
+        {item.ownOffer ? (
+          <Chip tone="accent">Vaša ponuda {formatMoney(item.ownOffer.purchasePrice)}</Chip>
+        ) : (
+          <span className="text-xs text-ink-3">Nemate ponudu</span>
+        )}
+        <Link
+          to={`/marketplace/${item.id}`}
+          className={buttonClass(item.ownOffer ? 'secondary' : 'primary', 'sm')}
+        >
+          {item.ownOffer ? 'Otvori' : 'Daj ponudu'}
+        </Link>
+      </div>
+    </article>
+  )
+}
+
+/** The factor marketplace feed with filters and cursor paging (task 012), as cards or a table. */
 export function MarketplacePage() {
   const navigate = useNavigate()
+  const [view, setView] = useState<MarketView>(storedView)
   const [draft, setDraft] = useState<FeedFilters>({ sort: 'closesAt' })
   const [filters, setFilters] = useState<FeedFilters>({ sort: 'closesAt' })
+  const [now, setNow] = useState(() => Date.now())
+  // The countdowns on the cards move once a minute.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
   const feed = useInfiniteQuery({
     queryKey: ['marketplace', filters],
     queryFn: ({ pageParam }) => listingsApi.feed(filters, pageParam),
@@ -196,106 +304,190 @@ export function MarketplacePage() {
     setFilters(draft)
   }
 
+  function apply(next: FeedFilters) {
+    setDraft(next)
+    setFilters(next)
+  }
+
+  function choose(next: MarketView) {
+    setView(next)
+    try {
+      localStorage.setItem(viewKey, next)
+    } catch {
+      // The choice then lasts only for this visit.
+    }
+  }
+
   const items = feed.data?.pages.flatMap((page) => page.items) ?? []
+  const longest = Math.max(0, ...items.map((item) => item.daysToMaturity))
   return (
     <>
-      <PageHeader eyebrow="Faktor" title="Tržište" />
-      <Panel title="Filteri">
-        <form
-          className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] items-end gap-3.5"
-          onSubmit={submit}
-        >
-          <Field
-            id="minAmount"
-            label="Iznos od (RSD)"
-            inputMode="decimal"
-            value={draft.minAmount ?? ''}
-            onChange={(e) => setDraft({ ...draft, minAmount: e.target.value })}
-          />
-          <Field
-            id="maxAmount"
-            label="Iznos do (RSD)"
-            inputMode="decimal"
-            value={draft.maxAmount ?? ''}
-            onChange={(e) => setDraft({ ...draft, maxAmount: e.target.value })}
-          />
-          <Field
-            id="minDays"
-            label="Dana do dospeća, od"
-            inputMode="numeric"
-            value={draft.minDays ?? ''}
-            onChange={(e) => setDraft({ ...draft, minDays: e.target.value })}
-          />
-          <Field
-            id="maxDays"
-            label="Dana do dospeća, do"
-            inputMode="numeric"
-            value={draft.maxDays ?? ''}
-            onChange={(e) => setDraft({ ...draft, maxDays: e.target.value })}
-          />
-          <Field
-            id="debtorPib"
-            label="PIB dužnika"
-            inputMode="numeric"
-            value={draft.debtorPib ?? ''}
-            onChange={(e) => setDraft({ ...draft, debtorPib: e.target.value })}
-          />
-          <label className="flex flex-col gap-1.5 text-[12.5px] font-semibold text-ink-2">
-            Sortiranje
-            <select
-              className={selectClass}
-              value={draft.sort}
-              onChange={(e) => setDraft({ ...draft, sort: e.target.value as FeedFilters['sort'] })}
+      <PageHeader eyebrow="Faktor · vidite samo oglase namenjene vama" title="Tržište" />
+      <div className="flex flex-wrap items-end gap-3">
+        <Segmented
+          label="Prikaz"
+          value={view}
+          options={[
+            { value: 'cards', label: 'Kartice' },
+            { value: 'table', label: 'Tabela' },
+          ]}
+          onChange={choose}
+        />
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Brzi filteri">
+          {quickFilters.map((quick) => (
+            <button
+              key={quick.label}
+              type="button"
+              aria-pressed={isOn(filters, quick.filter)}
+              onClick={() => apply(toggle(filters, quick.filter))}
+              className={`h-9 rounded-full border px-3.5 text-sm font-medium ${
+                isOn(filters, quick.filter)
+                  ? 'border-accent bg-accent-soft text-accent'
+                  : 'border-line bg-surface text-ink-2 hover:text-ink'
+              }`}
             >
-              <option value="closesAt">Po roku za ponude</option>
-              <option value="amount">Po iznosu</option>
-            </select>
-          </label>
-          <Button type="submit">Primeni</Button>
-        </form>
-      </Panel>
-      <ErrorMessage error={feed.error} />
-      <Panel padded={false}>
-        <table>
-          <thead>
-            <tr>
-              <th className="text-right">Iznos potraživanja</th>
-              <th>Dužnik (PIB)</th>
-              <th>Dospeće</th>
-              <th className="text-right">Dana do dospeća</th>
-              <th>Ponude do</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((l) => (
-              <tr
-                key={l.id}
-                className="cursor-pointer hover:bg-surface-2"
-                onClick={() => navigate(`/marketplace/${l.id}`)}
+              {quick.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <details className="group rounded-lg border border-line bg-surface">
+        <summary className="cursor-pointer list-none px-[18px] py-3 text-sm font-semibold text-ink-2 select-none hover:text-ink">
+          Detaljni filteri{' '}
+          <span className="text-ink-3 group-open:hidden">
+            (iznos, dani, PIB dužnika, sortiranje)
+          </span>
+        </summary>
+        <div className="border-t border-line p-[18px]">
+          <form
+            className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] items-end gap-3.5"
+            onSubmit={submit}
+          >
+            <Field
+              id="minAmount"
+              label="Iznos od (RSD)"
+              inputMode="decimal"
+              value={draft.minAmount ?? ''}
+              onChange={(e) => setDraft({ ...draft, minAmount: e.target.value })}
+            />
+            <Field
+              id="maxAmount"
+              label="Iznos do (RSD)"
+              inputMode="decimal"
+              value={draft.maxAmount ?? ''}
+              onChange={(e) => setDraft({ ...draft, maxAmount: e.target.value })}
+            />
+            <Field
+              id="minDays"
+              label="Dana do dospeća, od"
+              inputMode="numeric"
+              value={draft.minDays ?? ''}
+              onChange={(e) => setDraft({ ...draft, minDays: e.target.value })}
+            />
+            <Field
+              id="maxDays"
+              label="Dana do dospeća, do"
+              inputMode="numeric"
+              value={draft.maxDays ?? ''}
+              onChange={(e) => setDraft({ ...draft, maxDays: e.target.value })}
+            />
+            <Field
+              id="debtorPib"
+              label="PIB dužnika"
+              inputMode="numeric"
+              value={draft.debtorPib ?? ''}
+              onChange={(e) => setDraft({ ...draft, debtorPib: e.target.value })}
+            />
+            <label className="flex flex-col gap-1.5 text-[12.5px] font-semibold text-ink-2">
+              Sortiranje
+              <select
+                className={selectClass}
+                value={draft.sort}
+                onChange={(e) =>
+                  setDraft({ ...draft, sort: e.target.value as FeedFilters['sort'] })
+                }
               >
-                <td className="text-right font-medium">{formatMoney(l.faceValue)}</td>
-                <td className="font-mono text-[13px]">{l.debtorPib}</td>
-                <td>{formatDate(l.maturityDate)}</td>
-                <td className="text-right">{l.daysToMaturity}</td>
-                <td>{dateTime(l.closesAt)}</td>
-                <td className="text-right">
-                  <Link
-                    to={`/marketplace/${l.id}`}
-                    className={buttonClass('primary', 'sm')}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Otvori
-                  </Link>
-                </td>
-              </tr>
+                <option value="closesAt">Po roku za ponude</option>
+                <option value="amount">Po iznosu</option>
+              </select>
+            </label>
+            <Button type="submit">Primeni</Button>
+          </form>
+        </div>
+      </details>
+      <ErrorMessage error={feed.error} />
+      {view === 'cards' ? (
+        <>
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3.5">
+            {items.map((item) => (
+              <ListingCard key={item.id} item={item} longest={longest} now={now} />
             ))}
-            {feed.isSuccess && items.length === 0 && (
-              <EmptyRow columns={6}>Nema oglasa koji odgovaraju filterima.</EmptyRow>
-            )}
-          </tbody>
-        </table>
-      </Panel>
+          </div>
+          {feed.isSuccess && items.length === 0 && (
+            <Panel>
+              <p className="text-center text-sm text-ink-3">
+                Nema oglasa koji odgovaraju filterima.
+              </p>
+            </Panel>
+          )}
+        </>
+      ) : (
+        <Panel padded={false}>
+          <table>
+            <thead>
+              <tr>
+                <th>Dužnik</th>
+                <th className="text-right">Iznos potraživanja</th>
+                <th>Dospeće</th>
+                <th>SEF</th>
+                <th>Ponude do</th>
+                <th>Vaša ponuda</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((l) => (
+                <tr
+                  key={l.id}
+                  className="cursor-pointer hover:bg-surface-2"
+                  onClick={() => navigate(`/marketplace/${l.id}`)}
+                >
+                  <td>
+                    <div className="font-medium">{l.debtorName ?? '—'}</div>
+                    <div className="font-mono text-xs text-ink-3">{l.debtorPib}</div>
+                  </td>
+                  <td className="text-right font-medium">{formatMoney(l.faceValue)}</td>
+                  <td>
+                    {formatDate(l.maturityDate)}{' '}
+                    <span className="text-ink-3">({l.daysToMaturity} d)</span>
+                  </td>
+                  <td>
+                    {l.sefStatus && (
+                      <Chip tone={l.sefStatus === 'Approved' ? 'pos' : 'warn'}>
+                        {l.sefStatus === 'Approved' ? 'prihvaćena' : l.sefStatus}
+                      </Chip>
+                    )}
+                  </td>
+                  <td>{dateTime(l.closesAt)}</td>
+                  <td>{l.ownOffer ? formatMoney(l.ownOffer.purchasePrice) : '—'}</td>
+                  <td className="text-right">
+                    <Link
+                      to={`/marketplace/${l.id}`}
+                      className={buttonClass('primary', 'sm')}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Otvori
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+              {feed.isSuccess && items.length === 0 && (
+                <EmptyRow columns={7}>Nema oglasa koji odgovaraju filterima.</EmptyRow>
+              )}
+            </tbody>
+          </table>
+        </Panel>
+      )}
       {feed.hasNextPage && (
         <div>
           <Button

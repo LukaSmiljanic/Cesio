@@ -25,7 +25,7 @@ public sealed record OpenListingRequest(DateTimeOffset ClosesAt, AudienceRequest
 public sealed record ListingActionRequest(string? Reason);
 
 /// <summary>Feed filters (api.md §3.4); amounts are RSD, days are days to maturity.</summary>
-public sealed record FeedQuery(string? Cursor, int? Limit, decimal? MinAmount, decimal? MaxAmount, int? MinDays, int? MaxDays, string? DebtorPib, string? Sort);
+public sealed record FeedQuery(string? Cursor, int? Limit, decimal? MinAmount, decimal? MaxAmount, int? MinDays, int? MaxDays, string? DebtorPib, string? Sort, bool? WithoutOwnOffer);
 
 /// <summary>Listings (task 012): sellers open, read and withdraw them, factors browse what they may see, operations suspend.</summary>
 internal sealed class ListingService(
@@ -307,6 +307,11 @@ internal sealed class ListingService(
             listings = listings.Where(l => l.DebtorPib == debtorPib);
         }
 
+        if (query.WithoutOwnOffer == true)
+        {
+            listings = listings.Where(l => !marketplace.Offers.Any(o => o.ListingId == l.Id && o.FactorOrgId == viewer.OrganizationId && o.State == OfferState.Active));
+        }
+
         var offset = 0;
         if (query.Cursor is not null)
         {
@@ -322,6 +327,12 @@ internal sealed class ListingService(
         var ordered = byAmount ? listings.OrderBy(l => l.FaceValue.Amount).ThenBy(l => l.Id) : listings.OrderBy(l => l.ClosesAt).ThenBy(l => l.Id);
         var page = await ordered.Skip(offset).Take(limit + 1).ToListAsync(cancellationToken);
         var items = page.Take(limit).ToList();
+        var summaries = await receivables.SummariesAsync(items.Select(l => l.ReceivableId).ToList(), cancellationToken);
+        var listingIds = items.Select(l => l.Id).ToList();
+        // Only the viewer's own Active offers: a factor never learns about competing offers (api.md §3.4).
+        var ownOffers = await marketplace.Offers.AsNoTracking()
+            .Where(o => listingIds.Contains(o.ListingId) && o.FactorOrgId == viewer.OrganizationId && o.State == OfferState.Active)
+            .ToDictionaryAsync(o => o.ListingId, cancellationToken);
         return Results.Ok(new
         {
             items = items.Select(l => new
@@ -331,7 +342,10 @@ internal sealed class ListingService(
                 maturityDate = l.MaturityDate,
                 daysToMaturity = l.MaturityDate.DayNumber - today.DayNumber,
                 debtorPib = l.DebtorPib,
+                debtorName = summaries.TryGetValue(l.ReceivableId, out var summary) ? summary.DebtorLegalName : null,
+                sefStatus = summary?.SefStatus,
                 closesAt = l.ClosesAt,
+                ownOffer = ownOffers.TryGetValue(l.Id, out var own) ? new { id = own.Id, purchasePrice = own.PurchasePrice.Round() } : null,
             }),
             nextCursor = page.Count > limit ? EncodeCursor(offset + limit) : null,
         });

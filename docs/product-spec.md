@@ -89,7 +89,7 @@ Official sources: factoring companies are checked in the APR factoring register,
 5. The seller publishes a listing: audience, listing duration (≤ maturity − buffer), optional reserve price, and an optional note.
 
 ### 6.4 Offer and acceptance
-1. Eligible factors see the listing (debtor identity, amounts, dates, SEF status, documents; download is watermarked and logged).
+1. Eligible factors see the listing (debtor identity, amounts, dates, SEF status, documents; download is watermarked and logged). The marketplace feed also shows each factor its own Active offer, never anyone else's.
 2. A factor submits an offer: purchase price, recourse type, funding deadline (business days after signature), offer validity, and conditions (free text, limited).
 3. The seller compares offers (purchase price, discount, implied annual cost, recourse, factor name) and a **Signatory** accepts one (step-up MFA).
 4. Acceptance atomically: closes the listing, marks the other offers as Superseded, reserves the receivable, creates the Deal, and notifies everyone.

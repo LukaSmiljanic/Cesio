@@ -96,7 +96,7 @@ Accessibility target: **WCAG 2.1 AA** (contrast, keyboard navigation, focus visi
 
 ## 10. Open design questions
 - D-01: Offer comparison: show the indicative annual cost at all (LQ-04)? The prototype shows it, labelled as indicative.
-- D-02: Should the debtor name be visible in the marketplace feed or only in the detail view (BQ-06)?
+- D-02: ~~Should the debtor name be visible in the marketplace feed or only in the detail view (BQ-06)?~~ Answered by BQ-06 (business-model.md: full identity to the selected audience): the feed shows it (api.md §3.4, 2026-10-30).
 - D-03: Mobile signing flow when signatures are made externally with QES.
 - D-04: Cyrillic UI needed at launch?
 - D-05: Brand and name.

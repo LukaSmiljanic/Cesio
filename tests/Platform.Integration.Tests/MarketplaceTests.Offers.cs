@@ -19,6 +19,68 @@ public sealed partial class MarketplaceTests
     };
 
     [Fact]
+    public async Task The_feed_shows_the_debtor_the_SEF_status_and_only_the_factors_own_offer()
+    {
+        var seller = await SellerAsync();
+        var factorA = await FactorAsync();
+        var factorB = await FactorAsync();
+        var first = await OpenAsync(seller, await VerifiedAsync(seller));
+        var second = await OpenAsync(seller, await VerifiedAsync(seller));
+        var withdrawn = await OpenAsync(seller, await VerifiedAsync(seller));
+        Guid hidden;
+        using (var opened = await Send(seller, HttpMethod.Post, $"/api/v1/receivables/{await VerifiedAsync(seller)}/listings", new
+        {
+            closesAt = InTenDays,
+            audience = new { type = "AllVerifiedFactors" },
+            excludedFactorOrgIds = new[] { factorA.Org },
+            reservePrice = new { amount = "1111111.00", currency = "RSD" },
+        }))
+        {
+            hidden = (await ApiClient.ReadAsync(opened)).GetProperty("id").GetGuid();
+        }
+
+        var offerA = await OfferAsync(factorA, first, "1150000.00");
+        await OfferAsync(factorB, first, "1130000.00");
+        await OfferAsync(factorB, second, "1120000.00");
+        await OfferAsync(factorB, hidden, "1110000.00");
+        var withdrawnOffer = await OfferAsync(factorA, withdrawn, "1140000.00");
+        using (var pulled = await Send(factorA, HttpMethod.Post, $"/api/v1/offers/{withdrawnOffer}/withdraw"))
+        {
+            Assert.Equal(HttpStatusCode.OK, pulled.StatusCode);
+        }
+
+        var feedA = await FeedAsync(factorA, "");
+        var withoutOwnA = await FeedAsync(factorA, "?withoutOwnOffer=true");
+        using var rawFeedA = await Send(factorA, HttpMethod.Get, "/api/v1/marketplace/listings");
+        var feedBodyA = await rawFeedA.Content.ReadAsStringAsync(TestContext.Current.CancellationToken);
+        var feedB = await FeedAsync(factorB, "");
+        var detail = await ApiClient.ReadAsync(await Send(factorA, HttpMethod.Get, $"/api/v1/marketplace/listings/{first}"));
+
+        // Factor A sees its own offer and nothing of B's, also where both offered on one listing.
+        Assert.Equal(offerA, feedA[first].GetProperty("ownOffer").GetProperty("id").GetGuid());
+        Assert.Equal("1150000.00", feedA[first].GetProperty("ownOffer").GetProperty("purchasePrice").GetProperty("amount").GetString());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, feedA[second].GetProperty("ownOffer").ValueKind);
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, feedA[withdrawn].GetProperty("ownOffer").ValueKind);
+        Assert.DoesNotContain("113", feedBodyA, StringComparison.Ordinal);
+        Assert.DoesNotContain("112", feedBodyA, StringComparison.Ordinal);
+        Assert.DoesNotContain("reserve", feedBodyA, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(detail.GetProperty("debtor").GetProperty("legalName").GetString(), feedA[first].GetProperty("debtorName").GetString());
+        Assert.Equal(detail.GetProperty("sef").GetProperty("status").GetString(), feedA[first].GetProperty("sefStatus").GetString());
+        // The listing A is excluded from never appears, not even through the summaries read.
+        Assert.DoesNotContain(hidden, feedA.Keys);
+        Assert.DoesNotContain(hidden, withoutOwnA.Keys);
+        Assert.DoesNotContain(hidden.ToString(), feedBodyA, StringComparison.Ordinal);
+        // B's offer on the first listing does not hide it from A's "without my offer" view; the withdrawn one does not count.
+        Assert.Equal(new[] { second, withdrawn }.Order(), withoutOwnA.Keys.Order());
+        Assert.Equal("1130000.00", feedB[first].GetProperty("ownOffer").GetProperty("purchasePrice").GetProperty("amount").GetString());
+        Assert.Contains(hidden, feedB.Keys);
+    }
+
+    private static async Task<Dictionary<Guid, System.Text.Json.JsonElement>> FeedAsync(Party factor, string query) =>
+        (await ApiClient.ReadAsync(await Send(factor, HttpMethod.Get, $"/api/v1/marketplace/listings{query}"))).GetProperty("items")
+            .EnumerateArray().ToDictionary(item => item.GetProperty("id").GetGuid());
+
+    [Fact]
     public async Task A_factor_offers_with_a_fee_snapshot_and_the_seller_compares_offers_it_alone_sees()
     {
         var seller = await SellerAsync();
