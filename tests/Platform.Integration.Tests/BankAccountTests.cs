@@ -10,7 +10,7 @@ using Platform.Integration.Tests.Infrastructure;
 namespace Platform.Integration.Tests;
 
 /// <summary>Task 009: payout accounts, their NBS-snapshot verification, the cool-down and the duplicate alert.</summary>
-public sealed class BankAccountTests(SqlServerContainer server, AzuriteContainer storage) : IAsyncLifetime
+public sealed class BankAccountTests(SqlServerContainer server, TestStorage storage) : IAsyncLifetime
 {
     private readonly TestDatabase _database = new(server);
     private ApiApp _app = null!;
@@ -20,7 +20,7 @@ public sealed class BankAccountTests(SqlServerContainer server, AzuriteContainer
         await _database.InitializeAsync();
         _app = new ApiApp(_database, new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Documents"] = storage.ConnectionString,
+            ["Storage:Root"] = storage.Root,
             ["Documents:Scanner"] = "Fake",
             ["Sef:Client"] = "Fake",
         });

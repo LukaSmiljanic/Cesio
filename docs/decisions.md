@@ -5,7 +5,7 @@ Changing an Accepted decision requires a new ADR that supersedes it. AI agents m
 
 | ID | Title | Status | Depends on |
 |----|-------|--------|-----------|
-| ADR-001 | Modular monolith (.NET, PostgreSQL, React, Azure) | Accepted (database superseded by ADR-021) | — |
+| ADR-001 | Modular monolith (.NET, PostgreSQL, React, Azure) | Accepted (database superseded by ADR-021, hosting by ADR-023) | — |
 | ADR-002 | ASP.NET Core minimal APIs with endpoint groups per module | Accepted | — |
 | ADR-003 | Schema per module, sequential GUID keys (originally UUIDv7, amended by ADR-021), EF Core per-module DbContext | Accepted | — |
 | ADR-004 | Platform never receives, holds or routes deal funds | Accepted (legal confirmation pending) | LQ-06 |
@@ -20,13 +20,14 @@ Changing an Accepted decision requires a new ADR that supersedes it. AI agents m
 | ADR-013 | Offers state a purchase price and are immutable | Accepted | — |
 | ADR-014 | Holds are an overlay, not lifecycle states | Accepted | — |
 | ADR-015 | Deal includes a factor CDD gate before contract | Accepted | LQ-29 |
-| ADR-016 | Azure EU region hosting | Proposed | LQ-35 |
+| ADR-016 | Azure EU region hosting | Superseded by ADR-023 | LQ-35 |
 | ADR-017 | Audit: same-transaction writes, hash chain, daily WORM digests | Accepted | — |
 | ADR-018 | Contract = factor's own agreement, signed externally with QES, validated by the platform | Proposed | LQ-24, LQ-27 |
 | ADR-019 | Production launch waits for an operational CEF; build and test everything before that | Proposed | CEF bylaw/API, LQ-17, LQ-18 |
-| ADR-021 | SQL Server (Azure SQL Database) instead of PostgreSQL | Accepted | — |
+| ADR-021 | SQL Server (Azure SQL Database) instead of PostgreSQL | Accepted (Azure SQL replaced by SQL Server on the own server, ADR-023) | — |
 | ADR-020 | Minimal seller onboarding: one shared account per seller, PIB claimed by a valid SEF key, pristupnica, NBS-verified payout account, APR-email confirmations | Proposed | LQ-21, LQ-26, LQ-32, BQ-13 |
 | ADR-022 | No separate agreement with factors: factors register and accept the platform's Terms of Use for factors | Accepted (LQ-72, LQ-26: working assumption 2026-10-22, legal confirmation pending) | LQ-73, LQ-74, LQ-36, LQ-65 |
+| ADR-023 | Own server (on-premises or VPS) with Docker instead of Azure: secrets encrypted in the database, files on disk, ClamAV, SMTP, SQL Server Express | Accepted (product owner, 2026-10-30) | LQ-35 |
 
 ## ADR-001 Modular monolith
 **Context:** small team, low transaction volume, high correctness needs. **Decision:** one deployable unit with strict module boundaries enforced by architecture tests. **Consequences:** simple ops and atomic transactions; modules can be extracted later if a real need appears.
@@ -110,3 +111,24 @@ The MVP does not generate legal contracts: the factor uploads its own agreement 
 **Open:** whether Terms alone are legally sufficient towards factors, especially banks (fee obligation, confidentiality, liability, and outsourcing rules that may require a written contract), is LQ-72 (with LQ-26, LQ-36, LQ-65). Who may accept the Terms for a factor and in what form is LQ-73; whether later changes to the Terms (including the fee) bind a factor is LQ-74. If the answer requires a written contract, a superseding ADR adds it to factor onboarding.
 
 **Status (product owner, 2026-10-22):** Accepted on the working assumption that LQ-72 and LQ-26 are answered positively (Terms alone are sufficient and click acceptance is valid). Both LQs stay open for the lawyer; LQ-73 and LQ-74 are not covered by the assumption.
+
+## ADR-023 Own server instead of Azure
+**Context (product owner, 2026-10-30):** the platform will not run on Azure. Production runs on a Linux server with Docker, either the company's own or a rented one (VPS); which one is not decided yet. ADR-016 (Azure EU region) was only proposed, and the Azure design of task 024 (Bicep, managed identities, Key Vault, Blob, Defender for Storage, Azure Communication Services, Application Insights) was never deployed.
+
+**Decision:**
+1. **One Docker host per environment** (staging, production), started with `docker compose`: API, worker, a one-off migrator, SQL Server, ClamAV and a reverse proxy (Caddy) that serves the SPA, terminates HTTPS and forwards `/api` to the API. No Kubernetes (CLAUDE.md).
+2. **Secrets** (sellers' SEF keys) are stored **encrypted in the database** (`platform.secrets`) with ASP.NET Core data protection. The data protection keys live in a directory on the server, and outside Development they are encrypted with an X.509 certificate. Database backups therefore contain only ciphertext; the certificate is kept and backed up separately.
+3. **Files** (documents, signed contracts, audit digests) are stored **on the server's disk** under `Storage:Root`, with quarantine and clean folders as before. Audit digests are written as read-only files. Immutability (WORM) is now an operations measure: digests are copied off the server daily (see runbooks.md).
+4. **Malware scanning** uses **ClamAV** (`clamd`, INSTREAM protocol, no new package). Without a scanner verdict a file stays quarantined (fail closed).
+5. **Email** goes through any SMTP server with a login (`Email:UserName`, password from an environment variable).
+6. **Database:** SQL Server in a container, **Express edition** for the MVP (10 GB per database; Standard later without code changes). The API and worker sign in with a SQL login that is a member of `app_rw`. The migrator runs with an administrative login and creates or rotates the application login.
+7. **Logs** go to standard output as JSON (collected by Docker); a log server (Seq or Grafana Loki through OpenTelemetry) can be added later.
+8. **Deployment** stays through the CI pipeline: GitHub Actions builds the image, pushes it to GitHub Container Registry and deploys over SSH after the environment's approval (staging after CI on main, production on a `v*` tag).
+
+**Consequences:**
+- No Azure packages remain: Azure.Storage.Blobs, Azure.Security.KeyVault.Secrets and Testcontainers.Azurite are removed. Azure.Identity remains only as a transitive dependency of the SQL client. No new package is added.
+- The operator becomes responsible for the server: patches, firewall, HTTPS certificates (Caddy renews them automatically), backups of the database, the files and the data-protection certificate, and restore drills.
+- File immutability and off-site copies are weaker than Azure's built-in WORM and geo-redundancy, and depend on the backup routine.
+- Data can stay in Serbia, which may change LQ-35 (transfer of personal data abroad). LQ-35 stays open until the lawyer answers.
+- ADR-016 is superseded. ADR-021 stays (SQL Server) without Azure SQL.
+

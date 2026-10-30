@@ -307,6 +307,30 @@ namespace Shared.Infrastructure.Persistence.Platform.Migrations
 
                     b.ToTable("processed_events", "platform");
                 });
+
+            modelBuilder.Entity("Shared.Infrastructure.Persistence.Platform.StoredSecret", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(200)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Ciphertext")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("ciphertext");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasPrecision(3)
+                        .HasColumnType("datetimeoffset(3)")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Name")
+                        .HasName("pk_secrets");
+
+                    b.ToTable("secrets", "platform");
+                });
 #pragma warning restore 612, 618
         }
     }

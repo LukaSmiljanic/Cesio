@@ -14,7 +14,7 @@ using Shared.Kernel;
 namespace Platform.Integration.Tests;
 
 /// <summary>Task 008: factor authorization submitted by the factor and verified by two compliance officers.</summary>
-public sealed class FactorAuthorizationTests(SqlServerContainer server, AzuriteContainer storage) : IAsyncLifetime
+public sealed class FactorAuthorizationTests(SqlServerContainer server, TestStorage storage) : IAsyncLifetime
 {
     private readonly TestDatabase _database = new(server);
     private ApiApp _app = null!;
@@ -24,7 +24,7 @@ public sealed class FactorAuthorizationTests(SqlServerContainer server, AzuriteC
         await _database.InitializeAsync();
         _app = new ApiApp(_database, new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Documents"] = storage.ConnectionString,
+            ["Storage:Root"] = storage.Root,
             ["Documents:Scanner"] = "Fake",
             ["Sef:Client"] = "Fake",
         });

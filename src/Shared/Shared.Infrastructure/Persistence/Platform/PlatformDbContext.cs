@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Design;
 
 namespace Shared.Infrastructure.Persistence.Platform;
 
-/// <summary>The <c>platform</c> schema: outbox, processed events, idempotency keys and business parameters (database.md §2).</summary>
+/// <summary>The <c>platform</c> schema: outbox, processed events, idempotency keys, business parameters, job runs and encrypted secrets (database.md §2).</summary>
 public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> options, UnitOfWork? unitOfWork)
     : ModuleDbContext(options, unitOfWork)
 {
@@ -21,10 +21,19 @@ public sealed class PlatformDbContext(DbContextOptions<PlatformDbContext> option
 
     internal DbSet<ParameterProposal> ParameterProposals => Set<ParameterProposal>();
 
+    internal DbSet<StoredSecret> Secrets => Set<StoredSecret>();
+
     protected override string Schema => SchemaName;
 
     protected override void ConfigureModel(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<StoredSecret>(secret =>
+        {
+            secret.ToTable("secrets");
+            secret.HasKey(x => x.Name);
+            secret.Property(x => x.Name).HasMaxLength(200).IsUnicode(false);
+        });
+
         modelBuilder.Entity<JobRun>(run =>
         {
             run.ToTable("job_runs");

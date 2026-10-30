@@ -12,7 +12,7 @@ using Shared.Infrastructure.Requests;
 namespace Platform.Integration.Tests;
 
 /// <summary>Task 012: listings, the visibility rule of the marketplace, withdrawal and operations suspension (offers: task 013).</summary>
-public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteContainer storage) : IAsyncLifetime
+public sealed partial class MarketplaceTests(SqlServerContainer server, TestStorage storage) : IAsyncLifetime
 {
     private const string BuyerPib = "106006802";
 
@@ -37,7 +37,7 @@ public sealed partial class MarketplaceTests(SqlServerContainer server, AzuriteC
         await _database.InitializeAsync();
         _app = new ApiApp(_database, new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Documents"] = storage.ConnectionString,
+            ["Storage:Root"] = storage.Root,
             ["Documents:Scanner"] = "Fake",
             ["Sef:Client"] = "Fake",
             ["Signatures:Validator"] = "Fake",

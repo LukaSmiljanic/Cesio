@@ -30,7 +30,7 @@ public static class DocumentsModule
     public static IServiceCollection AddDocumentsModule(this IServiceCollection services)
     {
         services.AddModuleDbContext<DocumentsDbContext>(DocumentsDbContext.SchemaName, migrationOrder: 4);
-        services.AddSingleton<IDocumentStore, BlobDocumentStore>();
+        services.AddSingleton<IDocumentStore, FileSystemDocumentStore>();
         services.AddSingleton<IMalwareScanner>(provider =>
         {
             if (provider.GetRequiredService<IConfiguration>()["Documents:Scanner"] != "Fake")

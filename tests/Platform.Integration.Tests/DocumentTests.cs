@@ -10,8 +10,8 @@ using Shared.Infrastructure.Requests;
 
 namespace Platform.Integration.Tests;
 
-/// <summary>Task 006: upload → scan → authorized download, with the fake scanner and Azurite.</summary>
-public sealed class DocumentTests(SqlServerContainer server, AzuriteContainer storage) : IAsyncLifetime
+/// <summary>Task 006: upload → scan → authorized download, with the fake scanner and files on disk.</summary>
+public sealed class DocumentTests(SqlServerContainer server, TestStorage storage) : IAsyncLifetime
 {
     private static readonly byte[] Pdf = Encoding.ASCII.GetBytes("%PDF-1.7\n1 0 obj << /Type /Catalog >> endobj\n%%EOF\n");
 
@@ -206,9 +206,9 @@ public sealed class DocumentTests(SqlServerContainer server, AzuriteContainer st
         Assert.Equal(HttpStatusCode.NotFound, content.StatusCode);
     }
 
-    private static Dictionary<string, string?> Settings(AzuriteContainer storage) => new()
+    private static Dictionary<string, string?> Settings(TestStorage storage) => new()
     {
-        ["ConnectionStrings:Documents"] = storage.ConnectionString,
+        ["Storage:Root"] = storage.Root,
         ["Documents:Scanner"] = "Fake",
     };
 

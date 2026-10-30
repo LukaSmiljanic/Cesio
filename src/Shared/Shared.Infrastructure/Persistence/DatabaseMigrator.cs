@@ -70,6 +70,8 @@ public static class DatabaseMigrator
         // readonly_reporting gets no grants until task 022 defines the reporting scope (database.md §6: never personal
         // data in compliance/orgs). Stored command responses are a replay cache, never reporting data.
         statements.Add("IF OBJECT_ID('platform.idempotency_keys') IS NOT NULL DENY SELECT ON platform.idempotency_keys TO readonly_reporting;");
+        // Encrypted secrets (ADR-023) are never reporting data either.
+        statements.Add("IF OBJECT_ID('platform.secrets') IS NOT NULL DENY SELECT ON platform.secrets TO readonly_reporting;");
 
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);

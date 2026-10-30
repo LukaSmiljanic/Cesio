@@ -74,6 +74,10 @@ public sealed class SecurityHardeningTests(SqlServerContainer server) : IAsyncLi
         Assert.DoesNotContain(key, text, StringComparison.Ordinal);
         Assert.DoesNotContain(account, text, StringComparison.Ordinal);
         Assert.DoesNotContain(ApiClient.Password, text, StringComparison.Ordinal);
+
+        // ADR-023: the SEF key is stored only encrypted.
+        Assert.Equal(1, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM platform.secrets WHERE name = 'sef-key-{org:N}'"));
+        Assert.Equal(0, await _database.ScalarAsync<int>($"SELECT COUNT(*) FROM platform.secrets WHERE ciphertext LIKE '%{key}%'"));
     }
 
     [Fact]

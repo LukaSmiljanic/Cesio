@@ -94,3 +94,13 @@ internal sealed class JobRun
     /// <summary>The Operations user of a manual run; null for a scheduled one.</summary>
     public Guid? TriggeredBy { get; init; }
 }
+
+/// <summary>A secret such as a seller's SEF key, encrypted with ASP.NET Core data protection (ADR-023); never plain text.</summary>
+internal sealed class StoredSecret
+{
+    public required string Name { get; init; }
+
+    public required string Ciphertext { get; set; }
+
+    public DateTimeOffset UpdatedAt { get; set; }
+}

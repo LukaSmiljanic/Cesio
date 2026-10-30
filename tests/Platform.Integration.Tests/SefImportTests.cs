@@ -7,7 +7,7 @@ using Shared.Infrastructure.Requests;
 namespace Platform.Integration.Tests;
 
 /// <summary>Task 010: SEF connection and invoice import against the fake SEF client.</summary>
-public sealed class SefImportTests(SqlServerContainer server, AzuriteContainer storage) : IAsyncLifetime
+public sealed class SefImportTests(SqlServerContainer server, TestStorage storage) : IAsyncLifetime
 {
     private const string BuyerPib = "106006802";
 
@@ -23,7 +23,7 @@ public sealed class SefImportTests(SqlServerContainer server, AzuriteContainer s
         await _database.InitializeAsync();
         _app = new ApiApp(_database, new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Documents"] = storage.ConnectionString,
+            ["Storage:Root"] = storage.Root,
             ["Documents:Scanner"] = "Fake",
             ["Sef:Client"] = "Fake",
         });

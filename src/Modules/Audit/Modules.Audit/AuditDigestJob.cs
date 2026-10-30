@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Azure.Storage.Blobs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Infrastructure;
 using Shared.Infrastructure.Jobs;
@@ -9,15 +9,14 @@ using Shared.Infrastructure.Jobs;
 namespace Modules.Audit;
 
 /// <summary>
-/// Daily: verifies the audit chain and writes a digest (last sequence and hash) to Blob storage (audit.md §1). The
-/// container gets its immutable (WORM) retention policy in task 024; signing the digest is part of that task too.
+/// Daily: verifies the audit chain and writes a digest (last sequence and hash) as a read-only file under
+/// <c>{Storage:Root}/audit-digests</c> (audit.md §1, ADR-023). The digests are copied off the server daily (runbooks.md);
+/// that copy, not the file attribute, is what makes them hard to change.
 /// </summary>
 internal sealed partial class AuditDigestJob(IServiceScopeFactory scopeFactory, IConfiguration configuration, ILogger<AuditDigestJob> logger)
     : SingletonJob(scopeFactory, configuration, logger)
 {
-    public const string ConnectionStringName = "AuditDigests";
-
-    public const string ContainerName = "audit-digests";
+    public const string Area = "audit-digests";
 
     protected override string LockName => "audit-digest";
 
@@ -43,11 +42,11 @@ internal sealed partial class AuditDigestJob(IServiceScopeFactory scopeFactory, 
             verification.FirstInvalidSequence,
         });
 
-        var connectionString = services.GetRequiredService<IConfiguration>().GetConnectionString(ConnectionStringName)
-            ?? throw new InvalidOperationException($"Connection string '{ConnectionStringName}' is not configured.");
-        var container = BlobContainers.Create(connectionString, ContainerName);
-        await container.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        await container.UploadBlobAsync($"{now:yyyy-MM-dd'T'HHmmss'Z'}.json", BinaryData.FromString(digest), cancellationToken);
+        var root = FileStorage.Root(services.GetRequiredService<IConfiguration>(), services.GetRequiredService<IHostEnvironment>());
+        var path = FileStorage.PathFor(root, Area, $"{now:yyyy-MM-dd'T'HHmmss'Z'}.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, digest, cancellationToken);
+        File.SetAttributes(path, FileAttributes.ReadOnly);
     }
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "The audit hash chain is broken at sequence {Sequence}.")]

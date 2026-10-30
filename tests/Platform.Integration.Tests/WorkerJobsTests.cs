@@ -12,7 +12,7 @@ namespace Platform.Integration.Tests;
 /// Every scheduled job runs in the worker's own composition (not only inside the API test host), so a service the worker
 /// does not register fails here instead of in every run after a deploy.
 /// </summary>
-public sealed class WorkerJobsTests(SqlServerContainer server, AzuriteContainer azurite) : IAsyncLifetime
+public sealed class WorkerJobsTests(SqlServerContainer server, TestStorage storage) : IAsyncLifetime
 {
     private readonly TestDatabase _database = new(server);
 
@@ -27,11 +27,9 @@ public sealed class WorkerJobsTests(SqlServerContainer server, AzuriteContainer 
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:Cesio"] = _database.ConnectionString,
-            ["ConnectionStrings:Documents"] = azurite.ConnectionString,
-            ["ConnectionStrings:AuditDigests"] = azurite.ConnectionString,
+            ["Storage:Root"] = storage.Root,
             ["Sef:Client"] = "Fake",
             ["Sef:FakePersist"] = "false",
-            ["Secrets:LocalPersist"] = "false",
         });
         builder.AddWorkerServices();
         // The scheduler and the outbox dispatcher stay off; the test runs each job once.

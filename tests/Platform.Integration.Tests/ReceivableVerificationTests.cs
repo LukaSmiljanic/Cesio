@@ -12,7 +12,7 @@ using Shared.Infrastructure.Requests;
 namespace Platform.Integration.Tests;
 
 /// <summary>Task 011: declarations, documents, submission, the check pipeline and the compliance review queue.</summary>
-public sealed class ReceivableVerificationTests(SqlServerContainer server, AzuriteContainer storage) : IAsyncLifetime
+public sealed class ReceivableVerificationTests(SqlServerContainer server, TestStorage storage) : IAsyncLifetime
 {
     private const string BuyerPib = "106006802";
 
@@ -34,7 +34,7 @@ public sealed class ReceivableVerificationTests(SqlServerContainer server, Azuri
         await _database.InitializeAsync();
         _app = new ApiApp(_database, new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Documents"] = storage.ConnectionString,
+            ["Storage:Root"] = storage.Root,
             ["Documents:Scanner"] = "Fake",
             ["Sef:Client"] = "Fake",
         });

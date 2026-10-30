@@ -13,7 +13,6 @@
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Testcontainers.MsSql" />
-    <PackageReference Include="Testcontainers.Azurite" />
   </ItemGroup>
 
   <ItemGroup>
