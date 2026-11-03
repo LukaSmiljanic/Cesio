@@ -48,6 +48,15 @@ public static class UblParser
         }
 
         var root = document.Root ?? throw new UblFormatException("The UBL document is empty.");
+
+        // SEF's sales-invoice/xml wraps the UBL in DocumentEnvelope/DocumentBody next to a header with the PDF.
+        if (root.Name.LocalName == "DocumentEnvelope")
+        {
+            root = root.Elements().FirstOrDefault(e => e.Name.LocalName == "DocumentBody")?.Elements()
+                    .FirstOrDefault(e => e.Name.LocalName is "Invoice" or "CreditNote")
+                ?? throw new UblFormatException("The SEF envelope has no Invoice or CreditNote.");
+        }
+
         var isCreditNote = root.Name.LocalName == "CreditNote" || Text(root, Cbc + "InvoiceTypeCode") == "381";
         var totals = root.Element(Cac + "LegalMonetaryTotal") ?? throw new UblFormatException("LegalMonetaryTotal is missing.");
         var currency = Required(root, Cbc + "DocumentCurrencyCode");

@@ -13,14 +13,14 @@ A seller connects its SEF account with an API key, and imports sales invoices in
 2. `Integrations.Sef`: typed `HttpClient` with `ApiKey` header from the secret store (one secret per org, encrypted in the database since ADR-023); read-only methods only; Polly retry (3x, exponential + jitter, only on 5xx/timeout); 10 s timeout; correlation ID logging; a fake implementation with fixtures for tests.
 3. `PUT /organizations/{id}/sef-connection` 🔐 (Owner): accepts the key, stores it encrypted in the secret store (`sef-key-{orgId}`, ADR-023), validates by calling a cheap read endpoint, and checks that the returned supplier PIB = org PIB. Status `Connected | Invalid`. The key is never returned. A successful validation publishes `SefConnectionValidated(orgId, supplierPib)`; the same request claims the PIB (task 007a, ADR-020); a claimed organization's key change waits for the official-email confirmation (task 007a). Allowed on a Draft claim (import before approval is allowed; publishing is not).
 4. `POST /receivables/import-from-sef` ♻ per api.md §3.1: creates `receivables.debtors` (upsert by PIB), `receivables.invoices` (UBL stored as a document with SHA-256; amounts, dates, currency), `receivables.sef_status_history` row, and a `Draft` receivable (faceValue = gross − known credit notes, maturity = due date, fingerprint computed).
-5. UI: SEF connection page; import screen (by IDs or date range) with per-item results; receivables list (Draft).
+5. UI: SEF connection page; import screen (a default "import invoices for sale" action with `sellableOnly`, plus import by IDs or date range) with per-item results, `Skipped` included (api.md §3.1); receivables list (Draft).
 
 # Business Rules
 - Only invoices where the org is the **supplier** are importable (`NotIssuer` otherwise).
 - Currency other than RSD → `Unsupported` (ADR-009).
 - Debtor must be identified by a PIB (B2B); otherwise `Unsupported`.
 - Re-importing an already imported SEF invoice returns `AlreadyImported` with the existing receivable ID (if it is not Rejected/Cancelled).
-- Implementation notes (2026-10-23): faceValue = gross, because no credit notes are known at import; credit notes, invoices with a deducted prepayment (PayableAmount ≠ gross) and amounts with more than 2 decimals are `Unsupported`. An invoice imported by another organization is reported as `NotFound` to the caller.
+- Implementation notes (2026-10-23): faceValue = gross, because no credit notes are known at import; credit notes, invoices with a deducted prepayment (PayableAmount ≠ gross) and amounts with more than 2 decimals are `Unsupported`. An invoice imported by another organization is reported as `NotFound` to the caller. The SEF `sales-invoice/xml` download wraps the UBL in a `DocumentEnvelope`; the parser unwraps it (found against the demo environment, 2026-11-03). The import screen's default action (product owner, 2026-11-03) imports the last 31 days with `sellableOnly`, skipping invoices the buyer has not approved or that mature within `receivables.minDaysAtListing` (api.md §3.1).
 
 # Technical Requirements
 UBL parsing with `System.Xml` (no new dependency unless justified); amounts parsed as decimal with invariant culture; `gross = net + vat` asserted (mismatch → `Unsupported` + log).

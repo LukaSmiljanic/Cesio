@@ -65,7 +65,7 @@ public sealed class KybTests(SqlServerContainer server) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, consent.StatusCode);
         Assert.Contains(rescreened.GetProperty("screening").EnumerateArray(), r => r.GetProperty("subjectKind").GetString() == "BeneficialOwner");
         Assert.All(rescreened.GetProperty("screening").EnumerateArray(), r => Assert.Equal("NoLists", r.GetProperty("result").GetString()));
-        Assert.Equal("kyb_incomplete", incomplete);
+        Assert.Equal("risk_not_rated", incomplete);
         Assert.Equal(HttpStatusCode.OK, rated.StatusCode);
         Assert.Equal("Approved", approved.GetProperty("status").GetString());
         Assert.Equal("Approved", status);

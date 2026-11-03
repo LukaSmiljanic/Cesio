@@ -52,6 +52,23 @@ public sealed class SefClientTests
     }
 
     [Fact]
+    public void A_ubl_inside_the_sef_document_envelope_is_parsed()
+    {
+        var invoice = Encoding.UTF8.GetString(FakeSefClient.Ubl("101134702", "106006802", "F-2", 100m, 20m, issueDate: new DateOnly(2026, 9, 1), dueDate: new DateOnly(2026, 11, 30)));
+        var body = invoice[(invoice.IndexOf("?>", StringComparison.Ordinal) is var end and >= 0 ? end + 2 : 0)..];
+        var envelope = Encoding.UTF8.GetBytes(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><env:DocumentEnvelope xmlns:env=\"urn:eFaktura:MinFinrs:envelop:schema\">"
+            + "<env:DocumentHeader><env:SalesInvoiceId>1</env:SalesInvoiceId></env:DocumentHeader>"
+            + $"<env:DocumentBody>{body}</env:DocumentBody></env:DocumentEnvelope>");
+
+        var ubl = UblParser.Parse(envelope);
+
+        Assert.Equal("F-2", ubl.Number);
+        Assert.Equal("101134702", ubl.Supplier.Pib);
+        Assert.Equal(120m, ubl.GrossAmount);
+    }
+
+    [Fact]
     public void A_ubl_with_a_dtd_is_refused()
     {
         var xxe = Encoding.UTF8.GetBytes("<?xml version=\"1.0\"?><!DOCTYPE x [<!ENTITY e SYSTEM \"file:///etc/passwd\">]><Invoice>&e;</Invoice>");

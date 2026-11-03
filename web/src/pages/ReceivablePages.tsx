@@ -22,6 +22,19 @@ const resultLabels: Record<string, string> = {
   NotIssuer: 'Niste izdavalac',
   NotFound: 'Nije pronađeno u SEF-u',
   Unsupported: 'Nije podržano',
+  Skipped: 'Preskočeno',
+}
+
+const skipReasons: Record<string, string> = {
+  not_approved_by_buyer: 'kupac je još nije odobrio u SEF-u',
+  matures_too_soon: 'dospeva prerano za prodaju',
+}
+
+/** The SEF date range is at most 31 days (api.md §3.1): the default import covers the last 31 days. */
+function isoDay(daysAgo: number): string {
+  const day = new Date()
+  day.setDate(day.getDate() - daysAgo)
+  return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
 }
 
 /** The seller's SEF connection (task 010): the key is checked against SEF and never shown again. */
@@ -97,8 +110,8 @@ export function ImportPage() {
   const queryClient = useQueryClient()
   const { activeId } = useActiveOrganization()
   const [ids, setIds] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  const [from, setFrom] = useState(() => isoDay(31))
+  const [to, setTo] = useState(() => isoDay(0))
   const run = useMutation({
     mutationFn: (request: ImportRequest) => receivablesApi.importFromSef(request),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['receivables', activeId] }),
@@ -116,6 +129,21 @@ export function ImportPage() {
 
   return (
     <Card title="Uvoz faktura iz SEF-a">
+      <div className="space-y-2">
+        <p className="text-sm">
+          Uvozi fakture izdate u poslednjih 31 dan koje možete ponuditi: kupac ih je odobrio u SEF-u
+          i ne dospevaju uskoro.
+        </p>
+        <Button
+          disabled={run.isPending}
+          onClick={() =>
+            run.mutate({ issueDateFrom: isoDay(31), issueDateTo: isoDay(0), sellableOnly: true })
+          }
+        >
+          Uvezi fakture za prodaju
+        </Button>
+      </div>
+      <h3 className="mt-6 text-sm font-medium">Ručni uvoz</h3>
       <form className="space-y-2" onSubmit={byIds}>
         <Field
           id="ids"
@@ -154,7 +182,9 @@ export function ImportPage() {
           {run.data.results.map((r) => (
             <li key={r.sefInvoiceId}>
               {r.sefInvoiceId}: {resultLabels[r.status] ?? r.status}
-              {r.reason && <span className="text-slate-500"> ({r.reason})</span>}
+              {r.reason && (
+                <span className="text-slate-500"> ({skipReasons[r.reason] ?? r.reason})</span>
+              )}
             </li>
           ))}
         </ul>

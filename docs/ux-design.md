@@ -38,7 +38,7 @@ Global: organization switcher (users can be members of several orgs), notificati
 |---|--------|------|-------|
 | S1 | Dashboard | S/F | Action-needed list first, then KPIs |
 | S2 | Receivables list | S | State chips, filters, "Uvezi iz SEF-a" |
-| S3 | SEF import dialog | S | Per-item results (Imported / Already imported / Not issuer / Unsupported) |
+| S3 | SEF import dialog | S | Default action "import invoices for sale" (last 31 days, `sellableOnly`, api.md §3.1); manual import by IDs or date range. Per-item results (Imported / Already imported / Not issuer / Not found / Unsupported / Skipped, with the reason) |
 | S4 | Receivable detail | S | Invoice summary, SEF status, declarations, documents, verification checks, listing |
 | S5 | Publish listing dialog | S | Audience, exclusions, closing time, optional reserve price |
 | S6 | Offer comparison | S | Columns: factor, purchase price, discount %, **net to you**, indicative annual cost, recourse, funding term, valid until. Sorted by net amount |

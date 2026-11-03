@@ -26,7 +26,7 @@ export interface ReceivableView {
 
 export interface ImportResult {
   sefInvoiceId: string
-  status: 'Imported' | 'AlreadyImported' | 'NotIssuer' | 'NotFound' | 'Unsupported'
+  status: 'Imported' | 'AlreadyImported' | 'NotIssuer' | 'NotFound' | 'Unsupported' | 'Skipped'
   receivableId: string | null
   reason: string | null
 }
@@ -39,7 +39,8 @@ export interface SefConnection {
 }
 
 export type ImportRequest =
-  { sefInvoiceIds: string[] } | { issueDateFrom: string; issueDateTo: string }
+  | { sefInvoiceIds: string[] }
+  | { issueDateFrom: string; issueDateTo: string; sellableOnly?: boolean }
 
 export const receivablesApi = {
   list: () => api<ReceivableView[]>('GET', '/receivables'),

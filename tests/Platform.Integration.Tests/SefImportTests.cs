@@ -83,6 +83,22 @@ public sealed class SefImportTests(SqlServerContainer server, TestStorage storag
     }
 
     [Fact]
+    public async Task Sellable_only_skips_invoices_the_buyer_has_not_approved_or_that_mature_too_soon()
+    {
+        var seller = await ConnectedSellerAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var sellable = Sef.AddInvoice(seller.Key, FakeSefClient.Ubl(seller.Pib, BuyerPib, "S-1", 500m, 100m, dueDate: today.AddDays(60)), "Approved");
+        var notApproved = Sef.AddInvoice(seller.Key, FakeSefClient.Ubl(seller.Pib, BuyerPib, "S-2", 500m, 100m, dueDate: today.AddDays(60)));
+        var tooSoon = Sef.AddInvoice(seller.Key, FakeSefClient.Ubl(seller.Pib, BuyerPib, "S-3", 500m, 100m, dueDate: today.AddDays(3)), "Approved");
+
+        var results = (await ApiClient.ReadAsync(await ImportAsync(seller, new { sefInvoiceIds = new[] { $"{sellable}", $"{notApproved}", $"{tooSoon}" }, sellableOnly = true })))
+            .GetProperty("results").EnumerateArray().Select(r => (r.GetProperty("status").GetString(), r.TryGetProperty("reason", out var reason) ? reason.GetString() : null)).ToList();
+
+        Assert.Equal([("Imported", null), ("Skipped", "not_approved_by_buyer"), ("Skipped", "matures_too_soon")], results);
+        Assert.Equal(1, await _database.ScalarAsync<int>("SELECT COUNT(*) FROM receivables.invoices"));
+    }
+
+    [Fact]
     public async Task Importing_the_same_invoice_again_returns_the_existing_receivable()
     {
         var seller = await ConnectedSellerAsync();

@@ -377,12 +377,17 @@ internal sealed class KybService(
 
             if (!await organizations.SellerOnboardingCompleteAsync(kyb.OrganizationId, cancellationToken))
             {
-                return Problems.Error(StatusCodes.Status409Conflict, "onboarding_incomplete", "A seller is approved only when a SEF key claimed its PIB and its pristupnica is accepted (task 007a).");
+                return Problems.Error(StatusCodes.Status409Conflict, "onboarding_incomplete", "A seller is approved only when a SEF key claimed its PIB, its pristupnica is accepted (task 007a) and a payout account is verified (task 009).");
             }
 
-            if (kyb.RiskRating is null || !body.RepresentativesVerified)
+            if (kyb.RiskRating is null)
             {
-                return Problems.Error(StatusCodes.Status409Conflict, "kyb_incomplete", "Rate the risk and verify the representatives against APR first.");
+                return Problems.Error(StatusCodes.Status409Conflict, "risk_not_rated", "Rate the risk first.");
+            }
+
+            if (!body.RepresentativesVerified)
+            {
+                return Problems.Error(StatusCodes.Status409Conflict, "representatives_unverified", "Confirm that the representatives were verified against APR.");
             }
 
             if (kyb.RiskRating == "High" && kyb.FirstApprover is null)

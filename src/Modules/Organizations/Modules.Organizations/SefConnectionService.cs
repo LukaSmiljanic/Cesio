@@ -2,6 +2,7 @@ using Integrations.Sef;
 using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Modules.Audit.Contracts;
 using Modules.Notifications.Contracts;
 using Modules.Identity.Contracts;
@@ -21,7 +22,7 @@ public sealed record SefConnectionRequest(string ApiKey);
 /// stored, and only if SEF returns invoices issued under the organization's PIB. The key is never returned or logged.
 /// Confirming a key change through the organization's official APR email (security.md §2) comes with task 007a.
 /// </summary>
-internal sealed class SefConnectionService(
+internal sealed partial class SefConnectionService(
     OrgsDbContext orgs,
     ISefClient sef,
     ISecretStore secrets,
@@ -31,7 +32,8 @@ internal sealed class SefConnectionService(
     IEmailSender email,
     IUserDirectory users,
     ConfirmationTokens confirmations,
-    TimeProvider timeProvider) : ISefConnections
+    TimeProvider timeProvider,
+    ILogger<SefConnectionService> logger) : ISefConnections
 {
     /// <summary>How far back invoices are looked up to prove the PIB.</summary>
     private static readonly int ProofWindowDays = 90;
@@ -78,8 +80,9 @@ internal sealed class SefConnectionService(
         {
             return Problems.Error(StatusCodes.Status503ServiceUnavailable, "upstream_unavailable", "SEF is not available. Try again later.");
         }
-        catch (UblFormatException)
+        catch (UblFormatException exception)
         {
+            LogUnreadableUbl(logger, exception.Message);
             return Problems.Error(StatusCodes.Status422UnprocessableEntity, "sef_pib_unverified", "The PIB could not be read from SEF invoices.");
         }
 
@@ -325,4 +328,8 @@ internal sealed class SefConnectionService(
 
         return connection;
     }
+
+    /// <summary>The parser's reason only (an element name), never the document: no parties or amounts in logs (security.md §8).</summary>
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The PIB proof invoice from SEF could not be parsed: {Reason}")]
+    private static partial void LogUnreadableUbl(ILogger logger, string reason);
 }

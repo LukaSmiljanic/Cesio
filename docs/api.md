@@ -37,9 +37,9 @@ REST over JSON, base path `/api/v1`. Used by our SPA; a public factor API comes 
 
 ### 3.1 `POST /receivables/import-from-sef` ♻
 - **Auth:** seller org, any member. The org is claimed by its SEF key (it may still be a Draft, ADR-020) and has a `Connected` SEF connection.
-- **Request:** `{ "sefInvoiceIds": ["123456", "..."] }` (max 50) **or** `{ "issueDateFrom": "2026-09-01", "issueDateTo": "2026-09-30" }`.
+- **Request:** `{ "sefInvoiceIds": ["123456", "..."] }` (max 50) **or** `{ "issueDateFrom": "2026-09-01", "issueDateTo": "2026-09-30" }` (at most 31 days). Optional `"sellableOnly": true` skips invoices that cannot be listed yet: SEF status other than `Approved` (`not_approved_by_buyer`), or a due date earlier than today + `receivables.minDaysAtListing` (`matures_too_soon`). They are not stored and can be imported later.
 - **Behaviour:** fetch each invoice from SEF; verify supplier PIB = org PIB; upsert the debtor; store the UBL + hash; create an Invoice and a `Draft` receivable. Duplicates are reported per item, not as a failure of the whole batch.
-- **Response 200:** `{ "results": [ { "sefInvoiceId": "...", "status": "Imported|AlreadyImported|NotIssuer|NotFound|Unsupported", "receivableId": "..."? , "reason": "..." } ] }`
+- **Response 200:** `{ "results": [ { "sefInvoiceId": "...", "status": "Imported|AlreadyImported|NotIssuer|NotFound|Unsupported|Skipped", "receivableId": "..."? , "reason": "..." } ] }`
 - **Errors:** 409 `sef_connection_invalid`, 503 `upstream_unavailable`.
 - **Audit:** `Invoice.Imported` + `Receivable.Created` per item.
 

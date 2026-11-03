@@ -263,14 +263,16 @@ const messages: Record<string, string> = {
   staff_account: 'Nalog osoblja platforme ne može biti član firme.',
   screening_unresolved: 'Prvo razrešite sva moguća poklapanja sa sankcionim listama.',
   confirmed_match: 'Potvrđeno poklapanje sa sankcionom listom: firma se mora odbiti.',
-  kyb_incomplete: 'Postavite rizik i potvrdite zastupnike pre odobrenja.',
+  risk_not_rated: 'Prvo postavite rizik (dugme „Postavi rizik”).',
+  representatives_unverified: 'Čekirajte „Zastupnici su provereni u APR” pre odobrenja.',
   four_eyes_required: 'Potrebno je odobrenje drugog službenika.',
   charge_reversed: 'Naknada je stornirana.',
   pib_already_claimed:
     'Ova firma je već registrovana na platformi Cesio. Za pristup se obratite njenom administratoru.',
   official_email_missing:
     'Službeni email firme iz APR-a još nije upisan; obratite se podršci Cesio.',
-  onboarding_incomplete: 'Prodavac mora imati potvrđen PIB (SEF) i prihvaćenu pristupnicu.',
+  onboarding_incomplete:
+    'Prodavac mora imati potvrđen PIB (SEF), prihvaćenu pristupnicu i potvrđen račun za isplatu.',
   email_confirmation_missing: 'Skenirana pristupnica čeka potvrdu preko službenog emaila.',
   signer_required: 'Upišite potpisnika i zastupnika ili punomoćje.',
   confirmation_gone: 'Link više ne važi. Zatražite novi.',

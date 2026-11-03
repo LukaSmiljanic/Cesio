@@ -14,6 +14,7 @@ using Modules.Receivables.Contracts;
 using Modules.Receivables.Persistence;
 using Shared.Infrastructure;
 using Shared.Infrastructure.Persistence;
+using Shared.Infrastructure.Persistence.Platform;
 using Shared.Infrastructure.Requests;
 using Shared.Infrastructure.Secrets;
 using Shared.Kernel;
@@ -21,7 +22,8 @@ using Shared.Kernel;
 namespace Modules.Receivables;
 
 /// <param name="SefInvoiceIds">At most 50 SEF invoice IDs; or a date range instead.</param>
-public sealed record ImportFromSefRequest(IReadOnlyList<string>? SefInvoiceIds, DateOnly? IssueDateFrom, DateOnly? IssueDateTo);
+/// <param name="SellableOnly">Skip invoices that cannot be listed yet: not approved by the buyer, or maturing within <c>receivables.minDaysAtListing</c>.</param>
+public sealed record ImportFromSefRequest(IReadOnlyList<string>? SefInvoiceIds, DateOnly? IssueDateFrom, DateOnly? IssueDateTo, bool SellableOnly = false);
 
 public sealed record ImportResult(string SefInvoiceId, string Status, Guid? ReceivableId = null, string? Reason = null);
 
@@ -40,6 +42,7 @@ internal sealed partial class ImportService(
     IAuditWriter audit,
     IAccessLog accessLog,
     IRequestContext request,
+    IBusinessParameters parameters,
     TimeProvider timeProvider,
     ILogger<ImportService> logger)
 {
@@ -70,9 +73,14 @@ internal sealed partial class ImportService(
                     $"Send 1 to {MaxBatch} numeric sefInvoiceIds, or issueDateFrom ≤ issueDateTo of at most 31 days.");
             }
 
+            // The earliest maturity a listing accepts (Listing.Open, product-spec.md §parameters).
+            DateOnly? sellableFrom = body.SellableOnly
+                ? DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime)
+                    .AddDays(await parameters.GetAsync(ReceivableParameters.MinDaysAtListing, ReceivableParameters.DefaultMinDaysAtListing, cancellationToken))
+                : null;
             foreach (var id in ids.Distinct())
             {
-                results.Add(await ImportOneAsync(orgId, organization.Pib, apiKey, id, cancellationToken));
+                results.Add(await ImportOneAsync(orgId, organization.Pib, apiKey, id, sellableFrom, cancellationToken));
             }
 
             return Results.Ok(new { results });
@@ -166,7 +174,8 @@ internal sealed partial class ImportService(
         return null;
     }
 
-    private async Task<ImportResult> ImportOneAsync(Guid orgId, string orgPib, string apiKey, long id, CancellationToken cancellationToken)
+    /// <param name="sellableFrom">With <c>sellableOnly</c>: the earliest due date worth importing; null imports everything.</param>
+    private async Task<ImportResult> ImportOneAsync(Guid orgId, string orgPib, string apiKey, long id, DateOnly? sellableFrom, CancellationToken cancellationToken)
     {
         var sefId = id.ToString(CultureInfo.InvariantCulture);
         // SEF first: only invoices this seller's key can see are looked up, so the answer never reveals what other
@@ -179,6 +188,11 @@ internal sealed partial class ImportService(
         if (await ExistingAsync(sefId, cancellationToken) is { } existing)
         {
             return existing;
+        }
+
+        if (sellableFrom is not null && sefInvoice.Status != "Approved")
+        {
+            return new ImportResult(sefId, "Skipped", Reason: "not_approved_by_buyer");
         }
 
         var ubl = await sef.GetSalesInvoiceUblAsync(apiKey, id, cancellationToken);
@@ -196,6 +210,11 @@ internal sealed partial class ImportService(
         {
             LogRejected(logger, sefId, rejection.Reason);
             return new ImportResult(sefId, rejection.Status, Reason: rejection.Reason);
+        }
+
+        if (invoice.DueDate < sellableFrom)
+        {
+            return new ImportResult(sefId, "Skipped", Reason: "matures_too_soon");
         }
 
         var document = await documents.StoreAsync(orgId, DocumentPurpose.InvoiceUbl, $"sef-{sefId}.xml", ubl, cancellationToken);
