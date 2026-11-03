@@ -1,0 +1,2 @@
+# Azure's public built-in role definition ID for Key Vault Secrets Officer, not a secret (the Bicep file was removed with ADR-023).
+a72b1143cefab0b123400184d0535323601372ae:infra/main.bicep:generic-api-key:197
