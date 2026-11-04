@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { authApi } from '../api/auth'
+import { pendingReturnTo, takeReturnTo } from '../auth/returnTo'
 import { ProvisioningView } from '../components/ProvisioningView'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
 
@@ -17,8 +18,16 @@ export function LoginPage() {
     onSuccess: ({ next }) => navigate(next === 'enrol' ? '/mfa/enrol' : '/mfa/verify'),
   })
 
+  const invited = pendingReturnTo()?.startsWith('/invitations/accept') ?? false
+
   return (
     <Card title="Prijava">
+      {invited && (
+        <p className="mb-4 rounded-md border border-line bg-surface p-3 text-sm">
+          Imate poziv u organizaciju. Prijavite se nalogom sa adresom na koju je stigao poziv, a ako
+          ga nemate, registrujte se tom adresom. Poziv se otvara posle prijave.
+        </p>
+      )}
       <form className="space-y-4" onSubmit={(e) => (e.preventDefault(), login.mutate())}>
         <Field
           id="email"
@@ -160,7 +169,7 @@ export function MfaEnrolPage() {
           className="w-full"
           onClick={async () => {
             await queryClient.invalidateQueries({ queryKey: ['me'] })
-            navigate('/')
+            navigate(takeReturnTo())
           }}
         >
           Sačuvao sam kodove
@@ -205,7 +214,7 @@ export function MfaVerifyPage() {
     mutationFn: () => authApi.verify(useRecovery ? null : value, useRecovery ? value : null),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['me'] })
-      navigate('/')
+      navigate(takeReturnTo())
     },
   })
 

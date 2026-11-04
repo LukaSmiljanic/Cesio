@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { useState, type ReactNode } from 'react'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
 import { authApi, type Me } from './api/auth'
+import { rememberReturnTo } from './auth/returnTo'
 import { StepUpProvider } from './auth/StepUpProvider'
 import { AppShell, HomeRedirect } from './components/AppShell'
 import { ActiveOrganizationProvider } from './organizations/ActiveOrganizationProvider'
@@ -49,14 +50,18 @@ import {
 /** Pages behind sign-in with completed MFA, inside the app shell; anyone else goes to the login page. */
 function RequireSession({ children }: { children: (me: Me) => ReactNode }) {
   const me = useQuery({ queryKey: ['me'], queryFn: authApi.me, retry: false })
+  const location = useLocation()
   if (me.isPending) {
     return <p className="p-8 text-sm">Učitavanje...</p>
   }
-  return me.data ? (
-    <AppShell me={me.data}>{children(me.data)}</AppShell>
-  ) : (
-    <Navigate to="/login" replace />
-  )
+  if (!me.data) {
+    // An invitation link opened without a session continues after sign-in (or registration).
+    if (location.pathname === '/invitations/accept') {
+      rememberReturnTo(location.pathname + location.search)
+    }
+    return <Navigate to="/login" replace />
+  }
+  return <AppShell me={me.data}>{children(me.data)}</AppShell>
 }
 
 export function AppRoutes() {
