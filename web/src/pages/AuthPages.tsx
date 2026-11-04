@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { authApi } from '../api/auth'
 import { pendingReturnTo, takeReturnTo } from '../auth/returnTo'
@@ -125,8 +125,15 @@ export function ConfirmEmailPage() {
   const [userId, token] = useLinkValues('userId', 'token')
   const confirm = useMutation({ mutationFn: () => authApi.confirmEmail(userId, token) })
   const { mutate } = confirm
+  const sent = useRef(false)
 
-  useEffect(() => mutate(), [mutate])
+  // The token is single use: send it once, even when React runs the effect twice (StrictMode in development).
+  useEffect(() => {
+    if (!sent.current) {
+      sent.current = true
+      mutate()
+    }
+  }, [mutate])
 
   return (
     <Card title="Potvrda email adrese">
@@ -151,8 +158,15 @@ export function MfaEnrolPage() {
   const start = useMutation({ mutationFn: authApi.startEnrolment })
   const confirm = useMutation({ mutationFn: () => authApi.confirmEnrolment(code) })
   const { mutate: startEnrolment } = start
+  const started = useRef(false)
 
-  useEffect(() => startEnrolment(), [startEnrolment])
+  // Each start replaces the key, so a second concurrent start (StrictMode in development) fails: start once.
+  useEffect(() => {
+    if (!started.current) {
+      started.current = true
+      startEnrolment()
+    }
+  }, [startEnrolment])
 
   if (confirm.data) {
     return (

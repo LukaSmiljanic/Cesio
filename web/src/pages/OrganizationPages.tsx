@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
+import { ApiError } from '../api/client'
 import { organizationsApi, type Member, type Organization } from '../api/organizations'
 import { useStepUp } from '../auth/stepUpContext'
 import { Button, Card, ErrorMessage, Field } from '../components/ui'
@@ -434,12 +435,31 @@ export function AcceptInvitationPage() {
 
   useEffect(() => window.history.replaceState(null, '', window.location.pathname), [])
 
+  // The token leaves the address bar once read, so a reload of this page has none.
+  if (!token) {
+    return (
+      <Card title="Poziv u organizaciju">
+        <p className="text-sm">
+          Link poziva nije potpun. Otvorite ponovo link iz mejla sa pozivom.
+        </p>
+      </Card>
+    )
+  }
+
+  const unknown = accept.error instanceof ApiError && accept.error.status === 404
   return (
     <Card title="Poziv u organizaciju">
       <Button className="w-full" onClick={() => accept.mutate()} disabled={accept.isPending}>
         Prihvati poziv
       </Button>
-      <ErrorMessage error={accept.error} />
+      {unknown ? (
+        <p role="alert" className="rounded-md bg-crit-soft px-3 py-2 text-[13px] text-crit">
+          Poziv nije pronađen: iskorišćen je, istekao je ili je poslat na drugu email adresu.
+          Prijavite se nalogom sa adresom na koju je stigao poziv.
+        </p>
+      ) : (
+        <ErrorMessage error={accept.error} />
+      )}
     </Card>
   )
 }

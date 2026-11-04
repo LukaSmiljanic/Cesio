@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Modules.Audit.Contracts;
 using Modules.Notifications.Contracts;
@@ -53,7 +54,7 @@ public static class TermsVersions
 /// Organization commands (task 005). Each runs in the unit-of-work transaction (opened by the idempotency
 /// middleware for these endpoints) together with its audit event and, for submit, its outbox event.
 /// </summary>
-internal sealed class OrganizationService(
+internal sealed partial class OrganizationService(
     OrgsDbContext orgs,
     UnitOfWork unitOfWork,
     IAuditWriter audit,
@@ -64,7 +65,8 @@ internal sealed class OrganizationService(
     IUserDirectory userDirectory,
     IPlatformRoles platformRoles,
     IOptions<OrganizationOptions> options,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<OrganizationService> logger)
 {
     public const string MaxSellerMembersParameter = "orgs.maxSellerMembers";
 
@@ -361,6 +363,7 @@ internal sealed class OrganizationService(
 
         if (string.IsNullOrWhiteSpace(body.Token) || body.Token.Length > 100)
         {
+            LogInvitationRefused(logger, "token_missing_or_too_long");
             return Results.NotFound();
         }
 
@@ -371,6 +374,7 @@ internal sealed class OrganizationService(
         var userEmail = await userDirectory.GetEmailAsync(UserId, cancellationToken);
         if (invitation is null || !string.Equals(invitation.Email, userEmail, StringComparison.OrdinalIgnoreCase))
         {
+            LogInvitationRefused(logger, invitation is null ? "no_open_invitation_for_token" : "signed_in_email_differs");
             return Results.NotFound();
         }
 
@@ -733,6 +737,10 @@ internal sealed class OrganizationService(
     private static ETagResult WithETag(object value, int version) => new(Results.Ok(value), version);
 
     private static string NewToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+
+    /// <summary>Why an invitation was refused, for support; never the token or an email address (security.md §8).</summary>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Invitation refused: {Reason}")]
+    private static partial void LogInvitationRefused(ILogger logger, string reason);
 
     private static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
